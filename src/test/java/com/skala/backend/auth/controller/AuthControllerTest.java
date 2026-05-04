@@ -50,6 +50,19 @@ class AuthControllerTest {
 	}
 
 	@Test
+	void 회원가입은_수정된_권한값을_허용한다() throws Exception {
+		for (String roleCode : new String[] {"admin", "hq", "site", "agent"}) {
+			Map<String, String> request = signupRequest(roleCode);
+
+			mockMvc.perform(post("/auth/signup")
+							.contentType(MediaType.APPLICATION_JSON)
+							.content(objectMapper.writeValueAsString(request)))
+					.andExpect(status().isCreated())
+					.andExpect(jsonPath("$.data.user.roleCode").value(roleCode));
+		}
+	}
+
+	@Test
 	void 이미_존재하는_사번으로_회원가입하면_409를_반환한다() throws Exception {
 		Map<String, String> request = signupRequest();
 		String content = objectMapper.writeValueAsString(request);
@@ -73,7 +86,7 @@ class AuthControllerTest {
 				"employeeNo", "EMP-" + UUID.randomUUID(),
 				"realName", "홍길동",
 				"password", "short",
-				"roleCode", "user"
+				"roleCode", "site"
 		);
 
 		mockMvc.perform(post("/auth/signup")
@@ -161,11 +174,15 @@ class AuthControllerTest {
 	}
 
 	private Map<String, String> signupRequest() {
+		return signupRequest("site");
+	}
+
+	private Map<String, String> signupRequest(String roleCode) {
 		return Map.of(
 				"employeeNo", "EMP-" + UUID.randomUUID(),
 				"realName", "홍길동",
 				"password", "P@ssw0rd123!",
-				"roleCode", "user"
+				"roleCode", roleCode
 		);
 	}
 }
