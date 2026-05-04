@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,8 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -137,6 +141,23 @@ class AuthControllerTest {
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.success").value(false))
 				.andExpect(jsonPath("$.message").value("사번 또는 비밀번호가 일치하지 않습니다."));
+	}
+
+	@Test
+	void 로그아웃에_성공하면_인증_쿠키를_만료한다() throws Exception {
+		mockMvc.perform(post("/auth/logout"))
+				.andExpect(status().isOk())
+				.andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+						containsString("access_token="),
+						containsString("Max-Age=0"),
+						containsString("Path=/"),
+						containsString("HttpOnly"),
+						containsString("Secure"),
+						containsString("SameSite=Lax")
+				)))
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data").doesNotExist())
+				.andExpect(jsonPath("$.message").value("로그아웃에 성공했습니다."));
 	}
 
 	private Map<String, String> signupRequest() {
