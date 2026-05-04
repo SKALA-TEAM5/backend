@@ -1,3 +1,21 @@
 spring:
   application:
     name: backend
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:safety}?currentSchema=service
+    username: ${SERVICE_APP_USER:safety_service_app}
+    password: ${SERVICE_APP_PASSWORD:safety_service_app_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+app:
+  file-storage:
+    # Local dev upload root. Keep files under repository ./volumes/upload.
+    upload-root: ${APP_FILE_UPLOAD_ROOT:../volumes/upload}
