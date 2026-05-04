@@ -2,6 +2,7 @@ package com.skala.backend.project.service;
 
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.domain.Project;
+import com.skala.backend.project.domain.ProjectSort;
 import com.skala.backend.project.domain.ProjectStatusCode;
 import com.skala.backend.project.domain.ProjectUserAssignment;
 import com.skala.backend.project.dto.ProjectAssigneeListResponse;
@@ -12,6 +13,7 @@ import com.skala.backend.project.dto.ProjectDetailDataResponse;
 import com.skala.backend.project.dto.ProjectDetailResponse;
 import com.skala.backend.project.dto.ProjectListResponse;
 import com.skala.backend.project.dto.ProjectUpdateRequest;
+import com.skala.backend.project.repository.ProjectCardRow;
 import com.skala.backend.project.repository.ProjectRepository;
 import com.skala.backend.project.repository.ProjectUserAssignmentRepository;
 import com.skala.backend.user.domain.RoleCode;
@@ -19,7 +21,6 @@ import com.skala.backend.user.domain.User;
 import com.skala.backend.user.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,16 +65,18 @@ public class ProjectService {
 			Integer size
 	) {
 		User currentUser = requireCurrentUser(accessToken);
+		requireProjectWorkAccessible(currentUser);
 		validateDateRange(periodFrom, periodTo);
 		int pageNumber = validatePage(page);
 		int pageSize = validateSize(size);
+		ProjectSort projectSort = ProjectSort.from(sort);
 
 		if (!canManageProjects(currentUser) && assigneeUserId != null) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 
 		Long visibleUserId = canManageProjects(currentUser) ? null : currentUser.getId();
-		Page<Project> result = projectRepository.search(
+		Page<ProjectCardRow> result = projectRepository.searchCards(
 				containsPattern(keyword),
 				containsPattern(projectName),
 				containsPattern(contractNo),
@@ -82,12 +85,14 @@ public class ProjectService {
 				periodFrom,
 				periodTo,
 				visibleUserId,
-				PageRequest.of(pageNumber - 1, pageSize)
+				projectSort,
+				pageNumber,
+				pageSize
 		);
 
 		List<ProjectCardResponse> items = result.getContent()
 				.stream()
-				.map(this::toCardResponse)
+				.map(ProjectCardResponse::from)
 				.toList();
 
 		return new ProjectListResponse(
@@ -249,6 +254,12 @@ public class ProjectService {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 		return user;
+	}
+
+	private void requireProjectWorkAccessible(User user) {
+		if (user.getRoleCode() == RoleCode.ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
 	}
 
 	private void requireProjectReadable(User currentUser, Long projectId) {
