@@ -7,7 +7,8 @@ import java.util.Arrays;
 
 public enum RoleCode {
 	ADMIN("admin"),
-	USER("user"),
+	HQ("hq"),
+	SITE("site"),
 	AGENT("agent");
 
 	private final String value;

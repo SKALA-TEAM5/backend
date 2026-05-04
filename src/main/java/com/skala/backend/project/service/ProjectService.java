@@ -68,11 +68,11 @@ public class ProjectService {
 		int pageNumber = validatePage(page);
 		int pageSize = validateSize(size);
 
-		if (currentUser.getRoleCode() != RoleCode.ADMIN && assigneeUserId != null) {
+		if (!canManageProjects(currentUser) && assigneeUserId != null) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 
-		Long visibleUserId = currentUser.getRoleCode() == RoleCode.ADMIN ? null : currentUser.getId();
+		Long visibleUserId = canManageProjects(currentUser) ? null : currentUser.getId();
 		Page<Project> result = projectRepository.search(
 				containsPattern(keyword),
 				containsPattern(projectName),
@@ -101,7 +101,7 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectDetailDataResponse createProject(String accessToken, ProjectCreateRequest request) {
-		requireAdmin(accessToken);
+		requireProjectManager(accessToken);
 		validateDateRange(request.constructionStartDate(), request.constructionEndDate());
 
 		Project project = Project.create(
@@ -131,7 +131,7 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectDetailDataResponse updateProject(String accessToken, Long projectId, ProjectUpdateRequest request) {
-		requireAdmin(accessToken);
+		requireProjectManager(accessToken);
 		if (request.isEmpty()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "수정할 값이 없습니다.");
 		}
@@ -144,7 +144,7 @@ public class ProjectService {
 
 	@Transactional
 	public void deleteProject(String accessToken, Long projectId) {
-		requireAdmin(accessToken);
+		requireProjectManager(accessToken);
 		Project project = findProject(projectId);
 		try {
 			assignmentRepository.deleteByProjectId(projectId);
@@ -165,7 +165,7 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectAssigneeListResponse replaceAssignees(String accessToken, Long projectId, List<Long> assigneeUserIds) {
-		User admin = requireAdmin(accessToken);
+		User assignedBy = requireProjectManager(accessToken);
 		Project project = findProject(projectId);
 		List<Long> userIds = validateAssigneeIds(assigneeUserIds);
 
@@ -173,7 +173,7 @@ public class ProjectService {
 		assignmentRepository.flush();
 		for (Long userId : userIds) {
 			User user = findUser(userId);
-			assignmentRepository.save(ProjectUserAssignment.create(project, user, admin));
+			assignmentRepository.save(ProjectUserAssignment.create(project, user, assignedBy));
 		}
 
 		return assigneeListResponse(projectId);
@@ -181,7 +181,7 @@ public class ProjectService {
 
 	@Transactional
 	public void addAssignee(String accessToken, Long projectId, Long userId) {
-		User admin = requireAdmin(accessToken);
+		User assignedBy = requireProjectManager(accessToken);
 		Project project = findProject(projectId);
 		User user = findUser(userId);
 
@@ -189,12 +189,12 @@ public class ProjectService {
 			throw new ApiException(HttpStatus.CONFLICT, "이미 할당된 담당자입니다.");
 		}
 
-		assignmentRepository.save(ProjectUserAssignment.create(project, user, admin));
+		assignmentRepository.save(ProjectUserAssignment.create(project, user, assignedBy));
 	}
 
 	@Transactional
 	public void removeAssignee(String accessToken, Long projectId, Long userId) {
-		requireAdmin(accessToken);
+		requireProjectManager(accessToken);
 		findProject(projectId);
 		ProjectUserAssignment assignment = assignmentRepository.findByProjectIdAndUserId(projectId, userId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "할당 정보를 찾을 수 없습니다."));
@@ -243,21 +243,25 @@ public class ProjectService {
 		if (request.status() != null) project.updateStatus(request.status());
 	}
 
-	private User requireAdmin(String accessToken) {
+	private User requireProjectManager(String accessToken) {
 		User user = requireCurrentUser(accessToken);
-		if (user.getRoleCode() != RoleCode.ADMIN) {
+		if (!canManageProjects(user)) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 		return user;
 	}
 
 	private void requireProjectReadable(User currentUser, Long projectId) {
-		if (currentUser.getRoleCode() == RoleCode.ADMIN) {
+		if (canManageProjects(currentUser)) {
 			return;
 		}
 		if (!assignmentRepository.existsByProjectIdAndUserId(projectId, currentUser.getId())) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
+	}
+
+	private boolean canManageProjects(User user) {
+		return user.getRoleCode() == RoleCode.HQ || user.getRoleCode() == RoleCode.AGENT;
 	}
 
 	private User requireCurrentUser(String accessToken) {
