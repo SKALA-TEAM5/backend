@@ -51,6 +51,18 @@ public class User {
 		return new User(employeeNo, realName, passwordHash, roleCode);
 	}
 
+	public void updateRealName(String realName) {
+		this.realName = realName;
+	}
+
+	public void changePassword(String passwordHash) {
+		this.passwordHash = passwordHash;
+	}
+
+	public void changeRole(RoleCode roleCode) {
+		this.roleCode = roleCode;
+	}
+
 	@PrePersist
 	void prePersist() {
 		Instant now = Instant.now();

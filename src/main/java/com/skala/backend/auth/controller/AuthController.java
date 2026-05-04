@@ -34,7 +34,17 @@ public class AuthController {
 	@PostMapping("/login")
 	public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
 		AuthResponse response = authService.login(request);
-		return ResponseEntity.ok(ApiResponse.success(response, "로그인에 성공했습니다."));
+		ResponseCookie accessTokenCookie = ResponseCookie.from("access_token", response.user().id().toString())
+				.httpOnly(true)
+				.secure(true)
+				.sameSite("Lax")
+				.path("/")
+				.maxAge(3600)
+				.build();
+
+		return ResponseEntity.ok()
+				.header(HttpHeaders.SET_COOKIE, accessTokenCookie.toString())
+				.body(ApiResponse.success(response, "로그인에 성공했습니다."));
 	}
 
 	@PostMapping("/logout")
