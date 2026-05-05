@@ -2,9 +2,11 @@ package com.skala.backend.project.domain;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Arrays;
 
+@Schema(description = "프로젝트 상태 코드", allowableValues = {"active", "completed", "suspended"})
 public enum ProjectStatusCode {
 	ACTIVE("active"),
 	COMPLETED("completed"),

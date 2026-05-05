@@ -2,9 +2,11 @@ package com.skala.backend.user.domain;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Arrays;
 
+@Schema(description = "사용자 역할 코드", allowableValues = {"admin", "hq", "site", "agent"})
 public enum RoleCode {
 	ADMIN("admin"),
 	HQ("hq"),
