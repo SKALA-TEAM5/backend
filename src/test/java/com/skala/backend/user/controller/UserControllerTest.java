@@ -506,14 +506,17 @@ class UserControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
 						containsString("access_token="),
-						containsString("Max-Age=3600"),
+						containsString("Max-Age=900"),
 						containsString("Path=/"),
 						containsString("HttpOnly")
 				)))
 				.andReturn();
 
-		Cookie cookie = result.getResponse().getCookie("access_token");
-		assertThat(cookie).isNotNull();
+		Cookie accessToken = result.getResponse().getCookie("access_token");
+		Cookie refreshToken = result.getResponse().getCookie("refresh_token");
+		assertThat(accessToken).isNotNull();
+		assertThat(accessToken.getValue()).contains(".");
+		assertThat(refreshToken).isNotNull();
 	}
 
 	@Test

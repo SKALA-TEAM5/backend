@@ -52,7 +52,7 @@ public class ProjectService {
 
 	@Transactional(readOnly = true)
 	public ProjectListResponse listProjects(
-			String accessToken,
+			Long currentUserId,
 			String keyword,
 			String projectName,
 			String contractNo,
@@ -64,7 +64,7 @@ public class ProjectService {
 			Integer page,
 			Integer size
 	) {
-		User currentUser = requireCurrentUser(accessToken);
+		User currentUser = requireCurrentUser(currentUserId);
 		requireProjectWorkAccessible(currentUser);
 		validateDateRange(periodFrom, periodTo);
 		int pageNumber = validatePage(page);
@@ -105,8 +105,8 @@ public class ProjectService {
 	}
 
 	@Transactional
-	public ProjectDetailDataResponse createProject(String accessToken, ProjectCreateRequest request) {
-		requireProjectManager(accessToken);
+	public ProjectDetailDataResponse createProject(Long currentUserId, ProjectCreateRequest request) {
+		requireProjectManager(currentUserId);
 		validateDateRange(request.constructionStartDate(), request.constructionEndDate());
 
 		Project project = Project.create(
@@ -127,16 +127,16 @@ public class ProjectService {
 	}
 
 	@Transactional(readOnly = true)
-	public ProjectDetailDataResponse getProject(String accessToken, Long projectId) {
-		User currentUser = requireCurrentUser(accessToken);
+	public ProjectDetailDataResponse getProject(Long currentUserId, Long projectId) {
+		User currentUser = requireCurrentUser(currentUserId);
 		Project project = findProject(projectId);
 		requireProjectReadable(currentUser, projectId);
 		return toDetailDataResponse(project);
 	}
 
 	@Transactional
-	public ProjectDetailDataResponse updateProject(String accessToken, Long projectId, ProjectUpdateRequest request) {
-		requireProjectManager(accessToken);
+	public ProjectDetailDataResponse updateProject(Long currentUserId, Long projectId, ProjectUpdateRequest request) {
+		requireProjectManager(currentUserId);
 		if (request.isEmpty()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "수정할 값이 없습니다.");
 		}
@@ -148,8 +148,8 @@ public class ProjectService {
 	}
 
 	@Transactional
-	public void deleteProject(String accessToken, Long projectId) {
-		requireProjectManager(accessToken);
+	public void deleteProject(Long currentUserId, Long projectId) {
+		requireProjectManager(currentUserId);
 		Project project = findProject(projectId);
 		try {
 			assignmentRepository.deleteByProjectId(projectId);
@@ -161,16 +161,16 @@ public class ProjectService {
 	}
 
 	@Transactional(readOnly = true)
-	public ProjectAssigneeListResponse listAssignees(String accessToken, Long projectId) {
-		User currentUser = requireCurrentUser(accessToken);
+	public ProjectAssigneeListResponse listAssignees(Long currentUserId, Long projectId) {
+		User currentUser = requireCurrentUser(currentUserId);
 		findProject(projectId);
 		requireProjectReadable(currentUser, projectId);
 		return assigneeListResponse(projectId);
 	}
 
 	@Transactional
-	public ProjectAssigneeListResponse replaceAssignees(String accessToken, Long projectId, List<Long> assigneeUserIds) {
-		User assignedBy = requireProjectManager(accessToken);
+	public ProjectAssigneeListResponse replaceAssignees(Long currentUserId, Long projectId, List<Long> assigneeUserIds) {
+		User assignedBy = requireProjectManager(currentUserId);
 		Project project = findProject(projectId);
 		List<Long> userIds = validateAssigneeIds(assigneeUserIds);
 
@@ -185,8 +185,8 @@ public class ProjectService {
 	}
 
 	@Transactional
-	public void addAssignee(String accessToken, Long projectId, Long userId) {
-		User assignedBy = requireProjectManager(accessToken);
+	public void addAssignee(Long currentUserId, Long projectId, Long userId) {
+		User assignedBy = requireProjectManager(currentUserId);
 		Project project = findProject(projectId);
 		User user = findUser(userId);
 
@@ -198,8 +198,8 @@ public class ProjectService {
 	}
 
 	@Transactional
-	public void removeAssignee(String accessToken, Long projectId, Long userId) {
-		requireProjectManager(accessToken);
+	public void removeAssignee(Long currentUserId, Long projectId, Long userId) {
+		requireProjectManager(currentUserId);
 		findProject(projectId);
 		ProjectUserAssignment assignment = assignmentRepository.findByProjectIdAndUserId(projectId, userId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "할당 정보를 찾을 수 없습니다."));
@@ -248,8 +248,8 @@ public class ProjectService {
 		if (request.status() != null) project.updateStatus(request.status());
 	}
 
-	private User requireProjectManager(String accessToken) {
-		User user = requireCurrentUser(accessToken);
+	private User requireProjectManager(Long currentUserId) {
+		User user = requireCurrentUser(currentUserId);
 		if (!canManageProjects(user)) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
@@ -275,18 +275,13 @@ public class ProjectService {
 		return user.getRoleCode() == RoleCode.HQ || user.getRoleCode() == RoleCode.AGENT;
 	}
 
-	private User requireCurrentUser(String accessToken) {
-		if (!StringUtils.hasText(accessToken)) {
+	private User requireCurrentUser(Long currentUserId) {
+		if (currentUserId == null) {
 			throw new ApiException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.");
 		}
 
-		try {
-			Long userId = Long.parseLong(accessToken);
-			return userRepository.findById(userId)
-					.orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
-		} catch (NumberFormatException exception) {
-			throw new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다.");
-		}
+		return userRepository.findById(currentUserId)
+				.orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
 	}
 
 	private Project findProject(Long projectId) {

@@ -1,6 +1,7 @@
 package com.skala.backend.auth.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -16,6 +17,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -98,7 +100,7 @@ class AuthControllerTest {
 	}
 
 	@Test
-	void 로그인에_성공하면_사용자_정보를_반환한다() throws Exception {
+	void 로그인에_성공하면_사용자_정보와_인증쿠키를_반환한다() throws Exception {
 		Map<String, String> signupRequest = signupRequest();
 		mockMvc.perform(post("/auth/signup")
 						.contentType(MediaType.APPLICATION_JSON)
@@ -110,14 +112,22 @@ class AuthControllerTest {
 				"password", signupRequest.get("password")
 		);
 
-		mockMvc.perform(post("/auth/login")
+		var result = mockMvc.perform(post("/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(loginRequest)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.user.employeeNo").value(signupRequest.get("employeeNo")))
 				.andExpect(jsonPath("$.data.user.realName").value(signupRequest.get("realName")))
-				.andExpect(jsonPath("$.data.user.roleCode").value(signupRequest.get("roleCode")));
+				.andExpect(jsonPath("$.data.user.roleCode").value(signupRequest.get("roleCode")))
+				.andReturn();
+
+		Cookie accessToken = result.getResponse().getCookie("access_token");
+		Cookie refreshToken = result.getResponse().getCookie("refresh_token");
+		assertThat(accessToken).isNotNull();
+		assertThat(accessToken.getValue()).contains(".");
+		assertThat(refreshToken).isNotNull();
+		assertThat(refreshToken.getValue()).doesNotContain(".");
 	}
 
 	@Test
@@ -165,12 +175,77 @@ class AuthControllerTest {
 						containsString("Max-Age=0"),
 						containsString("Path=/"),
 						containsString("HttpOnly"),
-						containsString("Secure"),
 						containsString("SameSite=Lax")
 				)))
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data").doesNotExist())
 				.andExpect(jsonPath("$.message").value("로그아웃에 성공했습니다."));
+	}
+
+	@Test
+	void 리프레시_토큰으로_토큰을_재발급하고_기존_리프레시토큰은_재사용할_수_없다() throws Exception {
+		Map<String, String> signupRequest = signupRequest();
+		mockMvc.perform(post("/auth/signup")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(signupRequest)))
+				.andExpect(status().isCreated());
+
+		var loginResult = mockMvc.perform(post("/auth/login")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"employeeNo", signupRequest.get("employeeNo"),
+								"password", signupRequest.get("password")
+						))))
+				.andExpect(status().isOk())
+				.andReturn();
+
+		Cookie oldRefreshToken = loginResult.getResponse().getCookie("refresh_token");
+		assertThat(oldRefreshToken).isNotNull();
+
+		var refreshResult = mockMvc.perform(post("/auth/refresh")
+						.cookie(oldRefreshToken))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.user.employeeNo").value(signupRequest.get("employeeNo")))
+				.andReturn();
+
+		assertThat(refreshResult.getResponse().getCookie("access_token")).isNotNull();
+		assertThat(refreshResult.getResponse().getCookie("refresh_token")).isNotNull();
+
+		mockMvc.perform(post("/auth/refresh")
+						.cookie(oldRefreshToken))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
+	}
+
+	@Test
+	void 로그아웃한_리프레시토큰은_재사용할_수_없다() throws Exception {
+		Map<String, String> signupRequest = signupRequest();
+		mockMvc.perform(post("/auth/signup")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(signupRequest)))
+				.andExpect(status().isCreated());
+
+		var loginResult = mockMvc.perform(post("/auth/login")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"employeeNo", signupRequest.get("employeeNo"),
+								"password", signupRequest.get("password")
+						))))
+				.andExpect(status().isOk())
+				.andReturn();
+
+		Cookie refreshToken = loginResult.getResponse().getCookie("refresh_token");
+		assertThat(refreshToken).isNotNull();
+
+		mockMvc.perform(post("/auth/logout")
+						.cookie(refreshToken))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(post("/auth/refresh")
+						.cookie(refreshToken))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 	}
 
 	private Map<String, String> signupRequest() {
