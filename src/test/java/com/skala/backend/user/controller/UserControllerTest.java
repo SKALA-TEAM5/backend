@@ -43,8 +43,8 @@ class UserControllerTest {
 	JdbcTemplate jdbcTemplate;
 
 	@Test
-	void 시스템_admin은_사용자_계정을_CRUD_할_수_있다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin은_사용자_계정을_CRUD_할_수_있다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 		String employeeNo = "EMP-" + UUID.randomUUID();
 
 		MvcResult createResult = mockMvc.perform(post("/users")
@@ -54,13 +54,13 @@ class UserControllerTest {
 								"employeeNo", employeeNo,
 								"realName", "김담당",
 								"password", "P@ssw0rd123!",
-								"roleCode", "site"
+								"roleCode", "user"
 						))))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.user.employeeNo").value(employeeNo))
 				.andExpect(jsonPath("$.data.user.realName").value("김담당"))
-				.andExpect(jsonPath("$.data.user.roleCode").value("site"))
+				.andExpect(jsonPath("$.data.user.roleCode").value("user"))
 				.andExpect(jsonPath("$.data.user.password").doesNotExist())
 				.andExpect(jsonPath("$.data.user.passwordHash").doesNotExist())
 				.andReturn();
@@ -69,7 +69,7 @@ class UserControllerTest {
 
 		mockMvc.perform(get("/users")
 						.cookie(adminCookie)
-						.param("roleCode", "site")
+						.param("roleCode", "user")
 						.param("keyword", employeeNo))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
@@ -103,10 +103,10 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 시스템_admin은_사용자를_생성할_때_권한을_부여할_수_있다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin은_사용자를_생성할_때_권한을_부여할_수_있다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 
-		for (String roleCode : new String[] {"admin", "hq", "site", "agent"}) {
+		for (String roleCode : new String[] {"system_admin", "admin", "user", "agent"}) {
 			mockMvc.perform(post("/users")
 							.cookie(adminCookie)
 							.contentType(MediaType.APPLICATION_JSON)
@@ -122,22 +122,22 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 시스템_admin은_사용자_목록을_권한과_키워드로_필터링할_수_있다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin은_사용자_목록을_권한과_키워드로_필터링할_수_있다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 		String targetEmployeeNo = "EMP-" + UUID.randomUUID();
 
-		createUserByAdmin(adminCookie, targetEmployeeNo, "검색대상", "site");
+		createUserByAdmin(adminCookie, targetEmployeeNo, "검색대상", "user");
 		createUserByAdmin(adminCookie, "EMP-" + UUID.randomUUID(), "검색대상", "agent");
-		createUserByAdmin(adminCookie, "EMP-" + UUID.randomUUID(), "다른이름", "site");
+		createUserByAdmin(adminCookie, "EMP-" + UUID.randomUUID(), "다른이름", "user");
 
 		mockMvc.perform(get("/users")
 						.cookie(adminCookie)
-						.param("roleCode", "site")
+						.param("roleCode", "user")
 						.param("keyword", "검색대상"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
 				.andExpect(jsonPath("$.data.items[0].employeeNo").value(targetEmployeeNo))
-				.andExpect(jsonPath("$.data.items[0].roleCode").value("site"));
+				.andExpect(jsonPath("$.data.items[0].roleCode").value("user"));
 
 		mockMvc.perform(get("/users")
 						.cookie(adminCookie)
@@ -148,12 +148,12 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 시스템_admin은_사용자_비밀번호를_변경할_수_있고_기존_비밀번호는_더_이상_동작하지_않는다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin은_사용자_비밀번호를_변경할_수_있고_기존_비밀번호는_더_이상_동작하지_않는다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 		String employeeNo = "EMP-" + UUID.randomUUID();
 		String oldPassword = "P@ssw0rd123!";
 		String newPassword = "N3wP@ssw0rd!";
-		Integer userId = createUserByAdmin(adminCookie, employeeNo, "비밀번호변경대상", "site");
+		Integer userId = createUserByAdmin(adminCookie, employeeNo, "비밀번호변경대상", "user");
 
 		mockMvc.perform(patch("/users/{userId}", userId)
 						.cookie(adminCookie)
@@ -181,11 +181,11 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 시스템_admin의_사용자_생성은_사번_중복과_유효하지_않은_요청을_거부한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin의_사용자_생성은_사번_중복과_유효하지_않은_요청을_거부한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 		String employeeNo = "EMP-" + UUID.randomUUID();
 
-		createUserByAdmin(adminCookie, employeeNo, "중복대상", "site");
+		createUserByAdmin(adminCookie, employeeNo, "중복대상", "user");
 
 		mockMvc.perform(post("/users")
 						.cookie(adminCookie)
@@ -194,7 +194,7 @@ class UserControllerTest {
 								"employeeNo", employeeNo,
 								"realName", "중복대상2",
 								"password", "P@ssw0rd123!",
-								"roleCode", "site"
+								"roleCode", "user"
 						))))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value("이미 존재하는 사번입니다."));
@@ -206,15 +206,15 @@ class UserControllerTest {
 								"employeeNo", "EMP-" + UUID.randomUUID(),
 								"realName", "짧은비밀번호",
 								"password", "short",
-								"roleCode", "site"
+								"roleCode", "user"
 						))))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(containsString("password:")));
 	}
 
 	@Test
-	void 시스템_admin의_사용자_생성은_필수값_누락과_공백값을_거부한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin의_사용자_생성은_필수값_누락과_공백값을_거부한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 
 		mockMvc.perform(post("/users")
 						.cookie(adminCookie)
@@ -222,7 +222,7 @@ class UserControllerTest {
 						.content(objectMapper.writeValueAsString(Map.of(
 								"realName", "사번없음",
 								"password", "P@ssw0rd123!",
-								"roleCode", "site"
+								"roleCode", "user"
 						))))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(containsString("employeeNo:")));
@@ -234,7 +234,7 @@ class UserControllerTest {
 								"employeeNo", "   ",
 								"realName", "공백사번",
 								"password", "P@ssw0rd123!",
-								"roleCode", "site"
+								"roleCode", "user"
 						))))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(containsString("employeeNo:")));
@@ -252,8 +252,8 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 시스템_admin의_사용자_생성은_길이_제약을_검증한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin의_사용자_생성은_길이_제약을_검증한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 
 		mockMvc.perform(post("/users")
 						.cookie(adminCookie)
@@ -262,7 +262,7 @@ class UserControllerTest {
 								"employeeNo", "E".repeat(51),
 								"realName", "길이검증",
 								"password", "P@ssw0rd123!",
-								"roleCode", "site"
+								"roleCode", "user"
 						))))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(containsString("employeeNo:")));
@@ -274,15 +274,15 @@ class UserControllerTest {
 								"employeeNo", "EMP-" + UUID.randomUUID(),
 								"realName", "가".repeat(101),
 								"password", "P@ssw0rd123!",
-								"roleCode", "site"
+								"roleCode", "user"
 						))))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(containsString("realName:")));
 	}
 
 	@Test
-	void users_API는_이전_user_권한값을_거부한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void users_API는_알_수_없는_권한값을_거부한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 
 		mockMvc.perform(post("/users")
 						.cookie(adminCookie)
@@ -291,21 +291,21 @@ class UserControllerTest {
 								"employeeNo", "EMP-" + UUID.randomUUID(),
 								"realName", "이전권한",
 								"password", "P@ssw0rd123!",
-								"roleCode", "user"
+								"roleCode", "unknown"
 						))))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value("요청 본문을 읽을 수 없습니다."));
 
 		mockMvc.perform(get("/users")
 						.cookie(adminCookie)
-						.param("roleCode", "user"))
+						.param("roleCode", "unknown"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value("잘못된 요청 파라미터입니다."));
 	}
 
 	@Test
-	void 시스템_admin의_사용자_수정은_빈_본문과_존재하지_않는_사용자를_거부한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin의_사용자_수정은_빈_본문과_존재하지_않는_사용자를_거부한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 
 		mockMvc.perform(patch("/users/{userId}", 999_999_999L)
 						.cookie(adminCookie)
@@ -323,9 +323,9 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 시스템_admin의_사용자_수정은_공백이름_짧은비밀번호_유효하지_않은권한을_거부한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		Integer userId = createUserByAdmin(adminCookie, "EMP-" + UUID.randomUUID(), "수정검증대상", "site");
+	void system_admin의_사용자_수정은_공백이름_짧은비밀번호_유효하지_않은권한을_거부한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
+		Integer userId = createUserByAdmin(adminCookie, "EMP-" + UUID.randomUUID(), "수정검증대상", "user");
 
 		mockMvc.perform(patch("/users/{userId}", userId)
 						.cookie(adminCookie)
@@ -344,16 +344,16 @@ class UserControllerTest {
 		mockMvc.perform(patch("/users/{userId}", userId)
 						.cookie(adminCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("roleCode", "user"))))
+						.content(objectMapper.writeValueAsString(Map.of("roleCode", "unknown"))))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value("요청 본문을 읽을 수 없습니다."));
 	}
 
 	@Test
-	void 시스템_admin은_사용자_목록검색_키워드의_앞뒤_공백을_무시한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin은_사용자_목록검색_키워드의_앞뒤_공백을_무시한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 		String employeeNo = "EMP-" + UUID.randomUUID();
-		createUserByAdmin(adminCookie, employeeNo, "공백검색대상", "site");
+		createUserByAdmin(adminCookie, employeeNo, "공백검색대상", "user");
 
 		mockMvc.perform(get("/users")
 						.cookie(adminCookie)
@@ -364,8 +364,8 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 시스템_admin의_사용자_삭제는_존재하지_않는_사용자를_거부한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
+	void system_admin의_사용자_삭제는_존재하지_않는_사용자를_거부한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
 
 		mockMvc.perform(delete("/users/{userId}", 999_999_999L)
 						.cookie(adminCookie))
@@ -374,13 +374,17 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 시스템_admin이_아니면_사용자_관리_API에_접근할_수_없다() throws Exception {
-		for (String roleCode : new String[] {"hq", "site", "agent"}) {
+	void system_admin이_아니면_사용자_관리_API에_접근할_수_없다() throws Exception {
+		for (String roleCode : new String[] {"user", "agent"}) {
 			Cookie cookie = loginCookie(createUser(roleCode));
 
 			mockMvc.perform(get("/users").cookie(cookie))
 					.andExpect(status().isForbidden())
 					.andExpect(jsonPath("$.message").value("권한이 없습니다."));
+		}
+
+		for (String roleCode : new String[] {"admin", "user", "agent"}) {
+			Cookie cookie = loginCookie(createUser(roleCode));
 
 			mockMvc.perform(post("/users")
 							.cookie(cookie)
@@ -389,7 +393,7 @@ class UserControllerTest {
 									"employeeNo", "EMP-" + UUID.randomUUID(),
 									"realName", "권한없음",
 									"password", "P@ssw0rd123!",
-									"roleCode", "site"
+									"roleCode", "user"
 							))))
 					.andExpect(status().isForbidden());
 		}
@@ -416,7 +420,7 @@ class UserControllerTest {
 
 	@Test
 	void 로그인_사용자는_내_프로필을_조회하고_탈퇴할_수_있다() throws Exception {
-		Map<String, String> signupRequest = createUser("site");
+		Map<String, String> signupRequest = createUser("user");
 		Cookie userCookie = loginCookie(signupRequest);
 
 		mockMvc.perform(get("/users/me").cookie(userCookie))
@@ -448,7 +452,7 @@ class UserControllerTest {
 
 	@Test
 	void 내_프로필_탈퇴는_비밀번호_필수값을_검증한다() throws Exception {
-		Cookie userCookie = loginCookie(createUser("site"));
+		Cookie userCookie = loginCookie(createUser("user"));
 
 		mockMvc.perform(delete("/users/me")
 						.cookie(userCookie)
@@ -466,13 +470,13 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 프로젝트에_연결된_사용자는_admin_삭제가_충돌난다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		Map<String, String> site = createUser("site");
-		Integer siteUserId = readUserIdFromLogin(site);
-		insertProjectAssignment(siteUserId);
+	void 프로젝트에_연결된_사용자는_system_admin_삭제가_충돌난다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
+		Map<String, String> user = createUser("user");
+		Integer projectUserId = readUserIdFromLogin(user);
+		insertProjectAssignment(projectUserId);
 
-		mockMvc.perform(delete("/users/{userId}", siteUserId)
+		mockMvc.perform(delete("/users/{userId}", projectUserId)
 				.cookie(adminCookie))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value("연결된 데이터가 있어 사용자를 삭제할 수 없습니다."));
@@ -480,22 +484,22 @@ class UserControllerTest {
 
 	@Test
 	void 프로젝트에_연결된_사용자는_본인탈퇴가_충돌난다() throws Exception {
-		Map<String, String> site = createUser("site");
-		Cookie siteCookie = loginCookie(site);
-		Integer siteUserId = readUserIdFromLogin(site);
-		insertProjectAssignment(siteUserId);
+		Map<String, String> user = createUser("user");
+		Cookie userCookie = loginCookie(user);
+		Integer projectUserId = readUserIdFromLogin(user);
+		insertProjectAssignment(projectUserId);
 
 		mockMvc.perform(delete("/users/me")
-						.cookie(siteCookie)
+						.cookie(userCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("password", site.get("password")))))
+						.content(objectMapper.writeValueAsString(Map.of("password", user.get("password")))))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value("연결된 데이터가 있어 사용자를 삭제할 수 없습니다."));
 	}
 
 	@Test
 	void 로그인은_access_token_쿠키를_발급한다() throws Exception {
-		Map<String, String> signupRequest = createUser("site");
+		Map<String, String> signupRequest = createUser("user");
 
 		MvcResult result = mockMvc.perform(post("/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)

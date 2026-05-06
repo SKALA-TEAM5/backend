@@ -14,7 +14,7 @@ public record ProjectAssigneeResponse(
 		String employeeNo,
 		@Schema(description = "담당자 이름", example = "이현장")
 		String realName,
-		@Schema(description = "담당자 역할 코드", example = "site")
+		@Schema(description = "담당자 역할 코드", example = "user")
 		RoleCode roleCode,
 		@Schema(description = "담당자 배정 일시", example = "2026-05-05T01:00:00Z")
 		Instant assignedAt,

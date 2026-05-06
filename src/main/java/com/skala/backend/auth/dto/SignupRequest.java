@@ -23,7 +23,7 @@ public record SignupRequest(
 		@Size(min = 8)
 		String password,
 
-		@Schema(description = "사용자 역할 코드. admin, hq, site, agent 중 하나를 사용합니다.", example = "site")
+		@Schema(description = "사용자 역할 코드. system_admin, admin, user, agent 중 하나를 사용합니다.", example = "user")
 		@NotNull
 		RoleCode roleCode
 ) {

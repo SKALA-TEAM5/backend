@@ -8,6 +8,7 @@ import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -55,6 +56,14 @@ public class ProjectEvidenceArchiveController {
 	public ResponseEntity<ApiResponse<ArchiveItemListResponse>> listCategoryItems(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
+			@Parameter(
+					description = "사용 카테고리 코드입니다.",
+					example = "CAT_03",
+					schema = @Schema(allowableValues = {
+							"CAT_01", "CAT_02", "CAT_03", "CAT_04", "CAT_05",
+							"CAT_06", "CAT_07", "CAT_08", "CAT_09"
+					})
+			)
 			@PathVariable String categoryCode,
 			@RequestParam(required = false) Long usageStatementId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportMonth

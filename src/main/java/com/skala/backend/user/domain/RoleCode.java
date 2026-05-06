@@ -6,11 +6,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Arrays;
 
-@Schema(description = "사용자 역할 코드", allowableValues = {"admin", "hq", "site", "agent"})
+@Schema(description = "사용자 역할 코드", allowableValues = {"system_admin", "admin", "user", "agent"})
 public enum RoleCode {
+	SYSTEM_ADMIN("system_admin"),
 	ADMIN("admin"),
-	HQ("hq"),
-	SITE("site"),
+	USER("user"),
 	AGENT("agent");
 
 	private final String value;

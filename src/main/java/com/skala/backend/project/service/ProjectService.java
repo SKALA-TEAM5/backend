@@ -257,7 +257,7 @@ public class ProjectService {
 	}
 
 	private void requireProjectWorkAccessible(User user) {
-		if (user.getRoleCode() == RoleCode.ADMIN) {
+		if (user.getRoleCode() == RoleCode.SYSTEM_ADMIN) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 	}
@@ -272,7 +272,7 @@ public class ProjectService {
 	}
 
 	private boolean canManageProjects(User user) {
-		return user.getRoleCode() == RoleCode.HQ || user.getRoleCode() == RoleCode.AGENT;
+		return user.getRoleCode() == RoleCode.ADMIN || user.getRoleCode() == RoleCode.AGENT;
 	}
 
 	private User requireCurrentUser(Long currentUserId) {

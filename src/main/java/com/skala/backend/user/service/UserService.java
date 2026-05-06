@@ -36,7 +36,7 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public UserListResponse listUsers(Long currentUserId, RoleCode roleCode, String keyword) {
-		requireAdminOrHq(currentUserId);
+		requireSystemAdminOrProjectAdmin(currentUserId);
 		String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
 
 		return new UserListResponse(
@@ -49,7 +49,7 @@ public class UserService {
 
 	@Transactional
 	public UserDetailResponse createUser(Long currentUserId, AdminCreateUserRequest request) {
-		requireAdmin(currentUserId);
+		requireSystemAdmin(currentUserId);
 
 		if (userRepository.existsByEmployeeNo(request.employeeNo())) {
 			throw new ApiException(HttpStatus.CONFLICT, "이미 존재하는 사번입니다.");
@@ -72,13 +72,13 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public UserDetailResponse getUser(Long currentUserId, Long userId) {
-		requireAdminOrHq(currentUserId);
+		requireSystemAdminOrProjectAdmin(currentUserId);
 		return toDetailResponse(findUser(userId));
 	}
 
 	@Transactional
 	public UserDetailResponse updateUser(Long currentUserId, Long userId, AdminUpdateUserRequest request) {
-		requireAdmin(currentUserId);
+		requireSystemAdmin(currentUserId);
 
 		if (request.isEmpty()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "수정할 값이 없습니다.");
@@ -105,7 +105,7 @@ public class UserService {
 
 	@Transactional
 	public void deleteUser(Long currentUserId, Long userId) {
-		requireAdmin(currentUserId);
+		requireSystemAdmin(currentUserId);
 
 		User user = findUser(userId);
 		try {
@@ -138,19 +138,19 @@ public class UserService {
 		}
 	}
 
-	private User requireAdmin(Long currentUserId) {
+	private User requireSystemAdmin(Long currentUserId) {
 		User user = requireCurrentUser(currentUserId);
 
-		if (user.getRoleCode() != RoleCode.ADMIN) {
+		if (user.getRoleCode() != RoleCode.SYSTEM_ADMIN) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 		return user;
 	}
 
-	private User requireAdminOrHq(Long currentUserId) {
+	private User requireSystemAdminOrProjectAdmin(Long currentUserId) {
 		User user = requireCurrentUser(currentUserId);
 
-		if (user.getRoleCode() != RoleCode.ADMIN && user.getRoleCode() != RoleCode.HQ) {
+		if (user.getRoleCode() != RoleCode.SYSTEM_ADMIN && user.getRoleCode() != RoleCode.ADMIN) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 		return user;

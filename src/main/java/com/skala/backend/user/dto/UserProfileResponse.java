@@ -14,7 +14,7 @@ public record UserProfileResponse(
 		String employeeNo,
 		@Schema(description = "사용자 실명", example = "김스칼라")
 		String realName,
-		@Schema(description = "사용자 역할 코드", example = "site")
+		@Schema(description = "사용자 역할 코드", example = "user")
 		RoleCode roleCode,
 		@Schema(description = "생성 일시", example = "2026-05-05T01:00:00Z")
 		Instant createdAt,

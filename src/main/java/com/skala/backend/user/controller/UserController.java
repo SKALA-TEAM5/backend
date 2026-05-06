@@ -13,6 +13,7 @@ import com.skala.backend.user.dto.WithdrawRequest;
 import com.skala.backend.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -52,7 +53,11 @@ public class UserController {
 	public ResponseEntity<ApiResponse<UserListResponse>> listUsers(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "조회할 역할 코드입니다. 생략하면 전체 역할을 조회합니다.", example = "site")
+			@Parameter(
+					description = "조회할 역할 코드입니다. 생략하면 전체 역할을 조회합니다.",
+					example = "user",
+					schema = @Schema(allowableValues = {"system_admin", "admin", "user", "agent"})
+			)
 			@RequestParam(required = false) RoleCode roleCode,
 			@Parameter(description = "사번 또는 이름 검색어입니다.", example = "김")
 			@RequestParam(required = false) String keyword

@@ -53,7 +53,7 @@ class AuthControllerTest {
 
 	@Test
 	void 회원가입은_수정된_권한값을_허용한다() throws Exception {
-		for (String roleCode : new String[] {"admin", "hq", "site", "agent"}) {
+		for (String roleCode : new String[] {"system_admin", "admin", "user", "agent"}) {
 			Map<String, String> request = signupRequest(roleCode);
 
 			mockMvc.perform(post("/auth/signup")
@@ -88,7 +88,7 @@ class AuthControllerTest {
 				"employeeNo", "EMP-" + UUID.randomUUID(),
 				"realName", "홍길동",
 				"password", "short",
-				"roleCode", "site"
+				"roleCode", "user"
 		);
 
 		mockMvc.perform(post("/auth/signup")
@@ -249,7 +249,7 @@ class AuthControllerTest {
 	}
 
 	private Map<String, String> signupRequest() {
-		return signupRequest("site");
+		return signupRequest("user");
 	}
 
 	private Map<String, String> signupRequest(String roleCode) {

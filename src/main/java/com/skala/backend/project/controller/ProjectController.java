@@ -13,6 +13,7 @@ import com.skala.backend.project.dto.ReplaceProjectAssigneesRequest;
 import com.skala.backend.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -61,13 +62,31 @@ public class ProjectController {
 			@RequestParam(required = false) String contractNo,
 			@Parameter(description = "담당자 사용자 ID입니다.", example = "3")
 			@RequestParam(required = false) Long assigneeUserId,
-			@Parameter(description = "프로젝트 상태입니다.", example = "active")
+			@Parameter(
+					description = "프로젝트 상태입니다.",
+					example = "active",
+					schema = @Schema(allowableValues = {"active", "completed", "suspended"})
+			)
 			@RequestParam(required = false) ProjectStatusCode status,
 			@Parameter(description = "공사 시작일 검색 시작값입니다.", example = "2026-01-01")
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodFrom,
 			@Parameter(description = "공사 시작일 검색 종료값입니다.", example = "2026-12-31")
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodTo,
-			@Parameter(description = "정렬 기준입니다. 지원하지 않는 값은 기본 정렬로 처리됩니다.", example = "default")
+			@Parameter(
+					description = "정렬 기준입니다.",
+					example = "default",
+					schema = @Schema(allowableValues = {
+							"default",
+							"project_name_asc",
+							"project_name_desc",
+							"progress_rate_desc",
+							"progress_rate_asc",
+							"start_date_asc",
+							"start_date_desc",
+							"end_date_asc",
+							"end_date_desc"
+					})
+			)
 			@RequestParam(required = false, defaultValue = "default") String sort,
 			@Parameter(description = "페이지 번호입니다. 1부터 시작합니다.", example = "1")
 			@RequestParam(required = false, defaultValue = "1") Integer page,
