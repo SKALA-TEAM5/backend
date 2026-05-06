@@ -1,6 +1,9 @@
 package com.skala.backend.project.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skala.backend.user.domain.RoleCode;
+import com.skala.backend.user.domain.User;
+import com.skala.backend.user.repository.UserRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,16 +43,22 @@ class ProjectRequirementContractTest {
 	@Autowired
 	JdbcTemplate jdbcTemplate;
 
+	@Autowired
+	UserRepository userRepository;
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
+
 	@Test
-	void hq는_프로젝트를_CRUD_할_수_있다() throws Exception {
-		Cookie managerCookie = loginCookie(createUser("hq"));
+	void admin은_프로젝트를_CRUD_할_수_있다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
 
 		MvcResult createResult = mockMvc.perform(post("/projects")
 						.cookie(managerCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(projectRequest("hq 생성 프로젝트"))))
+						.content(objectMapper.writeValueAsString(projectRequest("admin 생성 프로젝트"))))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.project.projectName").value("hq 생성 프로젝트"))
+				.andExpect(jsonPath("$.data.project.projectName").value("admin 생성 프로젝트"))
 				.andReturn();
 
 		int projectId = readId(createResult, "project");
@@ -60,9 +70,9 @@ class ProjectRequirementContractTest {
 		mockMvc.perform(patch("/projects/{projectId}", projectId)
 						.cookie(managerCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("projectName", "hq 수정 프로젝트"))))
+						.content(objectMapper.writeValueAsString(Map.of("projectName", "admin 수정 프로젝트"))))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.project.projectName").value("hq 수정 프로젝트"));
+				.andExpect(jsonPath("$.data.project.projectName").value("admin 수정 프로젝트"));
 
 		mockMvc.perform(delete("/projects/{projectId}", projectId).cookie(managerCookie))
 				.andExpect(status().isOk());
@@ -72,16 +82,16 @@ class ProjectRequirementContractTest {
 	}
 
 	@Test
-	void 시스템_admin은_프로젝트_업무_API를_수행할_수_없다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		Cookie managerCookie = loginCookie(createUser("hq"));
-		int siteUserId = createUserId("site");
-		int projectId = createProject(managerCookie, "hq 담당 프로젝트");
+	void system_admin은_프로젝트_업무_API를_수행할_수_없다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("system_admin"));
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		int projectUserId = createUserId("user");
+		int projectId = createProject(managerCookie, "admin 담당 프로젝트");
 
 		mockMvc.perform(post("/projects")
 						.cookie(adminCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(projectRequest("시스템 admin 생성 시도"))))
+						.content(objectMapper.writeValueAsString(projectRequest("system_admin 생성 시도"))))
 				.andExpect(status().isForbidden());
 
 		mockMvc.perform(get("/projects").cookie(adminCookie))
@@ -90,17 +100,17 @@ class ProjectRequirementContractTest {
 		mockMvc.perform(get("/projects/{projectId}", projectId).cookie(adminCookie))
 				.andExpect(status().isForbidden());
 
-		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, siteUserId)
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, projectUserId)
 						.cookie(adminCookie))
 				.andExpect(status().isForbidden());
 	}
 
 	@Test
-	void hq는_프로젝트의_site_담당자를_배정_교체_해제할_수_있다() throws Exception {
-		Cookie managerCookie = loginCookie(createUser("hq"));
-		int firstUserId = createUserId("site");
-		int secondUserId = createUserId("site");
-		int replacementUserId = createUserId("site");
+	void admin은_프로젝트의_user_담당자를_배정_교체_해제할_수_있다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		int firstUserId = createUserId("user");
+		int secondUserId = createUserId("user");
+		int replacementUserId = createUserId("user");
 		int projectId = createProject(managerCookie, "담당자 연결 프로젝트");
 
 		mockMvc.perform(put("/projects/{projectId}/assignees", projectId)
@@ -110,9 +120,9 @@ class ProjectRequirementContractTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.assignees", hasSize(2)))
 				.andExpect(jsonPath("$.data.assignees[0].userId").value(firstUserId))
-				.andExpect(jsonPath("$.data.assignees[0].roleCode").value("site"))
+				.andExpect(jsonPath("$.data.assignees[0].roleCode").value("user"))
 				.andExpect(jsonPath("$.data.assignees[1].userId").value(secondUserId))
-				.andExpect(jsonPath("$.data.assignees[1].roleCode").value("site"));
+				.andExpect(jsonPath("$.data.assignees[1].roleCode").value("user"));
 
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
@@ -128,7 +138,7 @@ class ProjectRequirementContractTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.assignees", hasSize(1)))
 				.andExpect(jsonPath("$.data.assignees[0].userId").value(replacementUserId))
-				.andExpect(jsonPath("$.data.assignees[0].roleCode").value("site"));
+				.andExpect(jsonPath("$.data.assignees[0].roleCode").value("user"));
 
 		mockMvc.perform(get("/projects/{projectId}", projectId)
 						.cookie(managerCookie))
@@ -147,18 +157,66 @@ class ProjectRequirementContractTest {
 	}
 
 	@Test
-	void agent는_hq와_동일하게_프로젝트를_관리할_수_있다() throws Exception {
+	void admin은_scope로_전체와_내_담당_프로젝트를_전환할_수_있다() throws Exception {
+		Map<String, String> manager = createUser("admin");
+		Cookie managerCookie = loginCookie(manager);
+		int managerId = readUserIdFromLogin(manager);
+		String prefix = "scope-" + UUID.randomUUID();
+		int assignedProjectId = createProject(managerCookie, prefix + "-내담당");
+		int otherProjectId = createProject(managerCookie, prefix + "-전체전용");
+
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", assignedProjectId, managerId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(2)));
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("scope", "all")
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(2)));
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("scope", "assigned")
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("scope", "assigned")
+						.param("assigneeUserId", String.valueOf(managerId))
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
+
+		mockMvc.perform(get("/projects/{projectId}", otherProjectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void agent는_admin과_동일하게_프로젝트를_관리할_수_있다() throws Exception {
 		Cookie agentCookie = loginCookie(createUser("agent"));
-		int siteUserId = createUserId("site");
+		int projectUserId = createUserId("user");
 		int projectId = createProject(agentCookie, "agent 생성 프로젝트");
 
-		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, siteUserId)
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, projectUserId)
 						.cookie(agentCookie))
 				.andExpect(status().isOk());
 
 		mockMvc.perform(get("/projects")
 						.cookie(agentCookie)
-						.param("assigneeUserId", String.valueOf(siteUserId)))
+						.param("assigneeUserId", String.valueOf(projectUserId)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
 				.andExpect(jsonPath("$.data.items[0].id").value(projectId));
@@ -166,24 +224,24 @@ class ProjectRequirementContractTest {
 
 	@Test
 	void 목록은_담당자명_최신공정률_조치요청을_반환하고_기본정렬한다() throws Exception {
-		Map<String, String> manager = createUser("hq");
+		Map<String, String> manager = createUser("admin");
 		Cookie managerCookie = loginCookie(manager);
 		int managerId = readUserIdFromLogin(manager);
-		int siteUserId = createUserId("site");
+		int projectUserId = createUserId("user");
 		String prefix = "목록계약-" + UUID.randomUUID();
 		int lowProgressProjectId = createProject(managerCookie, prefix + "-낮음");
 		int highProgressProjectId = createProject(managerCookie, prefix + "-높음");
 
-		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", lowProgressProjectId, siteUserId)
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", lowProgressProjectId, projectUserId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk());
-		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", highProgressProjectId, siteUserId)
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", highProgressProjectId, projectUserId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk());
 
 		insertUsageStatement(lowProgressProjectId, "2026-05-01", 10);
 		insertUsageStatement(highProgressProjectId, "2026-05-01", 80);
-		insertOpenActionRequest(highProgressProjectId, managerId, siteUserId);
+		insertOpenActionRequest(highProgressProjectId, managerId, projectUserId);
 
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
@@ -202,17 +260,23 @@ class ProjectRequirementContractTest {
 
 	@Test
 	void 잘못된_sort는_거절한다() throws Exception {
-		Cookie managerCookie = loginCookie(createUser("hq"));
+		Cookie managerCookie = loginCookie(createUser("admin"));
 
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
 						.param("sort", "unknown_sort"))
 				.andExpect(status().isBadRequest());
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("scope", "unknown_scope"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("scope는 all 또는 assigned만 사용할 수 있습니다."));
 	}
 
 	@Test
 	void 목록은_페이지네이션과_size_상한을_검증한다() throws Exception {
-		Cookie managerCookie = loginCookie(createUser("hq"));
+		Cookie managerCookie = loginCookie(createUser("admin"));
 		String prefix = "페이지-" + UUID.randomUUID();
 		createProject(managerCookie, projectRequest(prefix + "-1", "PAGE-1", "active", "2026-01-01", "2026-12-31"));
 		createProject(managerCookie, projectRequest(prefix + "-2", "PAGE-2", "active", "2026-01-01", "2026-12-31"));
@@ -245,7 +309,7 @@ class ProjectRequirementContractTest {
 
 	@Test
 	void 목록은_다중검색조건을_AND로_결합하고_기간겹침과_상태를_필터링한다() throws Exception {
-		Cookie managerCookie = loginCookie(createUser("hq"));
+		Cookie managerCookie = loginCookie(createUser("admin"));
 		String prefix = "AND-" + UUID.randomUUID();
 		int matchedProjectId = createProject(managerCookie, projectRequest(prefix + "-대상", "AND-MATCH", "suspended", "2026-03-01", "2026-05-31"));
 		createProject(managerCookie, projectRequest(prefix + "-계약번호불일치", "AND-OTHER", "suspended", "2026-03-01", "2026-05-31"));
@@ -272,7 +336,7 @@ class ProjectRequirementContractTest {
 
 	@Test
 	void 목록은_지원하는_정렬옵션을_적용한다() throws Exception {
-		Cookie managerCookie = loginCookie(createUser("hq"));
+		Cookie managerCookie = loginCookie(createUser("admin"));
 		String prefix = "정렬-" + UUID.randomUUID();
 		int alphaProjectId = createProject(managerCookie, projectRequest(prefix + "-A", "SORT-A", "active", "2026-01-01", "2026-04-30"));
 		int betaProjectId = createProject(managerCookie, projectRequest(prefix + "-B", "SORT-B", "active", "2026-02-01", "2026-03-31"));
@@ -307,28 +371,28 @@ class ProjectRequirementContractTest {
 	}
 
 	@Test
-	void site는_담당자필터를_사용할_수_없다() throws Exception {
-		Cookie managerCookie = loginCookie(createUser("hq"));
-		Map<String, String> site = createUser("site");
-		Cookie siteCookie = loginCookie(site);
-		int siteUserId = readUserIdFromLogin(site);
-		int projectId = createProject(managerCookie, "site 담당자필터 프로젝트");
+	void user는_담당자필터를_사용할_수_없다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		Map<String, String> user = createUser("user");
+		Cookie userCookie = loginCookie(user);
+		int projectUserId = readUserIdFromLogin(user);
+		int projectId = createProject(managerCookie, "user 담당자필터 프로젝트");
 
-		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, siteUserId)
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, projectUserId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk());
 
 		mockMvc.perform(get("/projects")
-						.cookie(siteCookie)
-						.param("assigneeUserId", String.valueOf(siteUserId)))
+						.cookie(userCookie)
+						.param("assigneeUserId", String.valueOf(projectUserId)))
 				.andExpect(status().isForbidden());
 	}
 
 	@Test
-	void site는_본인이_담당한_프로젝트만_조회할_수_있고_수정은_할_수_없다() throws Exception {
-		Cookie managerCookie = loginCookie(createUser("hq"));
-		Map<String, String> assignee = createUser("site");
-		Map<String, String> outsider = createUser("site");
+	void user는_본인이_담당한_프로젝트만_조회할_수_있고_수정은_할_수_없다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		Map<String, String> assignee = createUser("user");
+		Map<String, String> outsider = createUser("user");
 		Cookie assigneeCookie = loginCookie(assignee);
 		Cookie outsiderCookie = loginCookie(outsider);
 		int assigneeId = readUserIdFromLogin(assignee);
@@ -344,10 +408,16 @@ class ProjectRequirementContractTest {
 
 		mockMvc.perform(get("/projects")
 						.cookie(assigneeCookie)
+						.param("scope", "assigned")
 						.param("keyword", "담당 프로젝트"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
 				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
+
+		mockMvc.perform(get("/projects")
+						.cookie(assigneeCookie)
+						.param("scope", "all"))
+				.andExpect(status().isForbidden());
 
 		mockMvc.perform(get("/projects/{projectId}/assignees", assignedProjectId).cookie(assigneeCookie))
 				.andExpect(status().isOk())
@@ -356,13 +426,13 @@ class ProjectRequirementContractTest {
 		mockMvc.perform(patch("/projects/{projectId}", assignedProjectId)
 						.cookie(assigneeCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("projectName", "site가 수정한 프로젝트"))))
+						.content(objectMapper.writeValueAsString(Map.of("projectName", "user가 수정한 프로젝트"))))
 				.andExpect(status().isForbidden());
 
 		mockMvc.perform(post("/projects")
 						.cookie(assigneeCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(projectRequest("site 생성 시도"))))
+						.content(objectMapper.writeValueAsString(projectRequest("user 생성 시도"))))
 				.andExpect(status().isForbidden());
 
 		mockMvc.perform(delete("/projects/{projectId}", assignedProjectId)
@@ -385,7 +455,7 @@ class ProjectRequirementContractTest {
 		mockMvc.perform(patch("/projects/{projectId}", assignedProjectId)
 						.cookie(outsiderCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("projectName", "미배정 site 수정 시도"))))
+						.content(objectMapper.writeValueAsString(Map.of("projectName", "미배정 user 수정 시도"))))
 				.andExpect(status().isForbidden());
 	}
 
@@ -448,7 +518,7 @@ class ProjectRequirementContractTest {
 				""", projectId, requestedByUserId, assigneeUserId);
 	}
 
-	private Map<String, String> createUser(String roleCode) throws Exception {
+	private Map<String, String> createUser(String roleCode) {
 		Map<String, String> request = Map.of(
 				"employeeNo", "EMP-" + UUID.randomUUID(),
 				"realName", "홍길동",
@@ -456,10 +526,12 @@ class ProjectRequirementContractTest {
 				"roleCode", roleCode
 		);
 
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(request)))
-				.andExpect(status().isCreated());
+		userRepository.saveAndFlush(User.create(
+				request.get("employeeNo"),
+				request.get("realName"),
+				passwordEncoder.encode(request.get("password")),
+				RoleCode.from(roleCode)
+		));
 
 		return request;
 	}

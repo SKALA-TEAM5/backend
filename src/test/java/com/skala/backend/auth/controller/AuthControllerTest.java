@@ -1,6 +1,9 @@
 package com.skala.backend.auth.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skala.backend.user.domain.RoleCode;
+import com.skala.backend.user.domain.User;
+import com.skala.backend.user.repository.UserRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,7 +20,6 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -34,78 +37,28 @@ class AuthControllerTest {
 	@Autowired
 	ObjectMapper objectMapper;
 
-	@Test
-	void 회원가입에_성공하면_사용자를_생성한다() throws Exception {
-		Map<String, String> request = signupRequest();
+	@Autowired
+	UserRepository userRepository;
 
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(request)))
-				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data.user.employeeNo").value(request.get("employeeNo")))
-				.andExpect(jsonPath("$.data.user.realName").value(request.get("realName")))
-				.andExpect(jsonPath("$.data.user.roleCode").value(request.get("roleCode")))
-				.andExpect(jsonPath("$.data.user.id").isNumber())
-				.andExpect(jsonPath("$.data.user.createdAt").exists())
-				.andExpect(jsonPath("$.data.user.updatedAt").exists());
-	}
+	@Autowired
+	PasswordEncoder passwordEncoder;
 
 	@Test
-	void 회원가입은_수정된_권한값을_허용한다() throws Exception {
-		for (String roleCode : new String[] {"admin", "hq", "site", "agent"}) {
-			Map<String, String> request = signupRequest(roleCode);
-
-			mockMvc.perform(post("/auth/signup")
-							.contentType(MediaType.APPLICATION_JSON)
-							.content(objectMapper.writeValueAsString(request)))
-					.andExpect(status().isCreated())
-					.andExpect(jsonPath("$.data.user.roleCode").value(roleCode));
-		}
-	}
-
-	@Test
-	void 이미_존재하는_사번으로_회원가입하면_409를_반환한다() throws Exception {
-		Map<String, String> request = signupRequest();
-		String content = objectMapper.writeValueAsString(request);
-
+	void 공개_회원가입_API는_제공하지_않는다() throws Exception {
 		mockMvc.perform(post("/auth/signup")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(content))
-				.andExpect(status().isCreated());
-
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(content))
-				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.success").value(false))
-				.andExpect(jsonPath("$.message").value("이미 존재하는 사번입니다."));
-	}
-
-	@Test
-	void 회원가입_요청값이_유효하지_않으면_400을_반환한다() throws Exception {
-		Map<String, String> request = Map.of(
-				"employeeNo", "EMP-" + UUID.randomUUID(),
-				"realName", "홍길동",
-				"password", "short",
-				"roleCode", "site"
-		);
-
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(request)))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.success").value(false))
-				.andExpect(jsonPath("$.message").value(startsWith("password:")));
+						.content(objectMapper.writeValueAsString(Map.of(
+								"employeeNo", "EMP-" + UUID.randomUUID(),
+								"realName", "홍길동",
+								"password", "P@ssw0rd123!",
+								"roleCode", "user"
+						))))
+				.andExpect(status().isUnauthorized());
 	}
 
 	@Test
 	void 로그인에_성공하면_사용자_정보와_인증쿠키를_반환한다() throws Exception {
-		Map<String, String> signupRequest = signupRequest();
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(signupRequest)))
-				.andExpect(status().isCreated());
+		Map<String, String> signupRequest = createUser("user");
 
 		Map<String, String> loginRequest = Map.of(
 				"employeeNo", signupRequest.get("employeeNo"),
@@ -132,11 +85,7 @@ class AuthControllerTest {
 
 	@Test
 	void 비밀번호가_일치하지_않으면_로그인에_실패한다() throws Exception {
-		Map<String, String> signupRequest = signupRequest();
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(signupRequest)))
-				.andExpect(status().isCreated());
+		Map<String, String> signupRequest = createUser("user");
 
 		Map<String, String> loginRequest = Map.of(
 				"employeeNo", signupRequest.get("employeeNo"),
@@ -184,11 +133,7 @@ class AuthControllerTest {
 
 	@Test
 	void 리프레시_토큰으로_토큰을_재발급하고_기존_리프레시토큰은_재사용할_수_없다() throws Exception {
-		Map<String, String> signupRequest = signupRequest();
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(signupRequest)))
-				.andExpect(status().isCreated());
+		Map<String, String> signupRequest = createUser("user");
 
 		var loginResult = mockMvc.perform(post("/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)
@@ -220,11 +165,7 @@ class AuthControllerTest {
 
 	@Test
 	void 로그아웃한_리프레시토큰은_재사용할_수_없다() throws Exception {
-		Map<String, String> signupRequest = signupRequest();
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(signupRequest)))
-				.andExpect(status().isCreated());
+		Map<String, String> signupRequest = createUser("user");
 
 		var loginResult = mockMvc.perform(post("/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)
@@ -248,16 +189,19 @@ class AuthControllerTest {
 				.andExpect(jsonPath("$.message").value("유효하지 않은 인증 정보입니다."));
 	}
 
-	private Map<String, String> signupRequest() {
-		return signupRequest("site");
-	}
-
-	private Map<String, String> signupRequest(String roleCode) {
-		return Map.of(
+	private Map<String, String> createUser(String roleCode) {
+		Map<String, String> request = Map.of(
 				"employeeNo", "EMP-" + UUID.randomUUID(),
 				"realName", "홍길동",
 				"password", "P@ssw0rd123!",
 				"roleCode", roleCode
 		);
+		userRepository.saveAndFlush(User.create(
+				request.get("employeeNo"),
+				request.get("realName"),
+				passwordEncoder.encode(request.get("password")),
+				RoleCode.from(roleCode)
+		));
+		return request;
 	}
 }

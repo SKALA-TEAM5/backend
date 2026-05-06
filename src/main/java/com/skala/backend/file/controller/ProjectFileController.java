@@ -9,6 +9,7 @@ import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -46,6 +47,40 @@ public class ProjectFileController {
 	public ResponseEntity<ApiResponse<ProjectFileListResponse>> listFiles(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
+			@Parameter(
+					description = "증빙 유형 코드입니다.",
+					example = "receipt",
+					schema = @Schema(allowableValues = {
+							"receipt",
+							"tax_invoice",
+							"tax_invoice_confirm",
+							"third_party_lookup",
+							"transaction_statement",
+							"site_photo",
+							"item_photo",
+							"wearing_photo",
+							"work_photo",
+							"appointment_report",
+							"pay_stub",
+							"work_log",
+							"daily_output_log",
+							"inspection_log",
+							"supply_ledger",
+							"inventory_ledger",
+							"edu_confirm",
+							"edu_attendance",
+							"transfer_confirm",
+							"health_checkup_result",
+							"health_checkup_contract",
+							"tech_guidance_contract",
+							"tech_guidance_report",
+							"tech_guidance_photo",
+							"usage_statement",
+							"analysis_table",
+							"purchase_detail",
+							"other_document"
+					})
+			)
 			@RequestParam(required = false) String evidenceTypeCode,
 			@RequestParam(required = false) Boolean linked,
 			@RequestParam(required = false, defaultValue = "1") Integer page,
@@ -67,6 +102,40 @@ public class ProjectFileController {
 	public ResponseEntity<ApiResponse<ProjectFileUploadResponse>> upload(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
+			@Parameter(
+					description = "업로드 파일의 증빙 유형 코드입니다.",
+					example = "receipt",
+					schema = @Schema(allowableValues = {
+							"receipt",
+							"tax_invoice",
+							"tax_invoice_confirm",
+							"third_party_lookup",
+							"transaction_statement",
+							"site_photo",
+							"item_photo",
+							"wearing_photo",
+							"work_photo",
+							"appointment_report",
+							"pay_stub",
+							"work_log",
+							"daily_output_log",
+							"inspection_log",
+							"supply_ledger",
+							"inventory_ledger",
+							"edu_confirm",
+							"edu_attendance",
+							"transfer_confirm",
+							"health_checkup_result",
+							"health_checkup_contract",
+							"tech_guidance_contract",
+							"tech_guidance_report",
+							"tech_guidance_photo",
+							"usage_statement",
+							"analysis_table",
+							"purchase_detail",
+							"other_document"
+					})
+			)
 			@RequestParam String evidenceTypeCode,
 			@RequestParam MultipartFile file,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant capturedAt

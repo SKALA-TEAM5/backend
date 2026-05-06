@@ -13,6 +13,7 @@ import com.skala.backend.project.dto.ReplaceProjectAssigneesRequest;
 import com.skala.backend.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -48,11 +49,23 @@ public class ProjectController {
 	@GetMapping
 	@Operation(
 			summary = "프로젝트 목록 조회",
-			description = "프로젝트 카드 목록을 조회합니다. 검색, 상태, 담당자, 기간, 정렬, 페이지 조건을 함께 사용할 수 있습니다."
+			description = """
+					프로젝트 카드 목록을 조회합니다.
+					- admin: 기본값 `scope=all`로 전체 프로젝트를 조회하며, `scope=assigned`로 본인이 담당자로 배정된 프로젝트만 조회할 수 있습니다.
+					- user: 기본값과 허용값이 `scope=assigned`이며, 본인이 담당자로 배정된 프로젝트만 조회합니다.
+					- system_admin: 프로젝트 업무 API를 사용할 수 없습니다.
+					`assigneeUserId`는 admin의 특정 담당자 필터용이며, `scope=assigned`는 현재 로그인 사용자 기준 필터입니다.
+					"""
 	)
 	public ResponseEntity<ApiResponse<ProjectListResponse>> listProjects(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
+			@Parameter(
+					description = "조회 범위입니다. `all`은 전체 프로젝트, `assigned`는 현재 로그인 사용자가 담당자로 배정된 프로젝트만 조회합니다. admin 기본값은 all, user 기본값은 assigned입니다.",
+					example = "all",
+					schema = @Schema(allowableValues = {"all", "assigned"})
+			)
+			@RequestParam(required = false) String scope,
 			@Parameter(description = "통합 검색어입니다. 프로젝트명, 계약번호 등 목록 검색에 사용합니다.", example = "안전")
 			@RequestParam(required = false) String keyword,
 			@Parameter(description = "프로젝트명 검색어입니다.", example = "스마트 안전관리")
@@ -61,13 +74,31 @@ public class ProjectController {
 			@RequestParam(required = false) String contractNo,
 			@Parameter(description = "담당자 사용자 ID입니다.", example = "3")
 			@RequestParam(required = false) Long assigneeUserId,
-			@Parameter(description = "프로젝트 상태입니다.", example = "active")
+			@Parameter(
+					description = "프로젝트 상태입니다.",
+					example = "active",
+					schema = @Schema(allowableValues = {"active", "completed", "suspended"})
+			)
 			@RequestParam(required = false) ProjectStatusCode status,
 			@Parameter(description = "공사 시작일 검색 시작값입니다.", example = "2026-01-01")
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodFrom,
 			@Parameter(description = "공사 시작일 검색 종료값입니다.", example = "2026-12-31")
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodTo,
-			@Parameter(description = "정렬 기준입니다. 지원하지 않는 값은 기본 정렬로 처리됩니다.", example = "default")
+			@Parameter(
+					description = "정렬 기준입니다.",
+					example = "default",
+					schema = @Schema(allowableValues = {
+							"default",
+							"project_name_asc",
+							"project_name_desc",
+							"progress_rate_desc",
+							"progress_rate_asc",
+							"start_date_asc",
+							"start_date_desc",
+							"end_date_asc",
+							"end_date_desc"
+					})
+			)
 			@RequestParam(required = false, defaultValue = "default") String sort,
 			@Parameter(description = "페이지 번호입니다. 1부터 시작합니다.", example = "1")
 			@RequestParam(required = false, defaultValue = "1") Integer page,
@@ -76,6 +107,7 @@ public class ProjectController {
 	) {
 		ProjectListResponse response = projectService.listProjects(
 				currentUser.id(),
+				scope,
 				keyword,
 				projectName,
 				contractNo,

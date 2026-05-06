@@ -14,7 +14,7 @@ public record AdminUpdateUserRequest(
 		@Size(min = 8)
 		String password,
 
-		@Schema(description = "변경할 역할 코드", example = "hq")
+		@Schema(description = "변경할 역할 코드", example = "admin")
 		RoleCode roleCode
 ) {
 

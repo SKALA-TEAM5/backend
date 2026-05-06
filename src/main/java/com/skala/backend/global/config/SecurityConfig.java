@@ -48,7 +48,6 @@ public class SecurityConfig {
 						.accessDeniedHandler(accessDeniedHandler))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(
-								"/auth/signup",
 								"/auth/login",
 								"/auth/refresh",
 								"/auth/logout",

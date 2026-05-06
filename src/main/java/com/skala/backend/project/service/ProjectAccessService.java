@@ -55,10 +55,10 @@ public class ProjectAccessService {
 	}
 
 	private void requireProjectAccess(User currentUser, Long projectId) {
-		if (currentUser.getRoleCode() == RoleCode.HQ || currentUser.getRoleCode() == RoleCode.AGENT) {
+		if (currentUser.getRoleCode() == RoleCode.ADMIN || currentUser.getRoleCode() == RoleCode.AGENT) {
 			return;
 		}
-		if (currentUser.getRoleCode() == RoleCode.SITE
+		if (currentUser.getRoleCode() == RoleCode.USER
 				&& assignmentRepository.existsByProjectIdAndUserId(projectId, currentUser.getId())) {
 			return;
 		}

@@ -29,6 +29,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @Service
@@ -53,6 +54,7 @@ public class ProjectService {
 	@Transactional(readOnly = true)
 	public ProjectListResponse listProjects(
 			Long currentUserId,
+			String scope,
 			String keyword,
 			String projectName,
 			String contractNo,
@@ -75,7 +77,7 @@ public class ProjectService {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 
-		Long visibleUserId = canManageProjects(currentUser) ? null : currentUser.getId();
+		Long visibleUserId = visibleUserIdForScope(currentUser, scope);
 		Page<ProjectCardRow> result = projectRepository.searchCards(
 				containsPattern(keyword),
 				containsPattern(projectName),
@@ -257,7 +259,7 @@ public class ProjectService {
 	}
 
 	private void requireProjectWorkAccessible(User user) {
-		if (user.getRoleCode() == RoleCode.ADMIN) {
+		if (user.getRoleCode() == RoleCode.SYSTEM_ADMIN) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 	}
@@ -272,7 +274,32 @@ public class ProjectService {
 	}
 
 	private boolean canManageProjects(User user) {
-		return user.getRoleCode() == RoleCode.HQ || user.getRoleCode() == RoleCode.AGENT;
+		return user.getRoleCode() == RoleCode.ADMIN || user.getRoleCode() == RoleCode.AGENT;
+	}
+
+	private Long visibleUserIdForScope(User currentUser, String scope) {
+		String normalizedScope = normalizeScope(currentUser, scope);
+		if ("all".equals(normalizedScope)) {
+			return null;
+		}
+		return currentUser.getId();
+	}
+
+	private String normalizeScope(User currentUser, String scope) {
+		String normalizedScope = normalize(scope);
+		if (normalizedScope != null) {
+			normalizedScope = normalizedScope.toLowerCase(Locale.ROOT);
+		}
+		if (normalizedScope == null) {
+			return canManageProjects(currentUser) ? "all" : "assigned";
+		}
+		if (!normalizedScope.equals("all") && !normalizedScope.equals("assigned")) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "scope는 all 또는 assigned만 사용할 수 있습니다.");
+		}
+		if (!canManageProjects(currentUser) && normalizedScope.equals("all")) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return normalizedScope;
 	}
 
 	private User requireCurrentUser(Long currentUserId) {
