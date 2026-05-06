@@ -21,7 +21,7 @@ public class Project {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(name = "contract_no", length = 100)
+	@Column(name = "contract_no", nullable = false, length = 100)
 	private String contractNo;
 
 	@Column(name = "construction_company", nullable = false, length = 200)

@@ -54,7 +54,7 @@ public class UserController {
 					schema = @Schema(allowableValues = {"system_admin", "admin", "user", "agent"})
 			)
 			@RequestParam(required = false) RoleCode roleCode,
-			@Parameter(description = "사번 또는 이름 검색어입니다.", example = "김")
+			@Parameter(description = "사번 또는 이름 검색어입니다.")
 			@RequestParam(required = false) String keyword
 	) {
 		UserListResponse response = userService.listUsers(currentUser.id(), roleCode, keyword);

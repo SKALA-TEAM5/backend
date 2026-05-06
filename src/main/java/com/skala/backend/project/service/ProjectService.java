@@ -237,7 +237,7 @@ public class ProjectService {
 	}
 
 	private void applyUpdate(Project project, ProjectUpdateRequest request) {
-		if (request.contractNo() != null) project.updateContractNo(request.contractNo());
+		if (request.contractNo() != null) project.updateContractNo(requireText("contractNo", request.contractNo()));
 		if (request.constructionCompany() != null) project.updateConstructionCompany(requireText("constructionCompany", request.constructionCompany()));
 		if (request.projectName() != null) project.updateProjectName(requireText("projectName", request.projectName()));
 		if (request.siteLocation() != null) project.updateSiteLocation(requireText("siteLocation", request.siteLocation()));

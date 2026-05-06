@@ -158,6 +158,21 @@ class UserControllerTest {
 	}
 
 	@Test
+	void admin은_키워드_없이_user_목록을_조회할_수_있다() throws Exception {
+		Cookie systemAdminCookie = loginCookie(createUser("system_admin"));
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		String targetEmployeeNo = "EMP-" + UUID.randomUUID();
+
+		createUserByAdmin(systemAdminCookie, targetEmployeeNo, "admin조회대상", "user");
+
+		mockMvc.perform(get("/users")
+						.cookie(adminCookie)
+						.param("roleCode", "user"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items[0].roleCode").value("user"));
+	}
+
+	@Test
 	void system_admin은_사용자_비밀번호를_변경할_수_있고_기존_비밀번호는_더_이상_동작하지_않는다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("system_admin"));
 		String employeeNo = "EMP-" + UUID.randomUUID();

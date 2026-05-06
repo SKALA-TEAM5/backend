@@ -19,10 +19,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 			SELECT u
 			FROM User u
 			WHERE (:roleCode IS NULL OR u.roleCode = :roleCode)
-				AND (:keyword IS NULL
-					OR LOWER(u.employeeNo) LIKE LOWER(CONCAT('%', :keyword, '%'))
-					OR LOWER(u.realName) LIKE LOWER(CONCAT('%', :keyword, '%')))
+				AND (:keywordPattern IS NULL
+					OR LOWER(u.employeeNo) LIKE :keywordPattern
+					OR LOWER(u.realName) LIKE :keywordPattern)
 			ORDER BY u.id DESC
 			""")
-	List<User> search(@Param("roleCode") RoleCode roleCode, @Param("keyword") String keyword);
+	List<User> search(@Param("roleCode") RoleCode roleCode, @Param("keywordPattern") String keywordPattern);
 }

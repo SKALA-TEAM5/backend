@@ -13,6 +13,7 @@ import java.time.LocalDate;
 @Schema(description = "프로젝트 생성 요청")
 public record ProjectCreateRequest(
 		@Schema(description = "계약번호", example = "CN-2026-001")
+		@NotBlank
 		@Size(max = 100)
 		String contractNo,
 

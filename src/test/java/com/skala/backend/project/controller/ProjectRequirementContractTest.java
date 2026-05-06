@@ -311,10 +311,10 @@ class ProjectRequirementContractTest {
 	void 목록은_다중검색조건을_AND로_결합하고_기간겹침과_상태를_필터링한다() throws Exception {
 		Cookie managerCookie = loginCookie(createUser("admin"));
 		String prefix = "AND-" + UUID.randomUUID();
-		int matchedProjectId = createProject(managerCookie, projectRequest(prefix + "-대상", "AND-MATCH", "suspended", "2026-03-01", "2026-05-31"));
+		int matchedProjectId = createProject(managerCookie, projectRequest(prefix + "-대상", "AND-MATCH-대상", "suspended", "2026-03-01", "2026-05-31"));
 		createProject(managerCookie, projectRequest(prefix + "-계약번호불일치", "AND-OTHER", "suspended", "2026-03-01", "2026-05-31"));
-		createProject(managerCookie, projectRequest(prefix + "-상태불일치", "AND-MATCH", "active", "2026-03-01", "2026-05-31"));
-		createProject(managerCookie, projectRequest(prefix + "-기간불일치", "AND-MATCH", "suspended", "2026-08-01", "2026-09-30"));
+		createProject(managerCookie, projectRequest(prefix + "-상태불일치", "AND-MATCH-상태불일치", "active", "2026-03-01", "2026-05-31"));
+		createProject(managerCookie, projectRequest(prefix + "-기간불일치", "AND-MATCH-기간불일치", "suspended", "2026-08-01", "2026-09-30"));
 
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)

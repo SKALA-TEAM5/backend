@@ -37,10 +37,10 @@ public class UserService {
 	@Transactional(readOnly = true)
 	public UserListResponse listUsers(Long currentUserId, RoleCode roleCode, String keyword) {
 		requireSystemAdminOrProjectAdmin(currentUserId);
-		String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
+		String keywordPattern = containsPattern(keyword);
 
 		return new UserListResponse(
-				userRepository.search(roleCode, normalizedKeyword)
+				userRepository.search(roleCode, keywordPattern)
 						.stream()
 						.map(UserProfileResponse::from)
 						.toList()
@@ -156,5 +156,9 @@ public class UserService {
 
 	private UserDetailResponse toDetailResponse(User user) {
 		return new UserDetailResponse(UserProfileResponse.from(user));
+	}
+
+	private String containsPattern(String value) {
+		return StringUtils.hasText(value) ? "%" + value.trim().toLowerCase() + "%" : null;
 	}
 }
