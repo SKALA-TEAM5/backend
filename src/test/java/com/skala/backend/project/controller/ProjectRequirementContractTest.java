@@ -259,6 +259,25 @@ class ProjectRequirementContractTest {
 	}
 
 	@Test
+	void 사용내역서는_연월로_최신_revision을_조회할_수_있다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(managerCookie, "월별 사용내역서 프로젝트");
+
+		insertUsageStatement(projectId, "2026-04-01", 1, 30);
+		insertUsageStatement(projectId, "2026-04-01", 2, 45);
+
+		mockMvc.perform(get("/projects/{projectId}/usage-statements/by-month", projectId)
+						.cookie(managerCookie)
+						.param("year", "2026")
+						.param("month", "4"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.projectId").value(projectId))
+				.andExpect(jsonPath("$.data.statement.reportMonth").value("2026-04-01"))
+				.andExpect(jsonPath("$.data.statement.revisionNo").value(2))
+				.andExpect(jsonPath("$.data.statement.cumulativeProgressRate").value(45));
+	}
+
+	@Test
 	void 잘못된_sort는_거절한다() throws Exception {
 		Cookie managerCookie = loginCookie(createUser("admin"));
 
@@ -503,11 +522,15 @@ class ProjectRequirementContractTest {
 	}
 
 	private void insertUsageStatement(int projectId, String reportMonth, int progressRate) {
+		insertUsageStatement(projectId, reportMonth, 1, progressRate);
+	}
+
+	private void insertUsageStatement(int projectId, String reportMonth, int revisionNo, int progressRate) {
 		jdbcTemplate.update("""
 				INSERT INTO service.usage_statements
 					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate)
-				VALUES (?, ?::date, 1, ?::date, ?)
-				""", projectId, reportMonth, reportMonth, progressRate);
+				VALUES (?, ?::date, ?, ?::date, ?)
+				""", projectId, reportMonth, revisionNo, reportMonth, progressRate);
 	}
 
 	private void insertOpenActionRequest(int projectId, int requestedByUserId, int assigneeUserId) {

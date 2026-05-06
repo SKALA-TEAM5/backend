@@ -46,6 +46,7 @@ public class OpenApiConfig {
 			"/projects/{projectId}/assignees/{userId}",
 			"/projects/{projectId}/usage-statements/latest",
 			"/projects/{projectId}/usage-statements",
+			"/projects/{projectId}/usage-statements/by-month",
 			"/projects/{projectId}/usage-statements/{usageStatementId}",
 			"/projects/{projectId}/files",
 			"/projects/{projectId}/files/{fileId}/download",

@@ -16,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -48,6 +49,18 @@ public class ProjectUsageStatementController {
 	) {
 		UsageStatementListResponse response = usageStatementService.list(currentUser.id(), projectId);
 		return ResponseEntity.ok(ApiResponse.success(response, "사용내역서 목록 조회에 성공했습니다."));
+	}
+
+	@GetMapping("/by-month")
+	@Operation(summary = "연월 기준 사용내역서 상세 조회")
+	public ResponseEntity<ApiResponse<UsageStatementDetailDataResponse>> getByMonth(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@RequestParam int year,
+			@RequestParam int month
+	) {
+		UsageStatementDetailDataResponse response = usageStatementService.getByMonth(currentUser.id(), projectId, year, month);
+		return ResponseEntity.ok(ApiResponse.success(response, "사용내역서 조회에 성공했습니다."));
 	}
 
 	@GetMapping("/{usageStatementId}")

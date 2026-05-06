@@ -24,6 +24,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DateTimeException;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 
@@ -98,6 +101,15 @@ public class UsageStatementService {
 		return new UsageStatementDetailDataResponse(projectId, toDetail(statement));
 	}
 
+	@Transactional(readOnly = true)
+	public UsageStatementDetailDataResponse getByMonth(Long currentUserId, Long projectId, int year, int month) {
+		projectAccessService.requireReadable(currentUserId, projectId);
+		LocalDate reportMonth = toReportMonth(year, month);
+		UsageStatement statement = statementRepository.findFirstByProjectIdAndReportMonthOrderByRevisionNoDesc(projectId, reportMonth)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
+		return new UsageStatementDetailDataResponse(projectId, toDetail(statement));
+	}
+
 	private UsageStatementDetailResponse toDetail(UsageStatement statement) {
 		Map<String, String> categoryNames = codeLookupService.categoryNames();
 		List<UsageStatementSummaryResponse> summaries = summaryRepository.findByUsageStatementIdOrderByCategoryCodeAsc(statement.getId())
@@ -165,5 +177,13 @@ public class UsageStatementService {
 						file.getUploadedAt()
 				))
 				.orElse(null);
+	}
+
+	private LocalDate toReportMonth(int year, int month) {
+		try {
+			return YearMonth.of(year, month).atDay(1);
+		} catch (DateTimeException exception) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "year와 month가 올바르지 않습니다.");
+		}
 	}
 }
