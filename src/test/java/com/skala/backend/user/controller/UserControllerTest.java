@@ -1,6 +1,9 @@
 package com.skala.backend.user.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skala.backend.user.domain.RoleCode;
+import com.skala.backend.user.domain.User;
+import com.skala.backend.user.repository.UserRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +45,12 @@ class UserControllerTest {
 
 	@Autowired
 	JdbcTemplate jdbcTemplate;
+
+	@Autowired
+	UserRepository userRepository;
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
 
 	@Test
 	void system_admin은_사용자_계정을_CRUD_할_수_있다() throws Exception {
@@ -419,7 +429,7 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 로그인_사용자는_내_프로필을_조회하고_탈퇴할_수_있다() throws Exception {
+	void 로그인_사용자는_내_프로필을_조회할_수_있다() throws Exception {
 		Map<String, String> signupRequest = createUser("user");
 		Cookie userCookie = loginCookie(signupRequest);
 
@@ -429,44 +439,17 @@ class UserControllerTest {
 				.andExpect(jsonPath("$.data.user.realName").value(signupRequest.get("realName")))
 				.andExpect(jsonPath("$.data.user.password").doesNotExist())
 				.andExpect(jsonPath("$.data.user.passwordHash").doesNotExist());
-
-		mockMvc.perform(delete("/users/me")
-						.cookie(userCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("password", "wrong-password"))))
-				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value("비밀번호가 올바르지 않습니다."));
-
-		mockMvc.perform(delete("/users/me")
-						.cookie(userCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("password", signupRequest.get("password")))))
-				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
-						containsString("access_token="),
-						containsString("Max-Age=0"),
-						containsString("Path=/")
-				)))
-				.andExpect(jsonPath("$.success").value(true));
 	}
 
 	@Test
-	void 내_프로필_탈퇴는_비밀번호_필수값을_검증한다() throws Exception {
+	void 로그인_사용자는_내_계정을_직접_삭제할_수_없다() throws Exception {
 		Cookie userCookie = loginCookie(createUser("user"));
 
 		mockMvc.perform(delete("/users/me")
-						.cookie(userCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content("{}"))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value(containsString("password:")));
-
-		mockMvc.perform(delete("/users/me")
-						.cookie(userCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("password", "   "))))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value(containsString("password:")));
+				.cookie(userCookie)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("password", "P@ssw0rd123!"))))
+				.andExpect(status().isMethodNotAllowed());
 	}
 
 	@Test
@@ -478,21 +461,6 @@ class UserControllerTest {
 
 		mockMvc.perform(delete("/users/{userId}", projectUserId)
 				.cookie(adminCookie))
-				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.message").value("연결된 데이터가 있어 사용자를 삭제할 수 없습니다."));
-	}
-
-	@Test
-	void 프로젝트에_연결된_사용자는_본인탈퇴가_충돌난다() throws Exception {
-		Map<String, String> user = createUser("user");
-		Cookie userCookie = loginCookie(user);
-		Integer projectUserId = readUserIdFromLogin(user);
-		insertProjectAssignment(projectUserId);
-
-		mockMvc.perform(delete("/users/me")
-						.cookie(userCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("password", user.get("password")))))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value("연결된 데이터가 있어 사용자를 삭제할 수 없습니다."));
 	}
@@ -536,7 +504,7 @@ class UserControllerTest {
 				.andExpect(jsonPath("$.success").value(true));
 	}
 
-	private Map<String, String> createUser(String roleCode) throws Exception {
+	private Map<String, String> createUser(String roleCode) {
 		Map<String, String> request = Map.of(
 				"employeeNo", "EMP-" + UUID.randomUUID(),
 				"realName", "홍길동",
@@ -544,10 +512,12 @@ class UserControllerTest {
 				"roleCode", roleCode
 		);
 
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(request)))
-				.andExpect(status().isCreated());
+		userRepository.saveAndFlush(User.create(
+				request.get("employeeNo"),
+				request.get("realName"),
+				passwordEncoder.encode(request.get("password")),
+				RoleCode.from(roleCode)
+		));
 
 		return request;
 	}

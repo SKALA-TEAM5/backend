@@ -1,7 +1,6 @@
 package com.skala.backend.user.controller;
 
 import com.skala.backend.auth.security.AuthenticatedUser;
-import com.skala.backend.auth.support.AuthCookieFactory;
 import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
 import com.skala.backend.user.domain.RoleCode;
@@ -9,7 +8,6 @@ import com.skala.backend.user.dto.AdminCreateUserRequest;
 import com.skala.backend.user.dto.AdminUpdateUserRequest;
 import com.skala.backend.user.dto.UserDetailResponse;
 import com.skala.backend.user.dto.UserListResponse;
-import com.skala.backend.user.dto.WithdrawRequest;
 import com.skala.backend.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,7 +15,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -38,11 +35,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
 	private final UserService userService;
-	private final AuthCookieFactory authCookieFactory;
 
-	public UserController(UserService userService, AuthCookieFactory authCookieFactory) {
+	public UserController(UserService userService) {
 		this.userService = userService;
-		this.authCookieFactory = authCookieFactory;
 	}
 
 	@GetMapping
@@ -69,7 +64,7 @@ public class UserController {
 	@PostMapping
 	@Operation(
 			summary = "사용자 생성",
-			description = "관리자가 새 사용자를 생성합니다. employeeNo는 로그인에 사용하는 사번입니다."
+			description = "system_admin이 새 계정을 발급합니다. employeeNo는 로그인에 사용하는 사번입니다."
 	)
 	public ResponseEntity<ApiResponse<UserDetailResponse>> createUser(
 			@Parameter(hidden = true)
@@ -82,7 +77,7 @@ public class UserController {
 				.body(ApiResponse.success(response, "사용자 생성에 성공했습니다."));
 	}
 
-	@GetMapping("/{userId}")
+	@GetMapping("/{userId:[0-9]+}")
 	@Operation(
 			summary = "사용자 상세 조회",
 			description = "사용자 ID로 특정 사용자의 상세 정보를 조회합니다."
@@ -97,7 +92,7 @@ public class UserController {
 		return ResponseEntity.ok(ApiResponse.success(response, "사용자 조회에 성공했습니다."));
 	}
 
-	@PatchMapping("/{userId}")
+	@PatchMapping("/{userId:[0-9]+}")
 	@Operation(
 			summary = "사용자 수정",
 			description = "이름, 비밀번호, 역할 중 필요한 값만 전달해 사용자를 수정합니다."
@@ -113,10 +108,10 @@ public class UserController {
 		return ResponseEntity.ok(ApiResponse.success(response, "사용자 수정에 성공했습니다."));
 	}
 
-	@DeleteMapping("/{userId}")
+	@DeleteMapping("/{userId:[0-9]+}")
 	@Operation(
 			summary = "사용자 삭제",
-			description = "관리자가 특정 사용자를 삭제합니다. 실제 삭제 정책은 서비스 로직을 따릅니다."
+			description = "system_admin이 특정 사용자 계정을 삭제합니다. 사용자 직접 탈퇴는 제공하지 않습니다."
 	)
 	public ResponseEntity<ApiResponse<Void>> deleteUser(
 			@Parameter(hidden = true)
@@ -140,23 +135,5 @@ public class UserController {
 	) {
 		UserDetailResponse response = userService.getMyProfile(currentUser.id());
 		return ResponseEntity.ok(ApiResponse.success(response, "내 프로필 조회에 성공했습니다."));
-	}
-
-	@DeleteMapping("/me")
-	@Operation(
-			tags = "내 계정",
-			summary = "회원탈퇴",
-			description = "현재 로그인한 사용자의 비밀번호를 확인한 뒤 회원탈퇴를 처리하고 인증 쿠키를 만료시킵니다."
-	)
-	public ResponseEntity<ApiResponse<Void>> withdraw(
-			@Parameter(hidden = true)
-			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Valid @RequestBody WithdrawRequest request
-	) {
-		userService.withdraw(currentUser.id(), request.password());
-		return ResponseEntity.ok()
-				.header(HttpHeaders.SET_COOKIE, authCookieFactory.expiredAccessToken().toString())
-				.header(HttpHeaders.SET_COOKIE, authCookieFactory.expiredRefreshToken().toString())
-				.body(ApiResponse.success(null, "회원탈퇴가 완료되었습니다."));
 	}
 }

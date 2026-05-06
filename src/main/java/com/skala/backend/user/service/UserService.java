@@ -122,22 +122,6 @@ public class UserService {
 		return toDetailResponse(requireCurrentUser(currentUserId));
 	}
 
-	@Transactional
-	public void withdraw(Long currentUserId, String password) {
-		User user = requireCurrentUser(currentUserId);
-		if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-			throw new ApiException(HttpStatus.FORBIDDEN, "비밀번호가 올바르지 않습니다.");
-		}
-
-		try {
-			refreshTokenService.deleteTokensByUserId(user.getId());
-			userRepository.delete(user);
-			userRepository.flush();
-		} catch (DataIntegrityViolationException exception) {
-			throw new ApiException(HttpStatus.CONFLICT, "연결된 데이터가 있어 사용자를 삭제할 수 없습니다.");
-		}
-	}
-
 	private User requireSystemAdmin(Long currentUserId) {
 		User user = requireCurrentUser(currentUserId);
 

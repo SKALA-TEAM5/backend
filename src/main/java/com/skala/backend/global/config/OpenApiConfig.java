@@ -34,7 +34,6 @@ public class OpenApiConfig {
 	);
 
 	private static final List<String> PATH_ORDER = List.of(
-			"/auth/signup",
 			"/auth/login",
 			"/auth/refresh",
 			"/auth/logout",
@@ -66,8 +65,8 @@ public class OpenApiConfig {
 						.description("프론트엔드 연동을 위한 백엔드 API 문서입니다. 응답은 기본적으로 success, data, message 형태를 사용합니다.")
 						.version("v1"))
 				.tags(List.of(
-						new Tag().name("인증").description("회원가입, 로그인, 토큰 재발급, 로그아웃 API"),
-						new Tag().name("내 계정").description("로그인한 사용자의 프로필 조회와 회원탈퇴 API"),
+						new Tag().name("인증").description("로그인, 토큰 재발급, 로그아웃 API"),
+						new Tag().name("내 계정").description("로그인한 사용자의 프로필 조회 API"),
 						new Tag().name("사용자 관리").description("관리자용 사용자 조회, 생성, 수정, 삭제 API"),
 						new Tag().name("프로젝트").description("프로젝트 목록, 상세, 생성, 수정, 삭제 API"),
 						new Tag().name("프로젝트 담당자").description("프로젝트 담당자 조회, 배정, 해제 API"),

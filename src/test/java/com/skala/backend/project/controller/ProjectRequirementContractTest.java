@@ -1,6 +1,9 @@
 package com.skala.backend.project.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skala.backend.user.domain.RoleCode;
+import com.skala.backend.user.domain.User;
+import com.skala.backend.user.repository.UserRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +42,12 @@ class ProjectRequirementContractTest {
 
 	@Autowired
 	JdbcTemplate jdbcTemplate;
+
+	@Autowired
+	UserRepository userRepository;
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
 
 	@Test
 	void admin은_프로젝트를_CRUD_할_수_있다() throws Exception {
@@ -448,7 +458,7 @@ class ProjectRequirementContractTest {
 				""", projectId, requestedByUserId, assigneeUserId);
 	}
 
-	private Map<String, String> createUser(String roleCode) throws Exception {
+	private Map<String, String> createUser(String roleCode) {
 		Map<String, String> request = Map.of(
 				"employeeNo", "EMP-" + UUID.randomUUID(),
 				"realName", "홍길동",
@@ -456,10 +466,12 @@ class ProjectRequirementContractTest {
 				"roleCode", roleCode
 		);
 
-		mockMvc.perform(post("/auth/signup")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(request)))
-				.andExpect(status().isCreated());
+		userRepository.saveAndFlush(User.create(
+				request.get("employeeNo"),
+				request.get("realName"),
+				passwordEncoder.encode(request.get("password")),
+				RoleCode.from(roleCode)
+		));
 
 		return request;
 	}

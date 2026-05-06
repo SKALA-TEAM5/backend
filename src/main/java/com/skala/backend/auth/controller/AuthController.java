@@ -2,7 +2,6 @@ package com.skala.backend.auth.controller;
 
 import com.skala.backend.auth.dto.AuthResponse;
 import com.skala.backend.auth.dto.LoginRequest;
-import com.skala.backend.auth.dto.SignupRequest;
 import com.skala.backend.auth.service.AuthResult;
 import com.skala.backend.auth.service.AuthService;
 import com.skala.backend.auth.support.AuthCookieFactory;
@@ -14,7 +13,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -25,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/auth")
-@Tag(name = "인증", description = "회원가입, 로그인, 토큰 재발급, 로그아웃 API")
+@Tag(name = "인증", description = "로그인, 토큰 재발급, 로그아웃 API")
 public class AuthController {
 
 	private final AuthService authService;
@@ -34,18 +32,6 @@ public class AuthController {
 	public AuthController(AuthService authService, AuthCookieFactory authCookieFactory) {
 		this.authService = authService;
 		this.authCookieFactory = authCookieFactory;
-	}
-
-	@PostMapping("/signup")
-	@Operation(
-			summary = "회원가입",
-			description = "사번, 이름, 비밀번호, 역할을 입력해 새 계정을 생성합니다. 생성 직후 자동 로그인은 하지 않습니다."
-	)
-	public ResponseEntity<ApiResponse<AuthResponse>> signup(@Valid @RequestBody SignupRequest request) {
-		AuthResponse response = authService.signup(request);
-		return ResponseEntity
-				.status(HttpStatus.CREATED)
-				.body(ApiResponse.success(response, "회원가입에 성공했습니다."));
 	}
 
 	@PostMapping("/login")
