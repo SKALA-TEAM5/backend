@@ -36,7 +36,7 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public UserListResponse listUsers(Long currentUserId, RoleCode roleCode, String keyword) {
-		requireAdmin(currentUserId);
+		requireAdminOrHq(currentUserId);
 		String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
 
 		return new UserListResponse(
@@ -72,7 +72,7 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public UserDetailResponse getUser(Long currentUserId, Long userId) {
-		requireAdmin(currentUserId);
+		requireAdminOrHq(currentUserId);
 		return toDetailResponse(findUser(userId));
 	}
 
@@ -140,7 +140,17 @@ public class UserService {
 
 	private User requireAdmin(Long currentUserId) {
 		User user = requireCurrentUser(currentUserId);
+
 		if (user.getRoleCode() != RoleCode.ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return user;
+	}
+
+	private User requireAdminOrHq(Long currentUserId) {
+		User user = requireCurrentUser(currentUserId);
+
+		if (user.getRoleCode() != RoleCode.ADMIN && user.getRoleCode() != RoleCode.HQ) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 		return user;
