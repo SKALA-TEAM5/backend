@@ -157,6 +157,54 @@ class ProjectRequirementContractTest {
 	}
 
 	@Test
+	void admin은_scope로_전체와_내_담당_프로젝트를_전환할_수_있다() throws Exception {
+		Map<String, String> manager = createUser("admin");
+		Cookie managerCookie = loginCookie(manager);
+		int managerId = readUserIdFromLogin(manager);
+		String prefix = "scope-" + UUID.randomUUID();
+		int assignedProjectId = createProject(managerCookie, prefix + "-내담당");
+		int otherProjectId = createProject(managerCookie, prefix + "-전체전용");
+
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", assignedProjectId, managerId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(2)));
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("scope", "all")
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(2)));
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("scope", "assigned")
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("scope", "assigned")
+						.param("assigneeUserId", String.valueOf(managerId))
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
+
+		mockMvc.perform(get("/projects/{projectId}", otherProjectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk());
+	}
+
+	@Test
 	void agent는_admin과_동일하게_프로젝트를_관리할_수_있다() throws Exception {
 		Cookie agentCookie = loginCookie(createUser("agent"));
 		int projectUserId = createUserId("user");
@@ -218,6 +266,12 @@ class ProjectRequirementContractTest {
 						.cookie(managerCookie)
 						.param("sort", "unknown_sort"))
 				.andExpect(status().isBadRequest());
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("scope", "unknown_scope"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("scope는 all 또는 assigned만 사용할 수 있습니다."));
 	}
 
 	@Test
@@ -354,10 +408,16 @@ class ProjectRequirementContractTest {
 
 		mockMvc.perform(get("/projects")
 						.cookie(assigneeCookie)
+						.param("scope", "assigned")
 						.param("keyword", "담당 프로젝트"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
 				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
+
+		mockMvc.perform(get("/projects")
+						.cookie(assigneeCookie)
+						.param("scope", "all"))
+				.andExpect(status().isForbidden());
 
 		mockMvc.perform(get("/projects/{projectId}/assignees", assignedProjectId).cookie(assigneeCookie))
 				.andExpect(status().isOk())

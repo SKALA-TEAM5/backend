@@ -49,11 +49,23 @@ public class ProjectController {
 	@GetMapping
 	@Operation(
 			summary = "프로젝트 목록 조회",
-			description = "프로젝트 카드 목록을 조회합니다. 검색, 상태, 담당자, 기간, 정렬, 페이지 조건을 함께 사용할 수 있습니다."
+			description = """
+					프로젝트 카드 목록을 조회합니다.
+					- admin: 기본값 `scope=all`로 전체 프로젝트를 조회하며, `scope=assigned`로 본인이 담당자로 배정된 프로젝트만 조회할 수 있습니다.
+					- user: 기본값과 허용값이 `scope=assigned`이며, 본인이 담당자로 배정된 프로젝트만 조회합니다.
+					- system_admin: 프로젝트 업무 API를 사용할 수 없습니다.
+					`assigneeUserId`는 admin의 특정 담당자 필터용이며, `scope=assigned`는 현재 로그인 사용자 기준 필터입니다.
+					"""
 	)
 	public ResponseEntity<ApiResponse<ProjectListResponse>> listProjects(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
+			@Parameter(
+					description = "조회 범위입니다. `all`은 전체 프로젝트, `assigned`는 현재 로그인 사용자가 담당자로 배정된 프로젝트만 조회합니다. admin 기본값은 all, user 기본값은 assigned입니다.",
+					example = "all",
+					schema = @Schema(allowableValues = {"all", "assigned"})
+			)
+			@RequestParam(required = false) String scope,
 			@Parameter(description = "통합 검색어입니다. 프로젝트명, 계약번호 등 목록 검색에 사용합니다.", example = "안전")
 			@RequestParam(required = false) String keyword,
 			@Parameter(description = "프로젝트명 검색어입니다.", example = "스마트 안전관리")
@@ -95,6 +107,7 @@ public class ProjectController {
 	) {
 		ProjectListResponse response = projectService.listProjects(
 				currentUser.id(),
+				scope,
 				keyword,
 				projectName,
 				contractNo,
