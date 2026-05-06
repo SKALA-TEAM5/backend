@@ -30,6 +30,35 @@ public interface EvidenceFileLinkRepository extends JpaRepository<EvidenceFileLi
 			""")
 	Optional<EvidenceFileLink> findProjectLink(@Param("projectId") Long projectId, @Param("linkId") Long linkId);
 
+	@Query(value = """
+			SELECT COUNT(DISTINCT l.file_id)
+			FROM service.evidence_file_links l
+			JOIN service.usage_statement_items i ON i.id = l.usage_statement_item_id
+			JOIN service.usage_statements s ON s.id = i.usage_statement_id
+			JOIN service.files f ON f.id = l.file_id
+			WHERE s.project_id = :projectId
+				AND f.deleted_at IS NULL
+				AND l.checked_at IS NULL
+			""", nativeQuery = true)
+	long countUncheckedMatchedFiles(@Param("projectId") Long projectId);
+
+	@Modifying
+	@Query(value = """
+			UPDATE service.evidence_file_links l
+			SET checked_at = now(),
+				checked_by_user_id = :checkedByUserId
+			FROM service.usage_statement_items i,
+				service.usage_statements s,
+				service.files f
+			WHERE i.id = l.usage_statement_item_id
+				AND s.id = i.usage_statement_id
+				AND f.id = l.file_id
+				AND s.project_id = :projectId
+				AND f.deleted_at IS NULL
+				AND l.checked_at IS NULL
+			""", nativeQuery = true)
+	int markProjectLinksChecked(@Param("projectId") Long projectId, @Param("checkedByUserId") Long checkedByUserId);
+
 	@Modifying
 	void deleteByFileId(Long fileId);
 }

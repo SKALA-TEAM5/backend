@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -278,6 +279,43 @@ class ProjectRequirementContractTest {
 	}
 
 	@Test
+	void admin이_아카이브를_조회하면_미확인_매칭_카운트를_반환하고_확인_처리한다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		Map<String, String> assignee = createUser("user");
+		Cookie assigneeCookie = loginCookie(assignee);
+		int assigneeId = readUserIdFromLogin(assignee);
+		int projectId = createProject(managerCookie, "미확인 매칭 프로젝트");
+		int statementId = insertUsageStatementId(projectId, "2026-04-01", 1, 30);
+		int itemId = insertUsageStatementItem(statementId, "CAT_01");
+		int fileId = insertProjectFile(projectId, assigneeId);
+		insertEvidenceFileLink(itemId, fileId, "CAT_01", "receipt");
+
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, assigneeId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/projects/{projectId}/archive/categories", projectId)
+						.cookie(assigneeCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.uncheckedMatchedFileCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(get("/projects/{projectId}/archive/categories", projectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.uncheckedMatchedFileCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 0);
+
+		mockMvc.perform(get("/projects/{projectId}/archive/categories", projectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.uncheckedMatchedFileCount").value(0))
+				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(0));
+	}
+
+	@Test
 	void 잘못된_sort는_거절한다() throws Exception {
 		Cookie managerCookie = loginCookie(createUser("admin"));
 
@@ -531,6 +569,53 @@ class ProjectRequirementContractTest {
 					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate)
 				VALUES (?, ?::date, ?, ?::date, ?)
 				""", projectId, reportMonth, revisionNo, reportMonth, progressRate);
+	}
+
+	private int insertUsageStatementId(int projectId, String reportMonth, int revisionNo, int progressRate) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.usage_statements
+					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate)
+				VALUES (?, ?::date, ?, ?::date, ?)
+				RETURNING id
+				""", Integer.class, projectId, reportMonth, revisionNo, reportMonth, progressRate);
+	}
+
+	private int insertUsageStatementItem(int usageStatementId, String categoryCode) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.usage_statement_items
+					(usage_statement_id, category_code, used_on, item_name, quantity, unit_price, total_amount, page_no)
+				VALUES (?, ?, '2026-04-01', '테스트 항목', 1, 1000, 1000, 1)
+				RETURNING id
+				""", Integer.class, usageStatementId, categoryCode);
+	}
+
+	private int insertProjectFile(int projectId, int uploadedByUserId) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.files
+					(project_id, uploaded_by_user_id, uploaded_evidence_type_code, original_filename, storage_key, mime_type, size_bytes)
+				VALUES (?, ?, 'receipt', 'receipt.pdf', ?, 'application/pdf', 1024)
+				RETURNING id
+				""", Integer.class, projectId, uploadedByUserId, "tests/" + UUID.randomUUID() + "/receipt.pdf");
+	}
+
+	private void insertEvidenceFileLink(int itemId, int fileId, String categoryCode, String evidenceTypeCode) {
+		jdbcTemplate.update("""
+				INSERT INTO service.evidence_file_links
+					(usage_statement_item_id, file_id, category_code, evidence_type_code)
+				VALUES (?, ?, ?, ?)
+				""", itemId, fileId, categoryCode, evidenceTypeCode);
+	}
+
+	private void assertUncheckedLinkCount(int projectId, int expectedCount) {
+		Integer count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)::int
+				FROM service.evidence_file_links l
+				JOIN service.usage_statement_items i ON i.id = l.usage_statement_item_id
+				JOIN service.usage_statements s ON s.id = i.usage_statement_id
+				WHERE s.project_id = ?
+					AND l.checked_at IS NULL
+				""", Integer.class, projectId);
+		assertThat(count).isEqualTo(expectedCount);
 	}
 
 	private void insertOpenActionRequest(int projectId, int requestedByUserId, int assigneeUserId) {

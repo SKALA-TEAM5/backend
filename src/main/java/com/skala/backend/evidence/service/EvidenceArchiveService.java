@@ -4,9 +4,12 @@ import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveCategoryListRespo
 import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveCategoryResponse;
 import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveItemListResponse;
 import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveItemResponse;
+import com.skala.backend.evidence.repository.EvidenceFileLinkRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
+import com.skala.backend.user.domain.RoleCode;
+import com.skala.backend.user.domain.User;
 import com.skala.backend.usage.domain.UsageStatement;
 import com.skala.backend.usage.repository.UsageStatementRepository;
 import org.springframework.http.HttpStatus;
@@ -24,23 +27,27 @@ public class EvidenceArchiveService {
 
 	private final ProjectAccessService projectAccessService;
 	private final UsageStatementRepository statementRepository;
+	private final EvidenceFileLinkRepository linkRepository;
 	private final CodeLookupService codeLookupService;
 	private final JdbcTemplate jdbcTemplate;
 
 	public EvidenceArchiveService(
 			ProjectAccessService projectAccessService,
 			UsageStatementRepository statementRepository,
+			EvidenceFileLinkRepository linkRepository,
 			CodeLookupService codeLookupService,
 			JdbcTemplate jdbcTemplate
 	) {
 		this.projectAccessService = projectAccessService;
 		this.statementRepository = statementRepository;
+		this.linkRepository = linkRepository;
 		this.codeLookupService = codeLookupService;
 		this.jdbcTemplate = jdbcTemplate;
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public ArchiveCategoryListResponse listCategories(Long currentUserId, Long projectId, Long usageStatementId, LocalDate reportMonth) {
+		User currentUser = projectAccessService.requireCurrentUser(currentUserId);
 		projectAccessService.requireReadable(currentUserId, projectId);
 		UsageStatement statement = resolveStatement(projectId, usageStatementId, reportMonth);
 		Map<String, String> categoryNames = codeLookupService.categoryNames();
@@ -48,9 +55,9 @@ public class EvidenceArchiveService {
 		if (statement == null) {
 			List<ArchiveCategoryResponse> emptyItems = codeLookupService.categoryCodesInDisplayOrder()
 					.stream()
-					.map(code -> new ArchiveCategoryResponse(code, categoryNames.getOrDefault(code, code), 0, 0, 0, 0))
+					.map(code -> new ArchiveCategoryResponse(code, categoryNames.getOrDefault(code, code), 0, 0, 0, 0, 0))
 					.toList();
-			return new ArchiveCategoryListResponse(projectId, emptyItems);
+			return new ArchiveCategoryListResponse(projectId, 0, emptyItems);
 		}
 
 		List<ArchiveCategoryResponse> items = jdbcTemplate.query(
@@ -61,12 +68,14 @@ public class EvidenceArchiveService {
 					count(DISTINCT i.id) AS item_count,
 					count(DISTINCT l.file_id) AS linked_file_count,
 					count(l.id) AS link_count,
+					count(DISTINCT l.file_id) FILTER (WHERE l.checked_at IS NULL AND f.deleted_at IS NULL) AS unchecked_matched_file_count,
 					count(r.id) AS unsatisfied_requirement_count
 				FROM service.usage_categories c
 				LEFT JOIN service.usage_statement_items i
 					ON i.category_code = c.code
 					AND i.usage_statement_id = ?
 				LEFT JOIN service.evidence_file_links l ON l.usage_statement_item_id = i.id
+				LEFT JOIN service.files f ON f.id = l.file_id
 				LEFT JOIN service.evidence_requirements r
 					ON r.usage_statement_item_id = i.id
 					AND r.is_active = true
@@ -80,11 +89,15 @@ public class EvidenceArchiveService {
 						rs.getLong("item_count"),
 						rs.getLong("linked_file_count"),
 						rs.getLong("link_count"),
+						rs.getLong("unchecked_matched_file_count"),
 						rs.getLong("unsatisfied_requirement_count")
 				),
 				statement.getId()
 		);
-		return new ArchiveCategoryListResponse(projectId, items);
+		long uncheckedMatchedFileCount = linkRepository.countUncheckedMatchedFiles(projectId);
+		ArchiveCategoryListResponse response = new ArchiveCategoryListResponse(projectId, uncheckedMatchedFileCount, items);
+		markCheckedIfReviewer(currentUser, projectId);
+		return response;
 	}
 
 	@Transactional(readOnly = true)
@@ -110,10 +123,12 @@ public class EvidenceArchiveService {
 					i.remark,
 					i.page_no,
 					count(DISTINCT l.file_id) AS linked_file_count,
+					count(DISTINCT l.file_id) FILTER (WHERE l.checked_at IS NULL AND f.deleted_at IS NULL) AS unchecked_matched_file_count,
 					count(r.id) AS unsatisfied_requirement_count
 				FROM service.usage_statement_items i
 				JOIN service.usage_statements s ON s.id = i.usage_statement_id
 				LEFT JOIN service.evidence_file_links l ON l.usage_statement_item_id = i.id
+				LEFT JOIN service.files f ON f.id = l.file_id
 				LEFT JOIN service.evidence_requirements r
 					ON r.usage_statement_item_id = i.id
 					AND r.is_active = true
@@ -136,6 +151,7 @@ public class EvidenceArchiveService {
 						rs.getString("remark"),
 						rs.getInt("page_no"),
 						rs.getLong("linked_file_count"),
+						rs.getLong("unchecked_matched_file_count"),
 						rs.getLong("unsatisfied_requirement_count")
 				),
 				statement.getId(),
@@ -161,5 +177,11 @@ public class EvidenceArchiveService {
 
 	private LocalDate toLocalDate(Date value) {
 		return value == null ? null : value.toLocalDate();
+	}
+
+	private void markCheckedIfReviewer(User currentUser, Long projectId) {
+		if (currentUser.getRoleCode() == RoleCode.ADMIN || currentUser.getRoleCode() == RoleCode.AGENT) {
+			linkRepository.markProjectLinksChecked(projectId, currentUser.getId());
+		}
 	}
 }
