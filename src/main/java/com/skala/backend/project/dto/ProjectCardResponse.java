@@ -30,10 +30,12 @@ public record ProjectCardResponse(
 		@Schema(description = "프로젝트 상태", example = "active")
 		ProjectStatusCode status,
 		@Schema(description = "처리 요청 존재 여부", example = "false")
-		boolean hasActionRequest
+		boolean hasActionRequest,
+		@Schema(description = "관리자가 아직 확인하지 않은 매칭 파일 수", example = "3")
+		long uncheckedMatchedFileCount
 ) {
 
-	public static ProjectCardResponse from(ProjectCardRow row) {
+	public static ProjectCardResponse from(ProjectCardRow row, boolean includeUncheckedMatchedFileCount) {
 		return new ProjectCardResponse(
 				row.id(),
 				row.projectName(),
@@ -44,7 +46,8 @@ public record ProjectCardResponse(
 				row.constructionEndDate(),
 				row.latestCumulativeProgressRate(),
 				row.status(),
-				row.hasActionRequest()
+				row.hasActionRequest(),
+				includeUncheckedMatchedFileCount ? row.uncheckedMatchedFileCount() : 0
 		);
 	}
 
@@ -52,7 +55,8 @@ public record ProjectCardResponse(
 			Project project,
 			long assigneeCount,
 			BigDecimal latestCumulativeProgressRate,
-			boolean hasActionRequest
+			boolean hasActionRequest,
+			long uncheckedMatchedFileCount
 	) {
 		return new ProjectCardResponse(
 				project.getId(),
@@ -64,7 +68,8 @@ public record ProjectCardResponse(
 				project.getConstructionEndDate(),
 				latestCumulativeProgressRate,
 				project.getStatus(),
-				hasActionRequest
+				hasActionRequest,
+				uncheckedMatchedFileCount
 		);
 	}
 }

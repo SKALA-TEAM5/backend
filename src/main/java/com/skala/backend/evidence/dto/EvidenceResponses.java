@@ -61,4 +61,7 @@ public final class EvidenceResponses {
 			long unsatisfiedRequirementCount
 	) {
 	}
+
+	public record ArchiveMarkCheckedResponse(Long projectId, int checkedLinkCount) {
+	}
 }

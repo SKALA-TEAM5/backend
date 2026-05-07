@@ -1,5 +1,6 @@
 package com.skala.backend.project.service;
 
+import com.skala.backend.evidence.repository.EvidenceFileLinkRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.domain.Project;
 import com.skala.backend.project.domain.ProjectSort;
@@ -40,15 +41,18 @@ public class ProjectService {
 	private final ProjectRepository projectRepository;
 	private final ProjectUserAssignmentRepository assignmentRepository;
 	private final UserRepository userRepository;
+	private final EvidenceFileLinkRepository linkRepository;
 
 	public ProjectService(
 			ProjectRepository projectRepository,
 			ProjectUserAssignmentRepository assignmentRepository,
-			UserRepository userRepository
+			UserRepository userRepository,
+			EvidenceFileLinkRepository linkRepository
 	) {
 		this.projectRepository = projectRepository;
 		this.assignmentRepository = assignmentRepository;
 		this.userRepository = userRepository;
+		this.linkRepository = linkRepository;
 	}
 
 	@Transactional(readOnly = true)
@@ -94,7 +98,7 @@ public class ProjectService {
 
 		List<ProjectCardResponse> items = result.getContent()
 				.stream()
-				.map(ProjectCardResponse::from)
+				.map(row -> ProjectCardResponse.from(row, canManageProjects(currentUser)))
 				.toList();
 
 		return new ProjectListResponse(
@@ -214,7 +218,8 @@ public class ProjectService {
 				project,
 				assignmentRepository.countByProjectId(project.getId()),
 				projectRepository.findLatestProgressRate(project.getId()),
-				projectRepository.hasOpenActionRequest(project.getId())
+				projectRepository.hasOpenActionRequest(project.getId()),
+				linkRepository.countUncheckedMatchedFiles(project.getId())
 		);
 	}
 
@@ -224,7 +229,11 @@ public class ProjectService {
 				.map(ProjectAssigneeResponse::from)
 				.toList();
 
-		return new ProjectDetailDataResponse(ProjectDetailResponse.of(project, assignees));
+		return new ProjectDetailDataResponse(ProjectDetailResponse.of(
+				project,
+				assignees,
+				linkRepository.countUncheckedMatchedFiles(project.getId())
+		));
 	}
 
 	private ProjectAssigneeListResponse assigneeListResponse(Long projectId) {

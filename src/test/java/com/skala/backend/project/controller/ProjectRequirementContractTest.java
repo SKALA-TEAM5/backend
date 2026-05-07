@@ -279,12 +279,13 @@ class ProjectRequirementContractTest {
 	}
 
 	@Test
-	void admin이_아카이브를_조회하면_미확인_매칭_카운트를_반환하고_확인_처리한다() throws Exception {
+	void 프로젝트와_아카이브는_미확인_매칭_카운트를_보여주고_mark_api로_확인_처리한다() throws Exception {
 		Cookie managerCookie = loginCookie(createUser("admin"));
 		Map<String, String> assignee = createUser("user");
 		Cookie assigneeCookie = loginCookie(assignee);
 		int assigneeId = readUserIdFromLogin(assignee);
-		int projectId = createProject(managerCookie, "미확인 매칭 프로젝트");
+		String projectName = "미확인 매칭 프로젝트-" + UUID.randomUUID();
+		int projectId = createProject(managerCookie, projectName);
 		int statementId = insertUsageStatementId(projectId, "2026-04-01", 1, 30);
 		int itemId = insertUsageStatementItem(statementId, "CAT_01");
 		int fileId = insertProjectFile(projectId, assigneeId);
@@ -293,6 +294,20 @@ class ProjectRequirementContractTest {
 		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, assigneeId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("projectName", projectName))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items[0].id").value(projectId))
+				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(get("/projects/{projectId}", projectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.project.uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 1);
 
 		mockMvc.perform(get("/projects/{projectId}/archive/categories", projectId)
 						.cookie(assigneeCookie))
@@ -306,6 +321,18 @@ class ProjectRequirementContractTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.uncheckedMatchedFileCount").value(1))
 				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(post("/projects/{projectId}/archive/mark-checked", projectId)
+						.cookie(assigneeCookie))
+				.andExpect(status().isForbidden());
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(post("/projects/{projectId}/archive/mark-checked", projectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.projectId").value(projectId))
+				.andExpect(jsonPath("$.data.checkedLinkCount").value(1));
 		assertUncheckedLinkCount(projectId, 0);
 
 		mockMvc.perform(get("/projects/{projectId}/archive/categories", projectId)

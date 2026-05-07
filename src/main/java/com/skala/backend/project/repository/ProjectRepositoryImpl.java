@@ -69,6 +69,18 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 						us.cumulative_progress_rate
 					FROM service.usage_statements us
 					ORDER BY us.project_id, us.report_month DESC, us.revision_no DESC
+				),
+				unchecked_matched_files AS (
+					SELECT
+						us.project_id,
+						count(DISTINCT l.file_id) AS unchecked_matched_file_count
+					FROM service.evidence_file_links l
+					JOIN service.usage_statement_items i ON i.id = l.usage_statement_item_id
+					JOIN service.usage_statements us ON us.id = i.usage_statement_id
+					JOIN service.files f ON f.id = l.file_id
+					WHERE l.checked_at IS NULL
+						AND f.deleted_at IS NULL
+					GROUP BY us.project_id
 				)
 				SELECT
 					p.id,
@@ -95,6 +107,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 						WHERE ar.project_id = p.id
 							AND ar.status_code IN ('open', 'in_progress')
 					) AS has_action_request,
+					COALESCE(umf.unchecked_matched_file_count, 0) AS unchecked_matched_file_count,
 					CASE p.project_status_code
 						WHEN 'active' THEN 1
 						WHEN 'suspended' THEN 2
@@ -102,6 +115,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 					END AS status_rank
 				FROM service.projects p
 				LEFT JOIN latest_statement ls ON ls.project_id = p.id
+				LEFT JOIN unchecked_matched_files umf ON umf.project_id = p.id
 				""" + whereClause + "\nORDER BY " + sort.orderByClause();
 
 		String countSql = """
@@ -159,7 +173,8 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 				toLocalDate(row[6]),
 				(BigDecimal) row[7],
 				ProjectStatusCode.from((String) row[8]),
-				(Boolean) row[9]
+				(Boolean) row[9],
+				toLong(row[10])
 		);
 	}
 

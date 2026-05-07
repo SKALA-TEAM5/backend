@@ -3,6 +3,7 @@ package com.skala.backend.evidence.controller;
 import com.skala.backend.auth.security.AuthenticatedUser;
 import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveCategoryListResponse;
 import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveItemListResponse;
+import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveMarkCheckedResponse;
 import com.skala.backend.evidence.service.EvidenceArchiveService;
 import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
@@ -16,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -76,5 +78,15 @@ public class ProjectEvidenceArchiveController {
 				reportMonth
 		);
 		return ResponseEntity.ok(ApiResponse.success(response, "아카이브 상세항목 조회에 성공했습니다."));
+	}
+
+	@PostMapping("/mark-checked")
+	@Operation(summary = "아카이브 미확인 매칭 확인 처리")
+	public ResponseEntity<ApiResponse<ArchiveMarkCheckedResponse>> markChecked(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId
+	) {
+		ArchiveMarkCheckedResponse response = archiveService.markChecked(currentUser.id(), projectId);
+		return ResponseEntity.ok(ApiResponse.success(response, "아카이브 미확인 매칭을 확인 처리했습니다."));
 	}
 }

@@ -37,13 +37,15 @@ public record ProjectDetailResponse(
 		ProjectStatusCode status,
 		@Schema(description = "프로젝트 담당자 목록")
 		List<ProjectAssigneeResponse> assignees,
+		@Schema(description = "관리자가 아직 확인하지 않은 매칭 파일 수", example = "3")
+		long uncheckedMatchedFileCount,
 		@Schema(description = "생성 일시", example = "2026-05-05T01:00:00Z")
 		Instant createdAt,
 		@Schema(description = "수정 일시", example = "2026-05-05T01:00:00Z")
 		Instant updatedAt
 ) {
 
-	public static ProjectDetailResponse of(Project project, List<ProjectAssigneeResponse> assignees) {
+	public static ProjectDetailResponse of(Project project, List<ProjectAssigneeResponse> assignees, long uncheckedMatchedFileCount) {
 		return new ProjectDetailResponse(
 				project.getId(),
 				project.getContractNo(),
@@ -58,6 +60,7 @@ public record ProjectDetailResponse(
 				project.getAppropriatedAmount(),
 				project.getStatus(),
 				assignees,
+				uncheckedMatchedFileCount,
 				project.getCreatedAt(),
 				project.getUpdatedAt()
 		);

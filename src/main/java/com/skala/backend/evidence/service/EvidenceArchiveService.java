@@ -4,6 +4,7 @@ import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveCategoryListRespo
 import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveCategoryResponse;
 import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveItemListResponse;
 import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveItemResponse;
+import com.skala.backend.evidence.dto.EvidenceResponses.ArchiveMarkCheckedResponse;
 import com.skala.backend.evidence.repository.EvidenceFileLinkRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
@@ -45,9 +46,8 @@ public class EvidenceArchiveService {
 		this.jdbcTemplate = jdbcTemplate;
 	}
 
-	@Transactional
+	@Transactional(readOnly = true)
 	public ArchiveCategoryListResponse listCategories(Long currentUserId, Long projectId, Long usageStatementId, LocalDate reportMonth) {
-		User currentUser = projectAccessService.requireCurrentUser(currentUserId);
 		projectAccessService.requireReadable(currentUserId, projectId);
 		UsageStatement statement = resolveStatement(projectId, usageStatementId, reportMonth);
 		Map<String, String> categoryNames = codeLookupService.categoryNames();
@@ -95,9 +95,7 @@ public class EvidenceArchiveService {
 				statement.getId()
 		);
 		long uncheckedMatchedFileCount = linkRepository.countUncheckedMatchedFiles(projectId);
-		ArchiveCategoryListResponse response = new ArchiveCategoryListResponse(projectId, uncheckedMatchedFileCount, items);
-		markCheckedIfReviewer(currentUser, projectId);
-		return response;
+		return new ArchiveCategoryListResponse(projectId, uncheckedMatchedFileCount, items);
 	}
 
 	@Transactional(readOnly = true)
@@ -160,6 +158,15 @@ public class EvidenceArchiveService {
 		return new ArchiveItemListResponse(projectId, categoryCode, items);
 	}
 
+	@Transactional
+	public ArchiveMarkCheckedResponse markChecked(Long currentUserId, Long projectId) {
+		User currentUser = projectAccessService.requireCurrentUser(currentUserId);
+		projectAccessService.requireReadable(currentUserId, projectId);
+		requireReviewer(currentUser);
+		int checkedLinkCount = linkRepository.markProjectLinksChecked(projectId, currentUser.getId());
+		return new ArchiveMarkCheckedResponse(projectId, checkedLinkCount);
+	}
+
 	private UsageStatement resolveStatement(Long projectId, Long usageStatementId, LocalDate reportMonth) {
 		if (usageStatementId != null) {
 			return statementRepository.findById(usageStatementId)
@@ -179,9 +186,10 @@ public class EvidenceArchiveService {
 		return value == null ? null : value.toLocalDate();
 	}
 
-	private void markCheckedIfReviewer(User currentUser, Long projectId) {
+	private void requireReviewer(User currentUser) {
 		if (currentUser.getRoleCode() == RoleCode.ADMIN || currentUser.getRoleCode() == RoleCode.AGENT) {
-			linkRepository.markProjectLinksChecked(projectId, currentUser.getId());
+			return;
 		}
+		throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 	}
 }

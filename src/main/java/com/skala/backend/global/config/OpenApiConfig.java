@@ -55,7 +55,8 @@ public class OpenApiConfig {
 			"/projects/{projectId}/usage-statement-items/{itemId}/evidence-files",
 			"/projects/{projectId}/evidence-file-links/{linkId}",
 			"/projects/{projectId}/archive/categories",
-			"/projects/{projectId}/archive/categories/{categoryCode}/items"
+			"/projects/{projectId}/archive/categories/{categoryCode}/items",
+			"/projects/{projectId}/archive/mark-checked"
 	);
 
 	@Bean
