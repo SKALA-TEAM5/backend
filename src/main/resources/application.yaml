@@ -30,3 +30,8 @@ app:
   file-storage:
     # Local dev upload root. Keep files under repository ./volumes/upload.
     upload-root: ${APP_FILE_UPLOAD_ROOT:../volumes/upload}
+  ai-agent:
+    base-url: ${APP_AI_AGENT_BASE_URL:http://localhost:8001}
+    connect-timeout: ${APP_AI_AGENT_CONNECT_TIMEOUT:3s}
+    read-timeout: ${APP_AI_AGENT_READ_TIMEOUT:60s}
+    run-path: ${APP_AI_AGENT_RUN_PATH:/agent-runs}

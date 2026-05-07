@@ -15,6 +15,10 @@ public interface ProjectFileRepository extends JpaRepository<ProjectFile, Long> 
 
 	List<ProjectFile> findByIdInAndDeletedAtIsNull(Collection<Long> ids);
 
+	List<ProjectFile> findByProjectIdAndIdInAndDeletedAtIsNull(Long projectId, Collection<Long> ids);
+
+	List<ProjectFile> findByProjectIdAndDeletedAtIsNull(Long projectId);
+
 	@Query(value = """
 			SELECT f.*
 			FROM service.files f
