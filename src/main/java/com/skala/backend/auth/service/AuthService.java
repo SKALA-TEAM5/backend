@@ -33,9 +33,11 @@ public class AuthService {
 
 	@Transactional
 	public AuthResult login(LoginRequest request) {
+		// User의 EmployeeNo 검증
 		User user = userRepository.findByEmployeeNo(request.employeeNo())
 				.orElseThrow(this::invalidCredentials);
 
+		// User의 Password 검증
 		if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
 			throw invalidCredentials();
 		}
@@ -45,6 +47,7 @@ public class AuthService {
 
 	@Transactional
 	public AuthResult refresh(String refreshToken) {
+		// User의 refresh token 발급
 		User user = refreshTokenService.rotate(refreshToken);
 		return authResult(user);
 	}

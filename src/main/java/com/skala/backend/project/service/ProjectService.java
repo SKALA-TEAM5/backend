@@ -112,7 +112,7 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectDetailDataResponse createProject(Long currentUserId, ProjectCreateRequest request) {
-		requireProjectManager(currentUserId);
+		User creator = requireProjectCreator(currentUserId);
 		validateDateRange(request.constructionStartDate(), request.constructionEndDate());
 
 		Project project = Project.create(
@@ -129,7 +129,9 @@ public class ProjectService {
 				request.status()
 		);
 
-		return toDetailDataResponse(projectRepository.save(project));
+		Project savedProject = projectRepository.save(project);
+		assignmentRepository.save(ProjectUserAssignment.create(savedProject, creator, creator));
+		return toDetailDataResponse(savedProject);
 	}
 
 	@Transactional(readOnly = true)
@@ -262,6 +264,14 @@ public class ProjectService {
 	private User requireProjectManager(Long currentUserId) {
 		User user = requireCurrentUser(currentUserId);
 		if (!canManageProjects(user)) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return user;
+	}
+
+	private User requireProjectCreator(Long currentUserId) {
+		User user = requireCurrentUser(currentUserId);
+		if (user.getRoleCode() != RoleCode.ADMIN) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 		return user;

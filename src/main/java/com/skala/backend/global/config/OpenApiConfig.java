@@ -30,8 +30,7 @@ public class OpenApiConfig {
 			"프로젝트 사용내역서",
 			"프로젝트 파일",
 			"프로젝트 증빙 연결",
-			"프로젝트 아카이브",
-			"프로젝트 AI Agent"
+			"프로젝트 아카이브"
 	);
 
 	private static final List<String> PATH_ORDER = List.of(
@@ -57,8 +56,7 @@ public class OpenApiConfig {
 			"/projects/{projectId}/evidence-file-links/{linkId}",
 			"/projects/{projectId}/archive/categories",
 			"/projects/{projectId}/archive/categories/{categoryCode}/items",
-			"/projects/{projectId}/archive/mark-checked",
-			"/projects/{projectId}/ai-agent-runs"
+			"/projects/{projectId}/archive/mark-checked"
 	);
 
 	@Bean
@@ -77,8 +75,7 @@ public class OpenApiConfig {
 						new Tag().name("프로젝트 사용내역서").description("프로젝트 상세 페이지 사용내역서 탭 API"),
 						new Tag().name("프로젝트 파일").description("프로젝트 증빙 파일 조회, 업로드, 다운로드 API"),
 						new Tag().name("프로젝트 증빙 연결").description("사용내역서 상세항목과 증빙 파일 연결 API"),
-						new Tag().name("프로젝트 아카이브").description("프로젝트 아카이브 조회 API"),
-						new Tag().name("프로젝트 AI Agent").description("프로젝트 AI Agent 실행 API")
+						new Tag().name("프로젝트 아카이브").description("프로젝트 아카이브 조회 API")
 				))
 				.components(new Components()
 						.addSecuritySchemes(COOKIE_AUTH, new SecurityScheme()

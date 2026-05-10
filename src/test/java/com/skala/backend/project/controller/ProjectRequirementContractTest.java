@@ -160,15 +160,12 @@ class ProjectRequirementContractTest {
 	@Test
 	void admin은_scope로_전체와_내_담당_프로젝트를_전환할_수_있다() throws Exception {
 		Map<String, String> manager = createUser("admin");
+		Map<String, String> otherManager = createUser("admin");
 		Cookie managerCookie = loginCookie(manager);
-		int managerId = readUserIdFromLogin(manager);
+		Cookie otherManagerCookie = loginCookie(otherManager);
 		String prefix = "scope-" + UUID.randomUUID();
 		int assignedProjectId = createProject(managerCookie, prefix + "-내담당");
-		int otherProjectId = createProject(managerCookie, prefix + "-전체전용");
-
-		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", assignedProjectId, managerId)
-						.cookie(managerCookie))
-				.andExpect(status().isOk());
+		int otherProjectId = createProject(otherManagerCookie, prefix + "-전체전용");
 
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
@@ -191,25 +188,23 @@ class ProjectRequirementContractTest {
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
 				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
 
-		mockMvc.perform(get("/projects")
-						.cookie(managerCookie)
-						.param("scope", "assigned")
-						.param("assigneeUserId", String.valueOf(managerId))
-						.param("keyword", prefix))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.items", hasSize(1)))
-				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
-
 		mockMvc.perform(get("/projects/{projectId}", otherProjectId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk());
 	}
 
 	@Test
-	void agent는_admin과_동일하게_프로젝트를_관리할_수_있다() throws Exception {
+	void agent는_프로젝트를_생성할_수_없지만_기존_프로젝트는_관리할_수_있다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
 		Cookie agentCookie = loginCookie(createUser("agent"));
 		int projectUserId = createUserId("user");
-		int projectId = createProject(agentCookie, "agent 생성 프로젝트");
+		int projectId = createProject(managerCookie, "agent 관리 프로젝트");
+
+		mockMvc.perform(post("/projects")
+						.cookie(agentCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(projectRequest("agent 생성 시도"))))
+				.andExpect(status().isForbidden());
 
 		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, projectUserId)
 						.cookie(agentCookie))
@@ -251,7 +246,7 @@ class ProjectRequirementContractTest {
 				.andExpect(jsonPath("$.data.items", hasSize(2)))
 				.andExpect(jsonPath("$.data.items[0].id").value(highProgressProjectId))
 				.andExpect(jsonPath("$.data.items[0].assigneeNames[0]").value("홍길동"))
-				.andExpect(jsonPath("$.data.items[0].assigneeCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].assigneeCount").value(2))
 				.andExpect(jsonPath("$.data.items[0].latestCumulativeProgressRate").value(80))
 				.andExpect(jsonPath("$.data.items[0].hasActionRequest").value(true))
 				.andExpect(jsonPath("$.data.items[1].id").value(lowProgressProjectId))
@@ -289,7 +284,7 @@ class ProjectRequirementContractTest {
 		int statementId = insertUsageStatementId(projectId, "2026-04-01", 1, 30);
 		int itemId = insertUsageStatementItem(statementId, "CAT_01");
 		int fileId = insertProjectFile(projectId, assigneeId);
-		insertEvidenceFileLink(itemId, fileId, "CAT_01", "receipt");
+		insertEvidenceFileLink(itemId, fileId, "CAT_01", "transaction_statement");
 
 		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, assigneeId)
 						.cookie(managerCookie))
@@ -505,7 +500,7 @@ class ProjectRequirementContractTest {
 
 		mockMvc.perform(get("/projects/{projectId}/assignees", assignedProjectId).cookie(assigneeCookie))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.assignees", hasSize(1)));
+				.andExpect(jsonPath("$.data.assignees", hasSize(2)));
 
 		mockMvc.perform(patch("/projects/{projectId}", assignedProjectId)
 						.cookie(assigneeCookie)
@@ -620,7 +615,7 @@ class ProjectRequirementContractTest {
 		return jdbcTemplate.queryForObject("""
 				INSERT INTO service.files
 					(project_id, uploaded_by_user_id, uploaded_evidence_type_code, original_filename, storage_key, mime_type, size_bytes)
-				VALUES (?, ?, 'receipt', 'receipt.pdf', ?, 'application/pdf', 1024)
+				VALUES (?, ?, 'transaction_statement', 'receipt.pdf', ?, 'application/pdf', 1024)
 				RETURNING id
 				""", Integer.class, projectId, uploadedByUserId, "tests/" + UUID.randomUUID() + "/receipt.pdf");
 	}

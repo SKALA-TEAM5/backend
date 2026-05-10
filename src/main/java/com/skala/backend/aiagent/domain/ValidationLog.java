@@ -22,9 +22,6 @@ public class ValidationLog {
 	@Column(name = "project_id", nullable = false)
 	private Long projectId;
 
-	@Column(name = "ai_agent_run_id")
-	private Long aiAgentRunId;
-
 	@Column(name = "usage_statement_id")
 	private Long usageStatementId;
 
@@ -61,7 +58,6 @@ public class ValidationLog {
 
 	private ValidationLog(
 			Long projectId,
-			Long aiAgentRunId,
 			Long usageStatementId,
 			Long usageStatementItemId,
 			AiAgentTypeCode agentTypeCode,
@@ -73,7 +69,6 @@ public class ValidationLog {
 			String modelName
 	) {
 		this.projectId = projectId;
-		this.aiAgentRunId = aiAgentRunId;
 		this.usageStatementId = usageStatementId;
 		this.usageStatementItemId = usageStatementItemId;
 		this.agentTypeCode = agentTypeCode;
@@ -88,7 +83,6 @@ public class ValidationLog {
 
 	public static ValidationLog create(
 			Long projectId,
-			Long aiAgentRunId,
 			Long usageStatementId,
 			Long usageStatementItemId,
 			AiAgentTypeCode agentTypeCode,
@@ -101,7 +95,6 @@ public class ValidationLog {
 	) {
 		return new ValidationLog(
 				projectId,
-				aiAgentRunId,
 				usageStatementId,
 				usageStatementItemId,
 				agentTypeCode,
