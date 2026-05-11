@@ -14,6 +14,7 @@ public final class AgentDtos {
 	}
 
 	public enum AgentType {
+		OCR("ocr", "ocr"),
 		VALIDATOR("validator", "law"),
 		CLASSIFIER("classifier", "classification"),
 		SAFETY_DOC("safety_doc", "evidence"),
@@ -75,6 +76,8 @@ public final class AgentDtos {
 	) {
 	}
 
+	// FastAPI agent 공통 envelope입니다. 개별 agent별 상세 payload는 context/result Map에 담습니다.
+	// 초기 연동 단계에서는 contract 변화가 잦아서 강한 타입 DTO를 과하게 늘리지 않습니다.
 	public record FastApiAgentRequest(
 			String requestId,
 			String agentType,

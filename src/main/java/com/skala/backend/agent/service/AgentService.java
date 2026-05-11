@@ -47,6 +47,8 @@ public class AgentService {
 		this.objectMapper = objectMapper;
 	}
 
+	// Generic agent 경로입니다. DB에 이미 존재하는 사용내역서 context를 조립해 FastAPI agent로 보냅니다.
+	// OCR 전용 workflow는 OcrAgentService에 분리되어 있어 이 서비스는 공통 agent 실행만 담당합니다.
 	public AgentRunResponse run(
 			AuthenticatedUser currentUser,
 			Long projectId,
@@ -171,6 +173,8 @@ public class AgentService {
 			Map<String, Object> context,
 			FastApiAgentResponse response
 	) {
+		// 모든 agent 실행 결과는 별도 실행 테이블 없이 validation_logs.details에 보존합니다.
+		// 조회/필터링에 필요한 값만 일반 컬럼(agent_type_code, result_code 등)에 복사합니다.
 		Map<String, Object> details = baseDetails(response.requestId(), agentType, request, context);
 		details.put("output_version", response.outputVersion());
 		details.put("agent_status", response.status());
@@ -204,6 +208,8 @@ public class AgentService {
 			Map<String, Object> context,
 			ApiException exception
 	) {
+		// FastAPI 호출 실패도 validation_logs에 남깁니다.
+		// 다만 실패 로그 저장이 또 실패하면 원래 agent 실패를 가리지 않도록 삼킵니다.
 		Map<String, Object> details = baseDetails(requestId, agentType, request, context);
 		details.put("agent_status", "error");
 		details.put("response", Map.of());
@@ -286,4 +292,5 @@ public class AgentService {
 			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Agent 실행 로그를 JSON으로 변환할 수 없습니다.");
 		}
 	}
+
 }
