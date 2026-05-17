@@ -284,7 +284,7 @@ class ProjectRequirementContractTest {
 		int statementId = insertUsageStatementId(projectId, "2026-04-01", 1, 30);
 		int itemId = insertUsageStatementItem(statementId, "CAT_01");
 		int fileId = insertProjectFile(projectId, assigneeId);
-		insertEvidenceFileLink(itemId, fileId, "CAT_01", "transaction_statement");
+		insertEvidenceFileLink(itemId, fileId, "transaction_statement");
 
 		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, assigneeId)
 						.cookie(managerCookie))
@@ -620,12 +620,12 @@ class ProjectRequirementContractTest {
 				""", Integer.class, projectId, uploadedByUserId, "tests/" + UUID.randomUUID() + "/receipt.pdf");
 	}
 
-	private void insertEvidenceFileLink(int itemId, int fileId, String categoryCode, String evidenceTypeCode) {
+	private void insertEvidenceFileLink(int itemId, int fileId, String evidenceTypeCode) {
 		jdbcTemplate.update("""
 				INSERT INTO service.evidence_file_links
-					(usage_statement_item_id, file_id, category_code, evidence_type_code)
-				VALUES (?, ?, ?, ?)
-				""", itemId, fileId, categoryCode, evidenceTypeCode);
+					(usage_statement_item_id, file_id, evidence_type_code)
+				VALUES (?, ?, ?)
+				""", itemId, fileId, evidenceTypeCode);
 	}
 
 	private void assertUncheckedLinkCount(int projectId, int expectedCount) {
