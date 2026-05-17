@@ -64,7 +64,6 @@ public class EvidenceCommandService {
 			EvidenceFileLink link = linkRepository.save(EvidenceFileLink.create(
 					item.getId(),
 					file.getId(),
-					item.getCategoryCode(),
 					request.evidenceTypeCode()
 			));
 			recalculateRequirements(item.getId());
@@ -88,7 +87,7 @@ public class EvidenceCommandService {
 			throw new ApiException(HttpStatus.CONFLICT, "대상 상세항목에 이미 연결된 파일입니다.");
 		}
 
-		link.moveTo(targetItem.getId(), targetItem.getCategoryCode(), request.evidenceTypeCode());
+		link.moveTo(targetItem.getId(), request.evidenceTypeCode());
 		recalculateRequirements(previousItemId);
 		recalculateRequirements(targetItem.getId());
 		return new EvidenceLinkResponse(link.getId());

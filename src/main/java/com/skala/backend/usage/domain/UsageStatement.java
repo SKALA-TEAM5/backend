@@ -37,6 +37,9 @@ public class UsageStatement {
 	@Column(name = "cumulative_progress_rate", nullable = false)
 	private BigDecimal cumulativeProgressRate;
 
+	@Column(name = "status_code", nullable = false, length = 30)
+	private String statusCode;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -46,6 +49,36 @@ public class UsageStatement {
 	protected UsageStatement() {
 	}
 
+	public void submit() {
+		if (!"draft".equals(statusCode)) {
+			throw new com.skala.backend.global.error.ApiException(
+					org.springframework.http.HttpStatus.CONFLICT,
+					"제출할 수 없는 상태입니다. 현재 상태: " + statusCode
+			);
+		}
+		this.statusCode = "upload_completed";
+	}
+
+	public void requestSupplement() {
+		if (!"upload_completed".equals(statusCode)) {
+			throw new com.skala.backend.global.error.ApiException(
+					org.springframework.http.HttpStatus.CONFLICT,
+					"보완 요청할 수 없는 상태입니다. 현재 상태: " + statusCode
+			);
+		}
+		this.statusCode = "supplement_required";
+	}
+
+	public void completeReview() {
+		if (!"upload_completed".equals(statusCode) && !"supplement_required".equals(statusCode)) {
+			throw new com.skala.backend.global.error.ApiException(
+					org.springframework.http.HttpStatus.CONFLICT,
+					"검토 완료할 수 없는 상태입니다. 현재 상태: " + statusCode
+			);
+		}
+		this.statusCode = "review_completed";
+	}
+
 	public Long getId() { return id; }
 	public Long getProjectId() { return projectId; }
 	public Long getSourceFileId() { return sourceFileId; }
@@ -53,6 +86,7 @@ public class UsageStatement {
 	public Integer getRevisionNo() { return revisionNo; }
 	public LocalDate getDocumentWrittenDate() { return documentWrittenDate; }
 	public BigDecimal getCumulativeProgressRate() { return cumulativeProgressRate; }
+	public String getStatusCode() { return statusCode; }
 	public Instant getCreatedAt() { return createdAt; }
 	public Instant getUpdatedAt() { return updatedAt; }
 }

@@ -22,6 +22,7 @@ public final class UsageStatementResponses {
 			Integer revisionNo,
 			LocalDate documentWrittenDate,
 			BigDecimal cumulativeProgressRate,
+			String statusCode,
 			long summaryCount,
 			long itemCount,
 			long linkedEvidenceFileCount,
@@ -38,6 +39,7 @@ public final class UsageStatementResponses {
 			Integer revisionNo,
 			LocalDate documentWrittenDate,
 			BigDecimal cumulativeProgressRate,
+			String statusCode,
 			SourceFileResponse sourceFile,
 			List<UsageStatementSummaryResponse> summaries,
 			List<UsageStatementItemResponse> items

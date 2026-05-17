@@ -83,6 +83,7 @@ public class UsageStatementService {
 						statement.getRevisionNo(),
 						statement.getDocumentWrittenDate(),
 						statement.getCumulativeProgressRate(),
+						statement.getStatusCode(),
 						summaryRepository.countByUsageStatementId(statement.getId()),
 						itemRepository.countByUsageStatementId(statement.getId()),
 						linkedCounts.getOrDefault(statement.getId(), 0L),
@@ -147,6 +148,7 @@ public class UsageStatementService {
 				statement.getRevisionNo(),
 				statement.getDocumentWrittenDate(),
 				statement.getCumulativeProgressRate(),
+				statement.getStatusCode(),
 				toSourceFile(statement.getSourceFileId()),
 				summaries,
 				itemResponses

@@ -163,7 +163,6 @@ public class OcrAgentRepository {
 		EvidenceFileLink link = evidenceFileLinkRepository.save(EvidenceFileLink.create(
 				item.getId(),
 				file.getId(),
-				item.getCategoryCode(),
 				file.getUploadedEvidenceTypeCode()
 		));
 		return link.getId();
