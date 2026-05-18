@@ -41,6 +41,13 @@ public class ProjectAccessService {
 		return project;
 	}
 
+	public void requireAdmin(Long currentUserId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() != RoleCode.ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+	}
+
 	public User requireCurrentUser(Long currentUserId) {
 		if (currentUserId == null) {
 			throw new ApiException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.");

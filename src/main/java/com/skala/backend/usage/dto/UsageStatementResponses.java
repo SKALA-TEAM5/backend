@@ -101,4 +101,10 @@ public final class UsageStatementResponses {
 			boolean satisfied
 	) {
 	}
+
+	public record UsageStatementStatusResponse(
+			Long id,
+			String statusCode
+	) {
+	}
 }
