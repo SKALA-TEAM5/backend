@@ -1,10 +1,12 @@
 package com.skala.backend.agent.controller;
 
+import com.skala.backend.agent.dto.AgentDtos.AgentLogResponse;
 import com.skala.backend.agent.dto.AgentDtos.AgentRunRequest;
 import com.skala.backend.agent.dto.AgentDtos.AgentRunResponse;
 import com.skala.backend.agent.dto.OcrAgentDtos.OcrEvidenceMatchRequest;
 import com.skala.backend.agent.dto.OcrAgentDtos.OcrUsageStatementParseRequest;
 import com.skala.backend.agent.dto.OcrAgentDtos.OcrWorkflowResponse;
+import com.skala.backend.agent.service.AgentLogService;
 import com.skala.backend.agent.service.AgentService;
 import com.skala.backend.agent.service.OcrAgentService;
 import com.skala.backend.auth.security.AuthenticatedUser;
@@ -17,11 +19,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/projects/{projectId}/agents")
@@ -31,10 +38,24 @@ public class AgentController {
 
 	private final AgentService agentService;
 	private final OcrAgentService ocrAgentService;
+	private final AgentLogService agentLogService;
 
-	public AgentController(AgentService agentService, OcrAgentService ocrAgentService) {
+	public AgentController(AgentService agentService, OcrAgentService ocrAgentService, AgentLogService agentLogService) {
 		this.agentService = agentService;
 		this.ocrAgentService = ocrAgentService;
+		this.agentLogService = agentLogService;
+	}
+
+	@GetMapping("/logs")
+	@Operation(summary = "agent_logs 조회 (R-28)", description = "runId 또는 usageStatementId 중 하나를 필수로 전달합니다.")
+	public ResponseEntity<ApiResponse<List<AgentLogResponse>>> getLogs(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@RequestParam(required = false) UUID runId,
+			@RequestParam(required = false) Long usageStatementId
+	) {
+		List<AgentLogResponse> response = agentLogService.getLogs(currentUser.id(), projectId, runId, usageStatementId);
+		return ResponseEntity.ok(ApiResponse.success(response, "agent 로그 조회에 성공했습니다."));
 	}
 
 	@PostMapping("/{agentType}/run")

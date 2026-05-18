@@ -66,7 +66,8 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 				WITH latest_statement AS (
 					SELECT DISTINCT ON (us.project_id)
 						us.project_id,
-						us.cumulative_progress_rate
+						us.cumulative_progress_rate,
+						us.status_code
 					FROM service.usage_statements us
 					ORDER BY us.project_id, us.report_month DESC, us.revision_no DESC
 				),
@@ -108,6 +109,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 							AND ar.status_code IN ('open', 'in_progress')
 					) AS has_action_request,
 					COALESCE(umf.unchecked_matched_file_count, 0) AS unchecked_matched_file_count,
+					ls.status_code AS latest_usage_statement_status_code,
 					CASE p.project_status_code
 						WHEN 'active' THEN 1
 						WHEN 'suspended' THEN 2
@@ -174,7 +176,8 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 				(BigDecimal) row[7],
 				ProjectStatusCode.from((String) row[8]),
 				(Boolean) row[9],
-				toLong(row[10])
+				toLong(row[10]),
+				(String) row[11]
 		);
 	}
 

@@ -17,6 +17,7 @@ public record ProjectCardRow(
 		BigDecimal latestCumulativeProgressRate,
 		ProjectStatusCode status,
 		boolean hasActionRequest,
-		long uncheckedMatchedFileCount
+		long uncheckedMatchedFileCount,
+		String latestUsageStatementStatusCode
 ) {
 }

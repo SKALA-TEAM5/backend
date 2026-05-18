@@ -32,7 +32,9 @@ public record ProjectCardResponse(
 		@Schema(description = "처리 요청 존재 여부", example = "false")
 		boolean hasActionRequest,
 		@Schema(description = "관리자가 아직 확인하지 않은 매칭 파일 수", example = "3")
-		long uncheckedMatchedFileCount
+		long uncheckedMatchedFileCount,
+	@Schema(description = "최신 사용내역서 상태", example = "upload_completed")
+		String latestUsageStatementStatusCode
 ) {
 
 	public static ProjectCardResponse from(ProjectCardRow row, boolean includeUncheckedMatchedFileCount) {
@@ -47,7 +49,8 @@ public record ProjectCardResponse(
 				row.latestCumulativeProgressRate(),
 				row.status(),
 				row.hasActionRequest(),
-				includeUncheckedMatchedFileCount ? row.uncheckedMatchedFileCount() : 0
+				includeUncheckedMatchedFileCount ? row.uncheckedMatchedFileCount() : 0,
+				row.latestUsageStatementStatusCode()
 		);
 	}
 
@@ -69,7 +72,8 @@ public record ProjectCardResponse(
 				latestCumulativeProgressRate,
 				project.getStatus(),
 				hasActionRequest,
-				uncheckedMatchedFileCount
+				uncheckedMatchedFileCount,
+				null
 		);
 	}
 }

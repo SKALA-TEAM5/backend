@@ -1,12 +1,15 @@
 package com.skala.backend.agent.dto;
 
+import com.skala.backend.agent.domain.AgentLog;
 import com.skala.backend.global.error.ApiException;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public final class AgentDtos {
 
@@ -110,6 +113,29 @@ public final class AgentDtos {
 			String message,
 			Map<String, Object> details
 	) {
+	}
+
+	@Schema(description = "agent_logs 조회 응답")
+	public record AgentLogResponse(
+			@Schema(description = "로그 ID") Long id,
+			@Schema(description = "사용내역서 ID") Long usageStatementId,
+			@Schema(description = "에이전트 유형", example = "vision") String agentTypeCode,
+			@Schema(description = "실행 상태", example = "completed") String statusCode,
+			@Schema(description = "사용 모델명") String modelName,
+			@Schema(description = "배치 실행 단위 ID") UUID runId,
+			@Schema(description = "생성일시") Instant createdAt
+	) {
+		public static AgentLogResponse from(AgentLog log) {
+			return new AgentLogResponse(
+					log.getId(),
+					log.getUsageStatementId(),
+					log.getAgentTypeCode(),
+					log.getStatusCode(),
+					log.getModelName(),
+					log.getRunId(),
+					log.getCreatedAt()
+			);
+		}
 	}
 
 	public record ValidationLogCommand(
