@@ -32,7 +32,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/projects/{projectId}/agents")
-@Tag(name = "Agent", description = "Spring에서 FastAPI agent를 호출하고 validation_logs에 결과를 저장하는 API")
+@Tag(name = "Agent", description = "agent_logs 조회(R-28) 및 FastAPI agent 호출 스켈레톤")
 @SecurityRequirement(name = OpenApiConfig.COOKIE_AUTH)
 public class AgentController {
 
@@ -46,6 +46,7 @@ public class AgentController {
 		this.agentLogService = agentLogService;
 	}
 
+	// R-28: agent_logs 조회 — 완전 구현
 	@GetMapping("/logs")
 	@Operation(summary = "agent_logs 조회 (R-28)", description = "runId 또는 usageStatementId 중 하나를 필수로 전달합니다.")
 	public ResponseEntity<ApiResponse<List<AgentLogResponse>>> getLogs(
@@ -58,17 +59,13 @@ public class AgentController {
 		return ResponseEntity.ok(ApiResponse.success(response, "agent 로그 조회에 성공했습니다."));
 	}
 
+	// 스켈레톤 — FastAPI 엔드포인트 확정 후 구현 예정 (현재 501 반환)
 	@PostMapping("/{agentType}/run")
-	@Operation(
-			summary = "Agent 실행",
-			description = "프로젝트/사용내역서 context를 조립해 FastAPI agent를 호출하고 결과를 validation_logs에 저장합니다."
-	)
+	@Operation(summary = "Agent 실행 (스켈레톤)", description = "FastAPI 엔드포인트 확정 후 구현 예정입니다.")
 	public ResponseEntity<ApiResponse<AgentRunResponse>> runAgent(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "프로젝트 ID", example = "1")
 			@PathVariable Long projectId,
-			@Parameter(description = "Agent 유형. validator, classifier, safety_doc, report", example = "validator")
 			@PathVariable String agentType,
 			@Valid @RequestBody AgentRunRequest request
 	) {
@@ -76,17 +73,12 @@ public class AgentController {
 		return ResponseEntity.ok(ApiResponse.success(response, "Agent 실행 결과를 저장했습니다."));
 	}
 
-	// 사용내역서 업로드 플로우의 시작점입니다.
-	// FastAPI OCR로 PDF를 구조화하고, 성공하면 DB 적재 후 classification까지 이어집니다.
+	// 스켈레톤 — FastAPI 엔드포인트 확정 후 구현 예정 (현재 501 반환)
 	@PostMapping("/ocr/usage-statements/parse")
-	@Operation(
-			summary = "사용내역서 OCR 파싱",
-			description = "사용내역서 파일을 FastAPI OCR로 파싱하고 결과를 validation_logs에 저장합니다."
-	)
+	@Operation(summary = "사용내역서 OCR 파싱 (스켈레톤)", description = "FastAPI 엔드포인트 확정 후 구현 예정입니다.")
 	public ResponseEntity<ApiResponse<OcrWorkflowResponse>> parseUsageStatement(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "프로젝트 ID", example = "1")
 			@PathVariable Long projectId,
 			@Valid @RequestBody OcrUsageStatementParseRequest request
 	) {
@@ -94,17 +86,12 @@ public class AgentController {
 		return ResponseEntity.ok(ApiResponse.success(response, "사용내역서 OCR 파싱 결과를 저장했습니다."));
 	}
 
-	// 이미 DB에 적재된 사용내역서 항목을 기준으로, 업로드된 증빙 파일을 OCR 후 매칭합니다.
-	// matched인 경우에만 evidence_file_links를 생성해 업로드 완료 상태로 봅니다.
+	// 스켈레톤 — FastAPI 엔드포인트 확정 후 구현 예정 (현재 501 반환)
 	@PostMapping("/ocr/evidence/parse-and-match")
-	@Operation(
-			summary = "증빙 OCR 및 사용내역서 매칭",
-			description = "증빙 파일 OCR 결과를 사용내역서 상세항목과 매칭하고, matched이면 증빙 연결을 생성합니다."
-	)
+	@Operation(summary = "증빙 OCR 및 사용내역서 매칭 (스켈레톤)", description = "FastAPI 엔드포인트 확정 후 구현 예정입니다.")
 	public ResponseEntity<ApiResponse<OcrWorkflowResponse>> parseAndMatchEvidence(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "프로젝트 ID", example = "1")
 			@PathVariable Long projectId,
 			@Valid @RequestBody OcrEvidenceMatchRequest request
 	) {

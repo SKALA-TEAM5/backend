@@ -1,10 +1,8 @@
 package com.skala.backend.agent.dto;
 
 import com.skala.backend.agent.domain.AgentLog;
-import com.skala.backend.global.error.ApiException;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
-import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.List;
@@ -14,39 +12,6 @@ import java.util.UUID;
 public final class AgentDtos {
 
 	private AgentDtos() {
-	}
-
-	public enum AgentType {
-		OCR("ocr", "ocr"),
-		VALIDATOR("validator", "law"),
-		CLASSIFIER("classifier", "classification"),
-		SAFETY_DOC("safety_doc", "evidence"),
-		REPORT("report", "report");
-
-		private final String code;
-		private final String validationTypeCode;
-
-		AgentType(String code, String validationTypeCode) {
-			this.code = code;
-			this.validationTypeCode = validationTypeCode;
-		}
-
-		public String code() {
-			return code;
-		}
-
-		public String validationTypeCode() {
-			return validationTypeCode;
-		}
-
-		public static AgentType from(String value) {
-			for (AgentType type : values()) {
-				if (type.code.equalsIgnoreCase(value) || type.name().equalsIgnoreCase(value)) {
-					return type;
-				}
-			}
-			throw new ApiException(HttpStatus.BAD_REQUEST, "지원하지 않는 agentType입니다.");
-		}
 	}
 
 	@Schema(description = "Agent 실행 요청")
@@ -72,46 +37,10 @@ public final class AgentDtos {
 			String agentType,
 			@Schema(description = "실행 상태", example = "succeeded")
 			String status,
-			@Schema(description = "저장된 validation_logs ID 목록")
-			List<Long> validationLogIds,
+			@Schema(description = "저장된 로그 ID 목록")
+			List<Long> logIds,
 			@Schema(description = "Agent 실행 결과")
 			Map<String, Object> result
-	) {
-	}
-
-	// FastAPI agent 공통 envelope입니다. 개별 agent별 상세 payload는 context/result Map에 담습니다.
-	// 초기 연동 단계에서는 contract 변화가 잦아서 강한 타입 DTO를 과하게 늘리지 않습니다.
-	public record FastApiAgentRequest(
-			String requestId,
-			String agentType,
-			String inputVersion,
-			Map<String, Object> context,
-			Map<String, Object> options
-	) {
-	}
-
-	public record FastApiAgentResponse(
-			String requestId,
-			String agentType,
-			String outputVersion,
-			String status,
-			Map<String, Object> result,
-			AgentUsage usage,
-			AgentError error
-	) {
-	}
-
-	public record AgentUsage(
-			String model,
-			Integer inputTokens,
-			Integer outputTokens
-	) {
-	}
-
-	public record AgentError(
-			String code,
-			String message,
-			Map<String, Object> details
 	) {
 	}
 
@@ -136,19 +65,5 @@ public final class AgentDtos {
 					log.getCreatedAt()
 			);
 		}
-	}
-
-	public record ValidationLogCommand(
-			Long projectId,
-			Long usageStatementId,
-			Long usageStatementItemId,
-			String validationTypeCode,
-			String resultCode,
-			String detailsJson,
-			String modelName,
-			String agentTypeCode,
-			String logTypeCode,
-			String severityCode
-	) {
 	}
 }
