@@ -1,6 +1,7 @@
 package com.skala.backend.action.service;
 
 import com.skala.backend.action.domain.ActionRequest;
+import com.skala.backend.action.domain.ActionRequestStatus;
 import com.skala.backend.action.dto.ActionRequestDtos.ActionRequestResponse;
 import com.skala.backend.action.dto.ActionRequestDtos.CreateActionRequestRequest;
 import com.skala.backend.action.dto.ActionRequestDtos.UpdateActionRequestStatusRequest;
@@ -48,7 +49,7 @@ public class ActionRequestService {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		ActionRequest actionRequest = actionRequestRepository.findByIdAndProjectId(actionRequestId, projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "조치 요청을 찾을 수 없습니다."));
-		actionRequest.updateStatus(request.statusCode());
+		actionRequest.updateStatus(ActionRequestStatus.from(request.statusCode()));
 		return ActionRequestResponse.from(actionRequest);
 	}
 
