@@ -10,6 +10,7 @@ import com.skala.backend.project.dto.ProjectDetailDataResponse;
 import com.skala.backend.project.dto.ProjectListResponse;
 import com.skala.backend.project.dto.ProjectUpdateRequest;
 import com.skala.backend.project.dto.ReplaceProjectAssigneesRequest;
+import com.skala.backend.project.service.ProjectAssigneeService;
 import com.skala.backend.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -41,9 +42,11 @@ import java.time.LocalDate;
 public class ProjectController {
 
 	private final ProjectService projectService;
+	private final ProjectAssigneeService projectAssigneeService;
 
-	public ProjectController(ProjectService projectService) {
+	public ProjectController(ProjectService projectService, ProjectAssigneeService projectAssigneeService) {
 		this.projectService = projectService;
+		this.projectAssigneeService = projectAssigneeService;
 	}
 
 	@GetMapping
@@ -196,7 +199,7 @@ public class ProjectController {
 			@Parameter(description = "담당자를 조회할 프로젝트 ID", example = "1")
 			@PathVariable Long projectId
 	) {
-		ProjectAssigneeListResponse response = projectService.listAssignees(currentUser.id(), projectId);
+		ProjectAssigneeListResponse response = projectAssigneeService.listAssignees(currentUser.id(), projectId);
 		return ResponseEntity.ok(ApiResponse.success(response, "프로젝트 담당자 조회에 성공했습니다."));
 	}
 
@@ -213,7 +216,7 @@ public class ProjectController {
 			@PathVariable Long projectId,
 			@Valid @RequestBody ReplaceProjectAssigneesRequest request
 	) {
-		ProjectAssigneeListResponse response = projectService.replaceAssignees(
+		ProjectAssigneeListResponse response = projectAssigneeService.replaceAssignees(
 				currentUser.id(),
 				projectId,
 				request.assigneeUserIds()
@@ -235,7 +238,7 @@ public class ProjectController {
 			@Parameter(description = "추가할 사용자 ID", example = "3")
 			@PathVariable Long userId
 	) {
-		projectService.addAssignee(currentUser.id(), projectId, userId);
+		projectAssigneeService.addAssignee(currentUser.id(), projectId, userId);
 		return ResponseEntity.ok(ApiResponse.success(null, "프로젝트 담당자 추가에 성공했습니다."));
 	}
 
@@ -253,7 +256,7 @@ public class ProjectController {
 			@Parameter(description = "제거할 사용자 ID", example = "3")
 			@PathVariable Long userId
 	) {
-		projectService.removeAssignee(currentUser.id(), projectId, userId);
+		projectAssigneeService.removeAssignee(currentUser.id(), projectId, userId);
 		return ResponseEntity.ok(ApiResponse.success(null, "프로젝트 담당자 제거에 성공했습니다."));
 	}
 }
