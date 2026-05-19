@@ -4,12 +4,8 @@ import com.skala.backend.agent.dto.AgentDtos.AgentLogResponse;
 import com.skala.backend.agent.dto.AgentDtos.AgentRunRequest;
 import com.skala.backend.agent.dto.AgentDtos.AgentRunResponse;
 import com.skala.backend.agent.dto.AgentDtos.AgentWarningResponse;
-import com.skala.backend.agent.dto.OcrAgentDtos.OcrEvidenceMatchRequest;
-import com.skala.backend.agent.dto.OcrAgentDtos.OcrUsageStatementParseRequest;
-import com.skala.backend.agent.dto.OcrAgentDtos.OcrWorkflowResponse;
 import com.skala.backend.agent.service.AgentLogService;
 import com.skala.backend.agent.service.AgentService;
-import com.skala.backend.agent.service.OcrAgentService;
 import com.skala.backend.auth.security.AuthenticatedUser;
 import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
@@ -33,17 +29,15 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/projects/{projectId}/agents")
-@Tag(name = "Agent", description = "agent_logs 조회(R-28) 및 FastAPI agent 호출 스켈레톤")
+@Tag(name = "Agent", description = "agent_logs 조회 및 FastAPI agent 호출 스켈레톤")
 @SecurityRequirement(name = OpenApiConfig.COOKIE_AUTH)
 public class AgentController {
 
 	private final AgentService agentService;
-	private final OcrAgentService ocrAgentService;
 	private final AgentLogService agentLogService;
 
-	public AgentController(AgentService agentService, OcrAgentService ocrAgentService, AgentLogService agentLogService) {
+	public AgentController(AgentService agentService, AgentLogService agentLogService) {
 		this.agentService = agentService;
-		this.ocrAgentService = ocrAgentService;
 		this.agentLogService = agentLogService;
 	}
 
@@ -87,9 +81,8 @@ public class AgentController {
 		return ResponseEntity.ok(ApiResponse.success(response, "에이전트 경고 목록 조회에 성공했습니다."));
 	}
 
-	// R-28: agent_logs 조회 — 완전 구현
 	@GetMapping("/logs")
-	@Operation(summary = "agent_logs 조회 (R-28)", description = "runId 또는 usageStatementId 중 하나를 필수로 전달합니다.")
+	@Operation(summary = "agent_logs 조회", description = "runId 또는 usageStatementId 중 하나를 필수로 전달합니다.")
 	public ResponseEntity<ApiResponse<List<AgentLogResponse>>> getLogs(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
@@ -112,31 +105,5 @@ public class AgentController {
 	) {
 		AgentRunResponse response = agentService.run(currentUser, projectId, agentType, request);
 		return ResponseEntity.ok(ApiResponse.success(response, "Agent 실행 결과를 저장했습니다."));
-	}
-
-	// 스켈레톤 — FastAPI 엔드포인트 확정 후 구현 예정 (현재 501 반환)
-	@PostMapping("/ocr/usage-statements/parse")
-	@Operation(summary = "사용내역서 OCR 파싱 (스켈레톤)", description = "FastAPI 엔드포인트 확정 후 구현 예정입니다.")
-	public ResponseEntity<ApiResponse<OcrWorkflowResponse>> parseUsageStatement(
-			@Parameter(hidden = true)
-			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@PathVariable Long projectId,
-			@Valid @RequestBody OcrUsageStatementParseRequest request
-	) {
-		OcrWorkflowResponse response = ocrAgentService.parseUsageStatement(currentUser, projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(response, "사용내역서 OCR 파싱 결과를 저장했습니다."));
-	}
-
-	// 스켈레톤 — FastAPI 엔드포인트 확정 후 구현 예정 (현재 501 반환)
-	@PostMapping("/ocr/evidence/parse-and-match")
-	@Operation(summary = "증빙 OCR 및 사용내역서 매칭 (스켈레톤)", description = "FastAPI 엔드포인트 확정 후 구현 예정입니다.")
-	public ResponseEntity<ApiResponse<OcrWorkflowResponse>> parseAndMatchEvidence(
-			@Parameter(hidden = true)
-			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@PathVariable Long projectId,
-			@Valid @RequestBody OcrEvidenceMatchRequest request
-	) {
-		OcrWorkflowResponse response = ocrAgentService.parseAndMatchEvidence(currentUser, projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(response, "증빙 OCR 매칭 결과를 저장했습니다."));
 	}
 }
