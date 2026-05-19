@@ -28,7 +28,7 @@ public class ActionRequestDtos {
 
 	@Schema(description = "조치 요청 상태 업데이트 요청")
 	public record UpdateActionRequestStatusRequest(
-			@Schema(description = "변경할 상태 코드 (in_progress / resolved / closed)", example = "in_progress")
+			@Schema(description = "변경할 상태 코드 (in_progress / closed)", example = "in_progress")
 			@NotBlank String statusCode
 	) {}
 
@@ -56,8 +56,8 @@ public class ActionRequestDtos {
 			LocalDate dueDate,
 			@Schema(description = "생성 일시")
 			Instant createdAt,
-			@Schema(description = "처리 완료 일시")
-			Instant resolvedAt
+			@Schema(description = "종료 일시 (closed 전환 시 자동 설정)")
+			Instant closedAt
 	) {
 		public static ActionRequestResponse from(ActionRequest ar) {
 			return new ActionRequestResponse(
@@ -72,7 +72,7 @@ public class ActionRequestDtos {
 					ar.getStatusCode(),
 					ar.getDueDate(),
 					ar.getCreatedAt(),
-					ar.getResolvedAt()
+					ar.getClosedAt()
 			);
 		}
 	}

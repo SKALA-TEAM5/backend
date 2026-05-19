@@ -162,6 +162,116 @@ class AgentLogControllerTest {
 				.andExpect(jsonPath("$.data", hasSize(1)));
 	}
 
+	// ─── 에이전트 경고 조회 (/warnings) ───────────────────────────────────
+
+	@Test
+	void 항목_수준_경고_로그만_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		int itemId = insertItem(statementId);
+
+		insertWarningLog(projectId, statementId, "link", itemId);   // 경고 대상
+		insertAgentLog(projectId, statementId, "classi", null);     // 정상 완료 — 제외
+
+		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data", hasSize(1)))
+				.andExpect(jsonPath("$.data[0].agentTypeCode").value("link"))
+				.andExpect(jsonPath("$.data[0].itemId").value(itemId));
+	}
+
+	@Test
+	void 실행_실패_로그도_경고로_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+
+		insertFailedLog(projectId, statementId, "vision");
+
+		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data", hasSize(1)))
+				.andExpect(jsonPath("$.data[0].statusCode").value("failed"));
+	}
+
+	@Test
+	void 정상_완료_로그는_경고에_포함되지_않는다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+
+		insertAgentLog(projectId, statementId, "classi", null);
+		insertAgentLog(projectId, statementId, "legal", null);
+
+		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data", hasSize(0)));
+	}
+
+	@Test
+	void usageStatementId_필터링이_동작한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementA = insertStatement(projectId, "2026-05-01");
+		int statementB = insertStatement(projectId, "2026-04-01");
+		int itemA = insertItem(statementA);
+		int itemB = insertItem(statementB);
+
+		insertWarningLog(projectId, statementA, "link", itemA);
+		insertWarningLog(projectId, statementB, "vision", itemB);
+
+		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementA)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data", hasSize(1)))
+				.andExpect(jsonPath("$.data[0].usageStatementId").value(statementA));
+	}
+
+	@Test
+	void 다른_프로젝트의_경고는_포함되지_않는다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int otherProjectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		int otherStatementId = insertStatement(otherProjectId);
+		int itemId = insertItem(statementId);
+		int otherItemId = insertItem(otherStatementId);
+
+		insertWarningLog(projectId, statementId, "link", itemId);
+		insertWarningLog(otherProjectId, otherStatementId, "link", otherItemId);
+
+		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data", hasSize(1)))
+				.andExpect(jsonPath("$.data[0].usageStatementId").value(statementId));
+	}
+
+	@Test
+	void 쿠키_없이_경고를_조회하면_401을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+
+		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void 담당자가_아닌_user는_경고를_조회할_수_없다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		Cookie outsiderCookie = loginCookie(createUser("user"));
+		int projectId = createProject(adminCookie);
+
+		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId)
+						.cookie(outsiderCookie))
+				.andExpect(status().isForbidden());
+	}
+
 	// ─── fixtures ─────────────────────────────────────────────────────────
 
 	private Map<String, String> createUser(String roleCode) {
@@ -244,6 +354,15 @@ class AgentLogControllerTest {
 				""", Integer.class, projectId, reportMonth, reportMonth);
 	}
 
+	private int insertItem(int statementId) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.usage_statement_items
+					(usage_statement_id, category_code, used_on, item_name, unit, quantity, unit_price, total_amount, page_no)
+				VALUES (?, 'CAT_01', '2026-05-01', '안전관리자 임금', '월', 1, 500000, 500000, 1)
+				RETURNING id
+				""", Integer.class, statementId);
+	}
+
 	private void insertAgentLog(int projectId, int statementId, String agentTypeCode, UUID runId) {
 		if (runId != null) {
 			jdbcTemplate.update("""
@@ -258,5 +377,21 @@ class AgentLogControllerTest {
 					VALUES (?, ?, ?, 'completed')
 					""", projectId, statementId, agentTypeCode);
 		}
+	}
+
+	private void insertWarningLog(int projectId, int statementId, String agentTypeCode, int itemId) {
+		jdbcTemplate.update("""
+				INSERT INTO service.agent_logs
+					(project_id, usage_statement_id, agent_type_code, status_code, usage_statement_item_id)
+				VALUES (?, ?, ?, 'completed', ?)
+				""", projectId, statementId, agentTypeCode, itemId);
+	}
+
+	private void insertFailedLog(int projectId, int statementId, String agentTypeCode) {
+		jdbcTemplate.update("""
+				INSERT INTO service.agent_logs
+					(project_id, usage_statement_id, agent_type_code, status_code)
+				VALUES (?, ?, ?, 'failed')
+				""", projectId, statementId, agentTypeCode);
 	}
 }

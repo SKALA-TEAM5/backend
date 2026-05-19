@@ -33,6 +33,12 @@ public class AgentLog {
     @Column(name = "model_name", length = 100)
     private String modelName;
 
+    @Column(name = "usage_statement_item_id")
+    private Long usageStatementItemId;
+
+    @Column(name = "details", columnDefinition = "jsonb")
+    private String details;
+
     @Column(name = "run_id")
     private UUID runId;
 
@@ -44,9 +50,11 @@ public class AgentLog {
     public Long getId() { return id; }
     public Long getProjectId() { return projectId; }
     public Long getUsageStatementId() { return usageStatementId; }
+    public Long getUsageStatementItemId() { return usageStatementItemId; }
     public String getAgentTypeCode() { return agentTypeCode; }
     public String getStatusCode() { return statusCode; }
     public String getModelName() { return modelName; }
+    public String getDetails() { return details; }
     public UUID getRunId() { return runId; }
     public Instant getCreatedAt() { return createdAt; }
 }

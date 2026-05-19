@@ -45,8 +45,7 @@ public interface EvidenceFileLinkRepository extends JpaRepository<EvidenceFileLi
 	@Modifying
 	@Query(value = """
 			UPDATE service.evidence_file_links l
-			SET checked_at = now(),
-				checked_by_user_id = :checkedByUserId
+			SET checked_at = now()
 			FROM service.usage_statement_items i,
 				service.usage_statements s,
 				service.files f
@@ -57,7 +56,7 @@ public interface EvidenceFileLinkRepository extends JpaRepository<EvidenceFileLi
 				AND f.deleted_at IS NULL
 				AND l.checked_at IS NULL
 			""", nativeQuery = true)
-	int markProjectLinksChecked(@Param("projectId") Long projectId, @Param("checkedByUserId") Long checkedByUserId);
+	int markProjectLinksChecked(@Param("projectId") Long projectId);
 
 	@Modifying
 	void deleteByFileId(Long fileId);

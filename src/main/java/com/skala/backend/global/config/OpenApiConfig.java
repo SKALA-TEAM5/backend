@@ -30,7 +30,9 @@ public class OpenApiConfig {
 			"프로젝트 사용내역서",
 			"프로젝트 파일",
 			"프로젝트 증빙 연결",
-			"프로젝트 아카이브"
+			"프로젝트 아카이브",
+			"에이전트 경고",
+			"Agent"
 	);
 
 	private static final List<String> PATH_ORDER = List.of(
@@ -56,7 +58,13 @@ public class OpenApiConfig {
 			"/projects/{projectId}/evidence-file-links/{linkId}",
 			"/projects/{projectId}/archive/categories",
 			"/projects/{projectId}/archive/categories/{categoryCode}/items",
-			"/projects/{projectId}/archive/mark-checked"
+			"/projects/{projectId}/archive/mark-checked",
+			"/projects/{projectId}/agents/warnings",
+			"/projects/{projectId}/usage-statement-items/{itemId}/evidence-requirements",
+			"/projects/{projectId}/agents/logs",
+			"/projects/{projectId}/agents/{agentType}/run",
+			"/projects/{projectId}/agents/ocr/usage-statements/parse",
+			"/projects/{projectId}/agents/ocr/evidence/parse-and-match"
 	);
 
 	@Bean
@@ -75,7 +83,9 @@ public class OpenApiConfig {
 						new Tag().name("프로젝트 사용내역서").description("프로젝트 상세 페이지 사용내역서 탭 API"),
 						new Tag().name("프로젝트 파일").description("프로젝트 증빙 파일 조회, 업로드, 다운로드 API"),
 						new Tag().name("프로젝트 증빙 연결").description("사용내역서 상세항목과 증빙 파일 연결 API"),
-						new Tag().name("프로젝트 아카이브").description("프로젝트 아카이브 조회 API")
+						new Tag().name("프로젝트 아카이브").description("프로젝트 아카이브 조회 API"),
+						new Tag().name("에이전트 경고").description("에이전트가 발견한 문제 항목 조회 API — 경고 목록과 서류 충족 현황을 함께 사용합니다"),
+						new Tag().name("Agent").description("agent_logs 조회(R-28) 및 FastAPI agent 호출 스켈레톤")
 				))
 				.components(new Components()
 						.addSecuritySchemes(COOKIE_AUTH, new SecurityScheme()

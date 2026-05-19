@@ -155,7 +155,7 @@ class ActionRequestControllerTest {
 	}
 
 	@Test
-	void in_progress에서_resolved로_전환하면_resolvedAt이_자동_설정된다() throws Exception {
+	void in_progress에서_closed로_전환하면_closedAt이_자동_설정된다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		Map<String, String> assignee = createUser("user");
 		int assigneeId = readUserId(assignee);
@@ -165,26 +165,25 @@ class ActionRequestControllerTest {
 		mockMvc.perform(patch("/projects/{pid}/action-requests/{rid}/status", projectId, actionRequestId)
 						.cookie(adminCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("statusCode", "resolved"))))
+						.content(objectMapper.writeValueAsString(Map.of("statusCode", "closed"))))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.statusCode").value("resolved"))
-				.andExpect(jsonPath("$.data.resolvedAt", notNullValue()));
+				.andExpect(jsonPath("$.data.statusCode").value("closed"))
+				.andExpect(jsonPath("$.data.closedAt", notNullValue()));
 	}
 
 	@Test
-	void resolved에서_closed로_전환할_수_있다() throws Exception {
+	void closed에서_in_progress로_역행하면_409를_반환한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		Map<String, String> assignee = createUser("user");
 		int assigneeId = readUserId(assignee);
 		int projectId = createProject(adminCookie);
-		int actionRequestId = insertActionRequest(projectId, assigneeId, "resolved");
+		int actionRequestId = insertActionRequest(projectId, assigneeId, "closed");
 
 		mockMvc.perform(patch("/projects/{pid}/action-requests/{rid}/status", projectId, actionRequestId)
 						.cookie(adminCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("statusCode", "closed"))))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.statusCode").value("closed"));
+						.content(objectMapper.writeValueAsString(Map.of("statusCode", "in_progress"))))
+				.andExpect(status().isConflict());
 	}
 
 	@Test
@@ -206,7 +205,7 @@ class ActionRequestControllerTest {
 	}
 
 	@Test
-	void open에서_resolved로_직접_전환하면_409를_반환한다() throws Exception {
+	void resolved는_제거된_상태코드이므로_400을_반환한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		Map<String, String> assignee = createUser("user");
 		int assigneeId = readUserId(assignee);
@@ -217,7 +216,7 @@ class ActionRequestControllerTest {
 						.cookie(adminCookie)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(Map.of("statusCode", "resolved"))))
-				.andExpect(status().isConflict());
+				.andExpect(status().isBadRequest());
 	}
 
 	@Test
@@ -267,22 +266,7 @@ class ActionRequestControllerTest {
 	}
 
 	@Test
-	void resolved에서_in_progress로_역행하면_409를_반환한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		Map<String, String> assignee = createUser("user");
-		int assigneeId = readUserId(assignee);
-		int projectId = createProject(adminCookie);
-		int actionRequestId = insertActionRequest(projectId, assigneeId, "resolved");
-
-		mockMvc.perform(patch("/projects/{pid}/action-requests/{rid}/status", projectId, actionRequestId)
-						.cookie(adminCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("statusCode", "in_progress"))))
-				.andExpect(status().isConflict());
-	}
-
-	@Test
-	void closed_상태에서_어떤_전환도_409를_반환한다() throws Exception {
+	void closed에서_closed로_재전환하면_409를_반환한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		Map<String, String> assignee = createUser("user");
 		int assigneeId = readUserId(assignee);
@@ -292,7 +276,7 @@ class ActionRequestControllerTest {
 		mockMvc.perform(patch("/projects/{pid}/action-requests/{rid}/status", projectId, actionRequestId)
 						.cookie(adminCookie)
 						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("statusCode", "resolved"))))
+						.content(objectMapper.writeValueAsString(Map.of("statusCode", "closed"))))
 				.andExpect(status().isConflict());
 	}
 
@@ -460,7 +444,7 @@ class ActionRequestControllerTest {
 	// ─── 전체 플로우 통합 ────────────────────────────────────────────────
 
 	@Test
-	void 조치_요청_생성_후_open_in_progress_resolved_closed_전체_플로우가_정상_동작한다() throws Exception {
+	void 조치_요청_생성_후_open_in_progress_closed_전체_플로우가_정상_동작한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		Map<String, String> assignee = createUser("user");
 		Cookie assigneeCookie = loginCookie(assignee);
@@ -491,26 +475,18 @@ class ActionRequestControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.statusCode").value("in_progress"));
 
-		// 담당자가 완료 처리
-		mockMvc.perform(patch("/projects/{pid}/action-requests/{rid}/status", projectId, actionRequestId)
-						.cookie(assigneeCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("statusCode", "resolved"))))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.statusCode").value("resolved"))
-				.andExpect(jsonPath("$.data.resolvedAt", notNullValue()));
-
-		// admin이 종료
+		// admin이 최종 확인 후 종료
 		mockMvc.perform(patch("/projects/{pid}/action-requests/{rid}/status", projectId, actionRequestId)
 						.cookie(adminCookie)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(Map.of("statusCode", "closed"))))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.statusCode").value("closed"));
+				.andExpect(jsonPath("$.data.statusCode").value("closed"))
+				.andExpect(jsonPath("$.data.closedAt", notNullValue()));
 
-		// resolved_at DB 제약조건 충족 검증
+		// closed_at DB 제약조건 충족 검증
 		Integer count = jdbcTemplate.queryForObject(
-				"SELECT count(*)::int FROM service.action_requests WHERE id = ? AND resolved_at IS NOT NULL",
+				"SELECT count(*)::int FROM service.action_requests WHERE id = ? AND closed_at IS NOT NULL",
 				Integer.class, actionRequestId);
 		assertThat(count).isEqualTo(1);
 	}
@@ -596,12 +572,12 @@ class ActionRequestControllerTest {
 	// JPA 1차 캐시를 우회해 특정 상태의 조치 요청을 fixture로 직접 생성한다.
 	// clock_timestamp()를 사용해 @Transactional 환경에서도 단조 증가하는 created_at을 보장한다.
 	// (now()는 트랜잭션 시작 시각으로 고정되어 순서 테스트 시 타이 발생)
-	// resolved/closed는 DB 제약조건(resolved_at NOT NULL) 충족을 위해 resolved_at을 함께 설정한다.
+	// closed는 DB 제약조건(closed_at NOT NULL) 충족을 위해 closed_at을 함께 설정한다.
 	private int insertActionRequest(int projectId, int assigneeId, String statusCode) {
-		if ("resolved".equals(statusCode) || "closed".equals(statusCode)) {
+		if ("closed".equals(statusCode)) {
 			return jdbcTemplate.queryForObject("""
 					INSERT INTO service.action_requests
-						(project_id, requested_by_user_id, assignee_user_id, title, status_code, created_at, resolved_at)
+						(project_id, requested_by_user_id, assignee_user_id, title, status_code, created_at, closed_at)
 					VALUES (?, ?, ?, ?, ?, clock_timestamp(), clock_timestamp())
 					RETURNING id
 					""", Integer.class, projectId, assigneeId, assigneeId,

@@ -1,6 +1,7 @@
 package com.skala.backend.agent.service;
 
 import com.skala.backend.agent.dto.AgentDtos.AgentLogResponse;
+import com.skala.backend.agent.dto.AgentDtos.AgentWarningResponse;
 import com.skala.backend.agent.repository.AgentLogRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.ProjectAccessService;
@@ -34,5 +35,14 @@ public class AgentLogService {
                     .stream().map(AgentLogResponse::from).toList();
         }
         throw new ApiException(HttpStatus.BAD_REQUEST, "runId 또는 usageStatementId 중 하나는 필수입니다.");
+    }
+
+    @Transactional(readOnly = true)
+    public List<AgentWarningResponse> getWarnings(Long currentUserId, Long projectId, Long usageStatementId) {
+        projectAccessService.requireReadable(currentUserId, projectId);
+        return agentLogRepository.findWarnings(projectId, usageStatementId)
+                .stream()
+                .map(AgentWarningResponse::from)
+                .toList();
     }
 }

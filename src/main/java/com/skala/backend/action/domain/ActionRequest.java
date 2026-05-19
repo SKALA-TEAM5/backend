@@ -50,8 +50,8 @@ public class ActionRequest {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
-	@Column(name = "resolved_at")
-	private Instant resolvedAt;
+	@Column(name = "closed_at")
+	private Instant closedAt;
 
 	protected ActionRequest() {}
 
@@ -86,19 +86,11 @@ public class ActionRequest {
 					throw new ApiException(HttpStatus.CONFLICT, "open 상태에서만 진행 중으로 변경할 수 있습니다.");
 				}
 			}
-			case "resolved" -> {
-				if (!"in_progress".equals(statusCode)) {
-					throw new ApiException(HttpStatus.CONFLICT, "진행 중 상태에서만 처리 완료로 변경할 수 있습니다.");
-				}
-				this.resolvedAt = Instant.now();
-			}
 			case "closed" -> {
-				if (!"resolved".equals(statusCode)) {
-					throw new ApiException(HttpStatus.CONFLICT, "처리 완료 상태에서만 종료할 수 있습니다.");
+				if (!"in_progress".equals(statusCode)) {
+					throw new ApiException(HttpStatus.CONFLICT, "진행 중 상태에서만 종료할 수 있습니다.");
 				}
-				if (this.resolvedAt == null) {
-					this.resolvedAt = Instant.now();
-				}
+				this.closedAt = Instant.now();
 			}
 			default -> throw new ApiException(HttpStatus.BAD_REQUEST, "유효하지 않은 상태 코드입니다.");
 		}
@@ -116,5 +108,5 @@ public class ActionRequest {
 	public String getStatusCode() { return statusCode; }
 	public LocalDate getDueDate() { return dueDate; }
 	public Instant getCreatedAt() { return createdAt; }
-	public Instant getResolvedAt() { return resolvedAt; }
+	public Instant getClosedAt() { return closedAt; }
 }

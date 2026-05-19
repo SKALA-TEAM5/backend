@@ -9,8 +9,6 @@ import com.skala.backend.evidence.repository.EvidenceFileLinkRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
-import com.skala.backend.user.domain.RoleCode;
-import com.skala.backend.user.domain.User;
 import com.skala.backend.usage.domain.UsageStatement;
 import com.skala.backend.usage.repository.UsageStatementRepository;
 import org.springframework.http.HttpStatus;
@@ -160,10 +158,8 @@ public class EvidenceArchiveService {
 
 	@Transactional
 	public ArchiveMarkCheckedResponse markChecked(Long currentUserId, Long projectId) {
-		User currentUser = projectAccessService.requireCurrentUser(currentUserId);
 		projectAccessService.requireReadable(currentUserId, projectId);
-		requireReviewer(currentUser);
-		int checkedLinkCount = linkRepository.markProjectLinksChecked(projectId, currentUser.getId());
+		int checkedLinkCount = linkRepository.markProjectLinksChecked(projectId);
 		return new ArchiveMarkCheckedResponse(projectId, checkedLinkCount);
 	}
 
@@ -186,10 +182,4 @@ public class EvidenceArchiveService {
 		return value == null ? null : value.toLocalDate();
 	}
 
-	private void requireReviewer(User currentUser) {
-		if (currentUser.getRoleCode() == RoleCode.ADMIN || currentUser.getRoleCode() == RoleCode.AGENT) {
-			return;
-		}
-		throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-	}
 }

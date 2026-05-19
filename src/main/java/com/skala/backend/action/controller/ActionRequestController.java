@@ -50,7 +50,7 @@ public class ActionRequestController {
 	}
 
 	@PatchMapping("/{actionRequestId}/status")
-	@Operation(summary = "조치 요청 상태 업데이트 (R-39)", description = "open→in_progress→resolved→closed 순서로 전환합니다.")
+	@Operation(summary = "조치 요청 상태 업데이트 (R-39)", description = "open→in_progress→closed 순서로 전환합니다.")
 	public ResponseEntity<ApiResponse<ActionRequestResponse>> updateStatus(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,

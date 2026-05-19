@@ -31,9 +31,6 @@ public class EvidenceFileLink {
 	@Column(name = "checked_at")
 	private Instant checkedAt;
 
-	@Column(name = "checked_by_user_id")
-	private Long checkedByUserId;
-
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -75,7 +72,6 @@ public class EvidenceFileLink {
 	public Long getFileId() { return fileId; }
 	public String getEvidenceTypeCode() { return evidenceTypeCode; }
 	public Instant getCheckedAt() { return checkedAt; }
-	public Long getCheckedByUserId() { return checkedByUserId; }
 	public Instant getCreatedAt() { return createdAt; }
 	public Instant getUpdatedAt() { return updatedAt; }
 }
