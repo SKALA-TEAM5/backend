@@ -49,6 +49,22 @@ public class ProjectAccessService {
 		return currentUser;
 	}
 
+	public User requireSystemAdmin(Long currentUserId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() != RoleCode.SYSTEM_ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return currentUser;
+	}
+
+	public User requireSystemAdminOrAdmin(Long currentUserId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() != RoleCode.SYSTEM_ADMIN && currentUser.getRoleCode() != RoleCode.ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return currentUser;
+	}
+
 	public User requireProjectManager(Long currentUserId) {
 		User currentUser = requireCurrentUser(currentUserId);
 		if (currentUser.getRoleCode() != RoleCode.ADMIN && currentUser.getRoleCode() != RoleCode.AGENT) {

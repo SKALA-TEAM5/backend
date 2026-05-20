@@ -1,7 +1,8 @@
 package com.skala.backend.user.service;
 
-import com.skala.backend.global.error.ApiException;
 import com.skala.backend.auth.service.RefreshTokenService;
+import com.skala.backend.global.error.ApiException;
+import com.skala.backend.project.service.ProjectAccessService;
 import com.skala.backend.user.domain.RoleCode;
 import com.skala.backend.user.domain.User;
 import com.skala.backend.user.dto.UserRequests;
@@ -17,15 +18,18 @@ import org.springframework.util.StringUtils;
 @Service
 public class UserService {
 
+	private final ProjectAccessService projectAccessService;
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final RefreshTokenService refreshTokenService;
 
 	public UserService(
+			ProjectAccessService projectAccessService,
 			UserRepository userRepository,
 			PasswordEncoder passwordEncoder,
 			RefreshTokenService refreshTokenService
 	) {
+		this.projectAccessService = projectAccessService;
 		this.userRepository = userRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.refreshTokenService = refreshTokenService;
@@ -33,7 +37,7 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public UserResponses.ListResponse listUsers(Long currentUserId, RoleCode roleCode, String keyword) {
-		requireSystemAdminOrProjectAdmin(currentUserId);
+		projectAccessService.requireSystemAdminOrAdmin(currentUserId);
 		String keywordPattern = containsPattern(keyword);
 
 		return new UserResponses.ListResponse(
@@ -46,7 +50,7 @@ public class UserService {
 
 	@Transactional
 	public UserResponses.DetailResponse createUser(Long currentUserId, UserRequests.AdminCreateRequest request) {
-		requireSystemAdmin(currentUserId);
+		projectAccessService.requireSystemAdmin(currentUserId);
 
 		if (userRepository.existsByEmployeeNo(request.employeeNo())) {
 			throw new ApiException(HttpStatus.CONFLICT, "이미 존재하는 사번입니다.");
@@ -69,13 +73,13 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public UserResponses.DetailResponse getUser(Long currentUserId, Long userId) {
-		requireSystemAdminOrProjectAdmin(currentUserId);
+		projectAccessService.requireSystemAdminOrAdmin(currentUserId);
 		return toDetailResponse(findUser(userId));
 	}
 
 	@Transactional
 	public UserResponses.DetailResponse updateUser(Long currentUserId, Long userId, UserRequests.AdminUpdateRequest request) {
-		requireSystemAdmin(currentUserId);
+		projectAccessService.requireSystemAdmin(currentUserId);
 
 		if (request.isEmpty()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "수정할 값이 없습니다.");
@@ -102,7 +106,7 @@ public class UserService {
 
 	@Transactional
 	public void deleteUser(Long currentUserId, Long userId) {
-		requireSystemAdmin(currentUserId);
+		projectAccessService.requireSystemAdmin(currentUserId);
 
 		User user = findUser(userId);
 		try {
@@ -116,34 +120,7 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public UserResponses.DetailResponse getMyProfile(Long currentUserId) {
-		return toDetailResponse(requireCurrentUser(currentUserId));
-	}
-
-	private User requireSystemAdmin(Long currentUserId) {
-		User user = requireCurrentUser(currentUserId);
-
-		if (user.getRoleCode() != RoleCode.SYSTEM_ADMIN) {
-			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-		}
-		return user;
-	}
-
-	private User requireSystemAdminOrProjectAdmin(Long currentUserId) {
-		User user = requireCurrentUser(currentUserId);
-
-		if (user.getRoleCode() != RoleCode.SYSTEM_ADMIN && user.getRoleCode() != RoleCode.ADMIN) {
-			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-		}
-		return user;
-	}
-
-	private User requireCurrentUser(Long currentUserId) {
-		if (currentUserId == null) {
-			throw new ApiException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.");
-		}
-
-		return userRepository.findById(currentUserId)
-				.orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
+		return toDetailResponse(projectAccessService.requireCurrentUser(currentUserId));
 	}
 
 	private User findUser(Long userId) {
