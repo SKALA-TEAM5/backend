@@ -3,8 +3,7 @@ package com.skala.backend.project.service;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.domain.Project;
 import com.skala.backend.project.domain.ProjectUserAssignment;
-import com.skala.backend.project.dto.ProjectAssigneeListResponse;
-import com.skala.backend.project.dto.ProjectAssigneeResponse;
+import com.skala.backend.project.dto.ProjectResponses;
 import com.skala.backend.project.repository.ProjectRepository;
 import com.skala.backend.project.repository.ProjectUserAssignmentRepository;
 import com.skala.backend.user.domain.User;
@@ -38,13 +37,13 @@ public class ProjectAssigneeService {
 	}
 
 	@Transactional(readOnly = true)
-	public ProjectAssigneeListResponse listAssignees(Long currentUserId, Long projectId) {
+	public ProjectResponses.AssigneeListResponse listAssignees(Long currentUserId, Long projectId) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		return toAssigneeListResponse(projectId);
 	}
 
 	@Transactional
-	public ProjectAssigneeListResponse replaceAssignees(Long currentUserId, Long projectId, List<Long> assigneeUserIds) {
+	public ProjectResponses.AssigneeListResponse replaceAssignees(Long currentUserId, Long projectId, List<Long> assigneeUserIds) {
 		User assignedBy = projectAccessService.requireProjectManager(currentUserId);
 		Project project = findProject(projectId);
 		List<Long> userIds = validateAssigneeIds(assigneeUserIds);
@@ -86,12 +85,12 @@ public class ProjectAssigneeService {
 		assignmentRepository.delete(assignment);
 	}
 
-	private ProjectAssigneeListResponse toAssigneeListResponse(Long projectId) {
-		List<ProjectAssigneeResponse> assignees = assignmentRepository.findByProjectIdOrderByIdAsc(projectId)
+	private ProjectResponses.AssigneeListResponse toAssigneeListResponse(Long projectId) {
+		List<ProjectResponses.AssigneeResponse> assignees = assignmentRepository.findByProjectIdOrderByIdAsc(projectId)
 				.stream()
-				.map(ProjectAssigneeResponse::from)
+				.map(ProjectResponses.AssigneeResponse::from)
 				.toList();
-		return new ProjectAssigneeListResponse(projectId, assignees);
+		return new ProjectResponses.AssigneeListResponse(projectId, assignees);
 	}
 
 	private Project findProject(Long projectId) {

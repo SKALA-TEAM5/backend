@@ -6,13 +6,8 @@ import com.skala.backend.project.domain.Project;
 import com.skala.backend.project.domain.ProjectSort;
 import com.skala.backend.project.domain.ProjectStatusCode;
 import com.skala.backend.project.domain.ProjectUserAssignment;
-import com.skala.backend.project.dto.ProjectAssigneeResponse;
-import com.skala.backend.project.dto.ProjectCardResponse;
-import com.skala.backend.project.dto.ProjectCreateRequest;
-import com.skala.backend.project.dto.ProjectDetailDataResponse;
-import com.skala.backend.project.dto.ProjectDetailResponse;
-import com.skala.backend.project.dto.ProjectListResponse;
-import com.skala.backend.project.dto.ProjectUpdateRequest;
+import com.skala.backend.project.dto.ProjectRequests;
+import com.skala.backend.project.dto.ProjectResponses;
 import com.skala.backend.project.repository.ProjectCardRow;
 import com.skala.backend.project.repository.ProjectRepository;
 import com.skala.backend.project.repository.ProjectUserAssignmentRepository;
@@ -52,7 +47,7 @@ public class ProjectService {
 	}
 
 	@Transactional(readOnly = true)
-	public ProjectListResponse listProjects(
+	public ProjectResponses.ListResponse listProjects(
 			Long currentUserId,
 			String scope,
 			String keyword,
@@ -92,12 +87,12 @@ public class ProjectService {
 				pageSize
 		);
 
-		List<ProjectCardResponse> items = result.getContent()
+		List<ProjectResponses.CardResponse> items = result.getContent()
 				.stream()
-				.map(row -> ProjectCardResponse.from(row, isProjectManager(currentUser)))
+				.map(row -> ProjectResponses.CardResponse.from(row, isProjectManager(currentUser)))
 				.toList();
 
-		return new ProjectListResponse(
+		return new ProjectResponses.ListResponse(
 				pageNumber,
 				pageSize,
 				result.getTotalElements(),
@@ -107,7 +102,7 @@ public class ProjectService {
 	}
 
 	@Transactional
-	public ProjectDetailDataResponse createProject(Long currentUserId, ProjectCreateRequest request) {
+	public ProjectResponses.DetailDataResponse createProject(Long currentUserId, ProjectRequests.CreateRequest request) {
 		User creator = projectAccessService.requireAdmin(currentUserId);
 		validateDateRange(request.constructionStartDate(), request.constructionEndDate());
 
@@ -131,13 +126,13 @@ public class ProjectService {
 	}
 
 	@Transactional(readOnly = true)
-	public ProjectDetailDataResponse getProject(Long currentUserId, Long projectId) {
+	public ProjectResponses.DetailDataResponse getProject(Long currentUserId, Long projectId) {
 		Project project = projectAccessService.requireReadable(currentUserId, projectId);
 		return toDetailDataResponse(project);
 	}
 
 	@Transactional
-	public ProjectDetailDataResponse updateProject(Long currentUserId, Long projectId, ProjectUpdateRequest request) {
+	public ProjectResponses.DetailDataResponse updateProject(Long currentUserId, Long projectId, ProjectRequests.UpdateRequest request) {
 		projectAccessService.requireProjectManager(currentUserId);
 		if (request.isEmpty()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "수정할 값이 없습니다.");
@@ -162,20 +157,20 @@ public class ProjectService {
 		}
 	}
 
-	private ProjectDetailDataResponse toDetailDataResponse(Project project) {
-		List<ProjectAssigneeResponse> assignees = assignmentRepository.findByProjectIdOrderByIdAsc(project.getId())
+	private ProjectResponses.DetailDataResponse toDetailDataResponse(Project project) {
+		List<ProjectResponses.AssigneeResponse> assignees = assignmentRepository.findByProjectIdOrderByIdAsc(project.getId())
 				.stream()
-				.map(ProjectAssigneeResponse::from)
+				.map(ProjectResponses.AssigneeResponse::from)
 				.toList();
 
-		return new ProjectDetailDataResponse(ProjectDetailResponse.of(
+		return new ProjectResponses.DetailDataResponse(ProjectResponses.DetailResponse.of(
 				project,
 				assignees,
 				linkRepository.countUncheckedMatchedFiles(project.getId())
 		));
 	}
 
-	private void applyUpdate(Project project, ProjectUpdateRequest request) {
+	private void applyUpdate(Project project, ProjectRequests.UpdateRequest request) {
 		if (request.contractNo() != null) project.updateContractNo(requireText("contractNo", request.contractNo()));
 		if (request.constructionCompany() != null) project.updateConstructionCompany(requireText("constructionCompany", request.constructionCompany()));
 		if (request.projectName() != null) project.updateProjectName(requireText("projectName", request.projectName()));

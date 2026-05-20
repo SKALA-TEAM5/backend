@@ -1,9 +1,7 @@
 package com.skala.backend.agent.controller;
 
-import com.skala.backend.agent.dto.AgentDtos.AgentLogResponse;
-import com.skala.backend.agent.dto.AgentDtos.AgentRunRequest;
-import com.skala.backend.agent.dto.AgentDtos.AgentRunResponse;
-import com.skala.backend.agent.dto.AgentDtos.AgentWarningResponse;
+import com.skala.backend.agent.dto.AgentRequests;
+import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.agent.service.AgentLogService;
 import com.skala.backend.agent.service.AgentService;
 import com.skala.backend.auth.security.AuthenticatedUser;
@@ -71,39 +69,39 @@ public class AgentController {
 					생략하면 프로젝트 전체 경고를 반환합니다.
 					"""
 	)
-	public ResponseEntity<ApiResponse<List<AgentWarningResponse>>> getWarnings(
+	public ResponseEntity<ApiResponse<List<AgentResponses.WarningResponse>>> getWarnings(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@Parameter(description = "사용내역서 ID (생략 시 프로젝트 전체 경고 반환)")
 			@RequestParam(required = false) Long usageStatementId
 	) {
-		List<AgentWarningResponse> response = agentLogService.getWarnings(currentUser.id(), projectId, usageStatementId);
+		List<AgentResponses.WarningResponse> response = agentLogService.getWarnings(currentUser.id(), projectId, usageStatementId);
 		return ResponseEntity.ok(ApiResponse.success(response, "에이전트 경고 목록 조회에 성공했습니다."));
 	}
 
 	@GetMapping("/logs")
 	@Operation(summary = "agent_logs 조회", description = "runId 또는 usageStatementId 중 하나를 필수로 전달합니다.")
-	public ResponseEntity<ApiResponse<List<AgentLogResponse>>> getLogs(
+	public ResponseEntity<ApiResponse<List<AgentResponses.LogResponse>>> getLogs(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@RequestParam(required = false) UUID runId,
 			@RequestParam(required = false) Long usageStatementId
 	) {
-		List<AgentLogResponse> response = agentLogService.getLogs(currentUser.id(), projectId, runId, usageStatementId);
+		List<AgentResponses.LogResponse> response = agentLogService.getLogs(currentUser.id(), projectId, runId, usageStatementId);
 		return ResponseEntity.ok(ApiResponse.success(response, "agent 로그 조회에 성공했습니다."));
 	}
 
 	// 스켈레톤 — FastAPI 엔드포인트 확정 후 구현 예정 (현재 501 반환)
 	@PostMapping("/{agentType}/run")
 	@Operation(summary = "Agent 실행 (스켈레톤)", description = "FastAPI 엔드포인트 확정 후 구현 예정입니다.")
-	public ResponseEntity<ApiResponse<AgentRunResponse>> runAgent(
+	public ResponseEntity<ApiResponse<AgentResponses.RunResponse>> runAgent(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@PathVariable String agentType,
-			@Valid @RequestBody AgentRunRequest request
+			@Valid @RequestBody AgentRequests.RunRequest request
 	) {
-		AgentRunResponse response = agentService.run(currentUser, projectId, agentType, request);
+		AgentResponses.RunResponse response = agentService.run(currentUser, projectId, agentType, request);
 		return ResponseEntity.ok(ApiResponse.success(response, "Agent 실행 결과를 저장했습니다."));
 	}
 }

@@ -4,11 +4,8 @@ import com.skala.backend.global.error.ApiException;
 import com.skala.backend.auth.service.RefreshTokenService;
 import com.skala.backend.user.domain.RoleCode;
 import com.skala.backend.user.domain.User;
-import com.skala.backend.user.dto.AdminCreateUserRequest;
-import com.skala.backend.user.dto.AdminUpdateUserRequest;
-import com.skala.backend.user.dto.UserDetailResponse;
-import com.skala.backend.user.dto.UserListResponse;
-import com.skala.backend.user.dto.UserProfileResponse;
+import com.skala.backend.user.dto.UserRequests;
+import com.skala.backend.user.dto.UserResponses;
 import com.skala.backend.user.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -35,20 +32,20 @@ public class UserService {
 	}
 
 	@Transactional(readOnly = true)
-	public UserListResponse listUsers(Long currentUserId, RoleCode roleCode, String keyword) {
+	public UserResponses.ListResponse listUsers(Long currentUserId, RoleCode roleCode, String keyword) {
 		requireSystemAdminOrProjectAdmin(currentUserId);
 		String keywordPattern = containsPattern(keyword);
 
-		return new UserListResponse(
+		return new UserResponses.ListResponse(
 				userRepository.search(roleCode, keywordPattern)
 						.stream()
-						.map(UserProfileResponse::from)
+						.map(UserResponses.ProfileResponse::from)
 						.toList()
 		);
 	}
 
 	@Transactional
-	public UserDetailResponse createUser(Long currentUserId, AdminCreateUserRequest request) {
+	public UserResponses.DetailResponse createUser(Long currentUserId, UserRequests.AdminCreateRequest request) {
 		requireSystemAdmin(currentUserId);
 
 		if (userRepository.existsByEmployeeNo(request.employeeNo())) {
@@ -71,13 +68,13 @@ public class UserService {
 	}
 
 	@Transactional(readOnly = true)
-	public UserDetailResponse getUser(Long currentUserId, Long userId) {
+	public UserResponses.DetailResponse getUser(Long currentUserId, Long userId) {
 		requireSystemAdminOrProjectAdmin(currentUserId);
 		return toDetailResponse(findUser(userId));
 	}
 
 	@Transactional
-	public UserDetailResponse updateUser(Long currentUserId, Long userId, AdminUpdateUserRequest request) {
+	public UserResponses.DetailResponse updateUser(Long currentUserId, Long userId, UserRequests.AdminUpdateRequest request) {
 		requireSystemAdmin(currentUserId);
 
 		if (request.isEmpty()) {
@@ -118,7 +115,7 @@ public class UserService {
 	}
 
 	@Transactional(readOnly = true)
-	public UserDetailResponse getMyProfile(Long currentUserId) {
+	public UserResponses.DetailResponse getMyProfile(Long currentUserId) {
 		return toDetailResponse(requireCurrentUser(currentUserId));
 	}
 
@@ -154,8 +151,8 @@ public class UserService {
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
 	}
 
-	private UserDetailResponse toDetailResponse(User user) {
-		return new UserDetailResponse(UserProfileResponse.from(user));
+	private UserResponses.DetailResponse toDetailResponse(User user) {
+		return new UserResponses.DetailResponse(UserResponses.ProfileResponse.from(user));
 	}
 
 	private String containsPattern(String value) {
