@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -110,7 +111,9 @@ public class EvidenceCommandService {
 		Set<Long> itemIds = links.stream().map(EvidenceFileLink::getUsageStatementItemId).collect(Collectors.toSet());
 		linkRepository.deleteByFileId(fileId);
 		linkRepository.flush();
-		itemIds.forEach(this::recalculateRequirements);
+		if (!itemIds.isEmpty()) {
+			recalculateRequirementsForItems(itemIds);
+		}
 	}
 
 	private void recalculateRequirements(Long itemId) {
@@ -125,6 +128,25 @@ public class EvidenceCommandService {
 				.collect(Collectors.toSet());
 
 		for (EvidenceRequirement requirement : requirements) {
+			requirement.updateSatisfied(linkedTypes.contains(requirement.getEvidenceTypeCode()));
+		}
+	}
+
+	private void recalculateRequirementsForItems(Set<Long> itemIds) {
+		List<EvidenceRequirement> requirements = requirementRepository.findByUsageStatementItemIdInAndActiveTrue(itemIds);
+		if (requirements.isEmpty()) {
+			return;
+		}
+
+		Map<Long, Set<String>> linkedTypesByItemId = linkRepository.findByUsageStatementItemIdIn(itemIds)
+				.stream()
+				.collect(Collectors.groupingBy(
+						EvidenceFileLink::getUsageStatementItemId,
+						Collectors.mapping(EvidenceFileLink::getEvidenceTypeCode, Collectors.toSet())
+				));
+
+		for (EvidenceRequirement requirement : requirements) {
+			Set<String> linkedTypes = linkedTypesByItemId.getOrDefault(requirement.getUsageStatementItemId(), Set.of());
 			requirement.updateSatisfied(linkedTypes.contains(requirement.getEvidenceTypeCode()));
 		}
 	}
