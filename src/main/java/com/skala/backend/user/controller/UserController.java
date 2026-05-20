@@ -4,10 +4,8 @@ import com.skala.backend.auth.security.AuthenticatedUser;
 import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
 import com.skala.backend.user.domain.RoleCode;
-import com.skala.backend.user.dto.AdminCreateUserRequest;
-import com.skala.backend.user.dto.AdminUpdateUserRequest;
-import com.skala.backend.user.dto.UserDetailResponse;
-import com.skala.backend.user.dto.UserListResponse;
+import com.skala.backend.user.dto.UserRequests;
+import com.skala.backend.user.dto.UserResponses;
 import com.skala.backend.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -45,7 +43,7 @@ public class UserController {
 			summary = "사용자 목록 조회",
 			description = "역할 또는 키워드로 사용자를 필터링합니다. 관리자 화면의 사용자 관리 목록에서 사용합니다."
 	)
-	public ResponseEntity<ApiResponse<UserListResponse>> listUsers(
+	public ResponseEntity<ApiResponse<UserResponses.ListResponse>> listUsers(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@Parameter(
@@ -57,7 +55,7 @@ public class UserController {
 			@Parameter(description = "사번 또는 이름 검색어입니다.")
 			@RequestParam(required = false) String keyword
 	) {
-		UserListResponse response = userService.listUsers(currentUser.id(), roleCode, keyword);
+		UserResponses.ListResponse response = userService.listUsers(currentUser.id(), roleCode, keyword);
 		return ResponseEntity.ok(ApiResponse.success(response, "사용자 목록 조회에 성공했습니다."));
 	}
 
@@ -66,12 +64,12 @@ public class UserController {
 			summary = "사용자 생성",
 			description = "system_admin이 새 계정을 발급합니다. employeeNo는 로그인에 사용하는 사번입니다."
 	)
-	public ResponseEntity<ApiResponse<UserDetailResponse>> createUser(
+	public ResponseEntity<ApiResponse<UserResponses.DetailResponse>> createUser(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Valid @RequestBody AdminCreateUserRequest request
+			@Valid @RequestBody UserRequests.AdminCreateRequest request
 	) {
-		UserDetailResponse response = userService.createUser(currentUser.id(), request);
+		UserResponses.DetailResponse response = userService.createUser(currentUser.id(), request);
 		return ResponseEntity
 				.status(HttpStatus.CREATED)
 				.body(ApiResponse.success(response, "사용자 생성에 성공했습니다."));
@@ -82,13 +80,13 @@ public class UserController {
 			summary = "사용자 상세 조회",
 			description = "사용자 ID로 특정 사용자의 상세 정보를 조회합니다."
 	)
-	public ResponseEntity<ApiResponse<UserDetailResponse>> getUser(
+	public ResponseEntity<ApiResponse<UserResponses.DetailResponse>> getUser(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@Parameter(description = "조회할 사용자 ID", example = "1")
 			@PathVariable Long userId
 	) {
-		UserDetailResponse response = userService.getUser(currentUser.id(), userId);
+		UserResponses.DetailResponse response = userService.getUser(currentUser.id(), userId);
 		return ResponseEntity.ok(ApiResponse.success(response, "사용자 조회에 성공했습니다."));
 	}
 
@@ -97,14 +95,14 @@ public class UserController {
 			summary = "사용자 수정",
 			description = "이름, 비밀번호, 역할 중 필요한 값만 전달해 사용자를 수정합니다."
 	)
-	public ResponseEntity<ApiResponse<UserDetailResponse>> updateUser(
+	public ResponseEntity<ApiResponse<UserResponses.DetailResponse>> updateUser(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@Parameter(description = "수정할 사용자 ID", example = "1")
 			@PathVariable Long userId,
-			@Valid @RequestBody AdminUpdateUserRequest request
+			@Valid @RequestBody UserRequests.AdminUpdateRequest request
 	) {
-		UserDetailResponse response = userService.updateUser(currentUser.id(), userId, request);
+		UserResponses.DetailResponse response = userService.updateUser(currentUser.id(), userId, request);
 		return ResponseEntity.ok(ApiResponse.success(response, "사용자 수정에 성공했습니다."));
 	}
 
@@ -129,11 +127,11 @@ public class UserController {
 			summary = "내 프로필 조회",
 			description = "현재 로그인한 사용자의 프로필 정보를 조회합니다."
 	)
-	public ResponseEntity<ApiResponse<UserDetailResponse>> getMyProfile(
+	public ResponseEntity<ApiResponse<UserResponses.DetailResponse>> getMyProfile(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser
 	) {
-		UserDetailResponse response = userService.getMyProfile(currentUser.id());
+		UserResponses.DetailResponse response = userService.getMyProfile(currentUser.id());
 		return ResponseEntity.ok(ApiResponse.success(response, "내 프로필 조회에 성공했습니다."));
 	}
 }

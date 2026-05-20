@@ -2,6 +2,7 @@ package com.skala.backend.usage.domain;
 
 import com.skala.backend.global.error.ApiException;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -40,7 +41,8 @@ public class UsageStatement {
 	private BigDecimal cumulativeProgressRate;
 
 	@Column(name = "status_code", nullable = false, length = 30)
-	private String statusCode;
+	@Convert(converter = UsageStatementStatusConverter.class)
+	private UsageStatementStatus status;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -52,24 +54,24 @@ public class UsageStatement {
 	}
 
 	public void submit() {
-		if (!"draft".equals(statusCode)) {
+		if (status != UsageStatementStatus.DRAFT) {
 			throw new ApiException(HttpStatus.CONFLICT, "작성 중인 사용내역서만 제출할 수 있습니다.");
 		}
-		this.statusCode = "upload_completed";
+		this.status = UsageStatementStatus.UPLOAD_COMPLETED;
 	}
 
 	public void requestSupplement() {
-		if (!"upload_completed".equals(statusCode)) {
+		if (status != UsageStatementStatus.UPLOAD_COMPLETED) {
 			throw new ApiException(HttpStatus.CONFLICT, "제출된 사용내역서에만 보완 요청할 수 있습니다.");
 		}
-		this.statusCode = "supplement_required";
+		this.status = UsageStatementStatus.SUPPLEMENT_REQUIRED;
 	}
 
 	public void completeReview() {
-		if (!"upload_completed".equals(statusCode) && !"supplement_required".equals(statusCode)) {
+		if (status != UsageStatementStatus.UPLOAD_COMPLETED && status != UsageStatementStatus.SUPPLEMENT_REQUIRED) {
 			throw new ApiException(HttpStatus.CONFLICT, "검토 가능한 상태의 사용내역서가 아닙니다.");
 		}
-		this.statusCode = "review_completed";
+		this.status = UsageStatementStatus.REVIEW_COMPLETED;
 	}
 
 	public Long getId() { return id; }
@@ -79,7 +81,7 @@ public class UsageStatement {
 	public Integer getRevisionNo() { return revisionNo; }
 	public LocalDate getDocumentWrittenDate() { return documentWrittenDate; }
 	public BigDecimal getCumulativeProgressRate() { return cumulativeProgressRate; }
-	public String getStatusCode() { return statusCode; }
+	public String getStatusCode() { return status.getCode(); }
 	public Instant getCreatedAt() { return createdAt; }
 	public Instant getUpdatedAt() { return updatedAt; }
 }

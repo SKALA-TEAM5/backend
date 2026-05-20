@@ -4,7 +4,7 @@ import com.skala.backend.auth.dto.AuthResponse;
 import com.skala.backend.auth.dto.LoginRequest;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.user.domain.User;
-import com.skala.backend.user.dto.UserProfileResponse;
+import com.skala.backend.user.dto.UserResponses;
 import com.skala.backend.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -63,7 +63,7 @@ public class AuthService {
 
 	private AuthResult authResult(User user) {
 		return new AuthResult(
-				new AuthResponse(UserProfileResponse.from(user)),
+				new AuthResponse(UserResponses.ProfileResponse.from(user)),
 				new TokenPair(
 						jwtTokenProvider.createAccessToken(user),
 						refreshTokenService.createRefreshToken(user)

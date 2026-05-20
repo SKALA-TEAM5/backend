@@ -4,12 +4,9 @@ import com.skala.backend.auth.security.AuthenticatedUser;
 import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
 import com.skala.backend.project.domain.ProjectStatusCode;
-import com.skala.backend.project.dto.ProjectAssigneeListResponse;
-import com.skala.backend.project.dto.ProjectCreateRequest;
-import com.skala.backend.project.dto.ProjectDetailDataResponse;
-import com.skala.backend.project.dto.ProjectListResponse;
-import com.skala.backend.project.dto.ProjectUpdateRequest;
-import com.skala.backend.project.dto.ReplaceProjectAssigneesRequest;
+import com.skala.backend.project.dto.ProjectRequests;
+import com.skala.backend.project.dto.ProjectResponses;
+import com.skala.backend.project.service.ProjectAssigneeService;
 import com.skala.backend.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -41,9 +38,11 @@ import java.time.LocalDate;
 public class ProjectController {
 
 	private final ProjectService projectService;
+	private final ProjectAssigneeService projectAssigneeService;
 
-	public ProjectController(ProjectService projectService) {
+	public ProjectController(ProjectService projectService, ProjectAssigneeService projectAssigneeService) {
 		this.projectService = projectService;
+		this.projectAssigneeService = projectAssigneeService;
 	}
 
 	@GetMapping
@@ -57,7 +56,7 @@ public class ProjectController {
 					`assigneeUserId`는 admin의 특정 담당자 필터용이며, `scope=assigned`는 현재 로그인 사용자 기준 필터입니다.
 					"""
 	)
-	public ResponseEntity<ApiResponse<ProjectListResponse>> listProjects(
+	public ResponseEntity<ApiResponse<ProjectResponses.ListResponse>> listProjects(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@Parameter(
@@ -105,7 +104,7 @@ public class ProjectController {
 			@Parameter(description = "페이지당 항목 수입니다.", example = "10")
 			@RequestParam(required = false, defaultValue = "10") Integer size
 	) {
-		ProjectListResponse response = projectService.listProjects(
+		ProjectResponses.ListResponse response = projectService.listProjects(
 				currentUser.id(),
 				scope,
 				keyword,
@@ -127,12 +126,12 @@ public class ProjectController {
 			summary = "프로젝트 생성",
 			description = "프로젝트 기본 정보와 계약/공사 기간/예산 정보를 입력해 새 프로젝트를 생성합니다."
 	)
-	public ResponseEntity<ApiResponse<ProjectDetailDataResponse>> createProject(
+	public ResponseEntity<ApiResponse<ProjectResponses.DetailDataResponse>> createProject(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Valid @RequestBody ProjectCreateRequest request
+			@Valid @RequestBody ProjectRequests.CreateRequest request
 	) {
-		ProjectDetailDataResponse response = projectService.createProject(currentUser.id(), request);
+		ProjectResponses.DetailDataResponse response = projectService.createProject(currentUser.id(), request);
 		return ResponseEntity
 				.status(HttpStatus.CREATED)
 				.body(ApiResponse.success(response, "프로젝트 생성에 성공했습니다."));
@@ -143,13 +142,13 @@ public class ProjectController {
 			summary = "프로젝트 상세 조회",
 			description = "프로젝트 ID로 상세 정보와 현재 담당자 목록을 조회합니다."
 	)
-	public ResponseEntity<ApiResponse<ProjectDetailDataResponse>> getProject(
+	public ResponseEntity<ApiResponse<ProjectResponses.DetailDataResponse>> getProject(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@Parameter(description = "조회할 프로젝트 ID", example = "1")
 			@PathVariable Long projectId
 	) {
-		ProjectDetailDataResponse response = projectService.getProject(currentUser.id(), projectId);
+		ProjectResponses.DetailDataResponse response = projectService.getProject(currentUser.id(), projectId);
 		return ResponseEntity.ok(ApiResponse.success(response, "프로젝트 조회에 성공했습니다."));
 	}
 
@@ -158,14 +157,14 @@ public class ProjectController {
 			summary = "프로젝트 수정",
 			description = "프로젝트 기본 정보 중 변경할 필드만 전달해 수정합니다."
 	)
-	public ResponseEntity<ApiResponse<ProjectDetailDataResponse>> updateProject(
+	public ResponseEntity<ApiResponse<ProjectResponses.DetailDataResponse>> updateProject(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@Parameter(description = "수정할 프로젝트 ID", example = "1")
 			@PathVariable Long projectId,
-			@Valid @RequestBody ProjectUpdateRequest request
+			@Valid @RequestBody ProjectRequests.UpdateRequest request
 	) {
-		ProjectDetailDataResponse response = projectService.updateProject(currentUser.id(), projectId, request);
+		ProjectResponses.DetailDataResponse response = projectService.updateProject(currentUser.id(), projectId, request);
 		return ResponseEntity.ok(ApiResponse.success(response, "프로젝트 수정에 성공했습니다."));
 	}
 
@@ -190,13 +189,13 @@ public class ProjectController {
 			summary = "프로젝트 담당자 목록 조회",
 			description = "특정 프로젝트에 배정된 담당자 목록을 조회합니다."
 	)
-	public ResponseEntity<ApiResponse<ProjectAssigneeListResponse>> listAssignees(
+	public ResponseEntity<ApiResponse<ProjectResponses.AssigneeListResponse>> listAssignees(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@Parameter(description = "담당자를 조회할 프로젝트 ID", example = "1")
 			@PathVariable Long projectId
 	) {
-		ProjectAssigneeListResponse response = projectService.listAssignees(currentUser.id(), projectId);
+		ProjectResponses.AssigneeListResponse response = projectAssigneeService.listAssignees(currentUser.id(), projectId);
 		return ResponseEntity.ok(ApiResponse.success(response, "프로젝트 담당자 조회에 성공했습니다."));
 	}
 
@@ -206,14 +205,14 @@ public class ProjectController {
 			summary = "프로젝트 담당자 전체 교체",
 			description = "전달한 사용자 ID 목록으로 프로젝트 담당자 목록을 전체 교체합니다."
 	)
-	public ResponseEntity<ApiResponse<ProjectAssigneeListResponse>> replaceAssignees(
+	public ResponseEntity<ApiResponse<ProjectResponses.AssigneeListResponse>> replaceAssignees(
 			@Parameter(hidden = true)
 			@AuthenticationPrincipal AuthenticatedUser currentUser,
 			@Parameter(description = "담당자를 교체할 프로젝트 ID", example = "1")
 			@PathVariable Long projectId,
-			@Valid @RequestBody ReplaceProjectAssigneesRequest request
+			@Valid @RequestBody ProjectRequests.ReplaceAssigneesRequest request
 	) {
-		ProjectAssigneeListResponse response = projectService.replaceAssignees(
+		ProjectResponses.AssigneeListResponse response = projectAssigneeService.replaceAssignees(
 				currentUser.id(),
 				projectId,
 				request.assigneeUserIds()
@@ -235,7 +234,7 @@ public class ProjectController {
 			@Parameter(description = "추가할 사용자 ID", example = "3")
 			@PathVariable Long userId
 	) {
-		projectService.addAssignee(currentUser.id(), projectId, userId);
+		projectAssigneeService.addAssignee(currentUser.id(), projectId, userId);
 		return ResponseEntity.ok(ApiResponse.success(null, "프로젝트 담당자 추가에 성공했습니다."));
 	}
 
@@ -253,7 +252,7 @@ public class ProjectController {
 			@Parameter(description = "제거할 사용자 ID", example = "3")
 			@PathVariable Long userId
 	) {
-		projectService.removeAssignee(currentUser.id(), projectId, userId);
+		projectAssigneeService.removeAssignee(currentUser.id(), projectId, userId);
 		return ResponseEntity.ok(ApiResponse.success(null, "프로젝트 담당자 제거에 성공했습니다."));
 	}
 }

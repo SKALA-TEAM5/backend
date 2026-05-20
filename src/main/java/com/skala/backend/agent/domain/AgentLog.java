@@ -1,6 +1,7 @@
 package com.skala.backend.agent.domain;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -25,10 +26,12 @@ public class AgentLog {
     private Long usageStatementId;
 
     @Column(name = "agent_type_code", nullable = false, length = 20)
-    private String agentTypeCode;
+    @Convert(converter = AgentTypeCodeConverter.class)
+    private AgentTypeCode agentTypeCode;
 
     @Column(name = "status_code", nullable = false, length = 20)
-    private String statusCode;
+    @Convert(converter = AgentLogStatusConverter.class)
+    private AgentLogStatus status;
 
     @Column(name = "model_name", length = 100)
     private String modelName;
@@ -51,8 +54,8 @@ public class AgentLog {
     public Long getProjectId() { return projectId; }
     public Long getUsageStatementId() { return usageStatementId; }
     public Long getUsageStatementItemId() { return usageStatementItemId; }
-    public String getAgentTypeCode() { return agentTypeCode; }
-    public String getStatusCode() { return statusCode; }
+    public String getAgentTypeCode() { return agentTypeCode.getCode(); }
+    public String getStatusCode() { return status.getCode(); }
     public String getModelName() { return modelName; }
     public String getDetails() { return details; }
     public UUID getRunId() { return runId; }

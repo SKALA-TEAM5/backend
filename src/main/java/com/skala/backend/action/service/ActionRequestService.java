@@ -1,9 +1,9 @@
 package com.skala.backend.action.service;
 
 import com.skala.backend.action.domain.ActionRequest;
-import com.skala.backend.action.dto.ActionRequestDtos.ActionRequestResponse;
-import com.skala.backend.action.dto.ActionRequestDtos.CreateActionRequestRequest;
-import com.skala.backend.action.dto.ActionRequestDtos.UpdateActionRequestStatusRequest;
+import com.skala.backend.action.domain.ActionRequestStatus;
+import com.skala.backend.action.dto.ActionRequests;
+import com.skala.backend.action.dto.ActionResponses;
 import com.skala.backend.action.repository.ActionRequestRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.ProjectAccessService;
@@ -28,7 +28,7 @@ public class ActionRequestService {
 	}
 
 	@Transactional
-	public ActionRequestResponse create(Long currentUserId, Long projectId, CreateActionRequestRequest request) {
+	public ActionResponses.ActionRequestResponse create(Long currentUserId, Long projectId, ActionRequests.CreateRequest request) {
 		projectAccessService.requireAdmin(currentUserId);
 		ActionRequest actionRequest = ActionRequest.create(
 				projectId,
@@ -40,32 +40,32 @@ public class ActionRequestService {
 				request.reason(),
 				request.dueDate()
 		);
-		return ActionRequestResponse.from(actionRequestRepository.save(actionRequest));
+		return ActionResponses.ActionRequestResponse.from(actionRequestRepository.save(actionRequest));
 	}
 
 	@Transactional
-	public ActionRequestResponse updateStatus(Long currentUserId, Long projectId, Long actionRequestId, UpdateActionRequestStatusRequest request) {
+	public ActionResponses.ActionRequestResponse updateStatus(Long currentUserId, Long projectId, Long actionRequestId, ActionRequests.UpdateStatusRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		ActionRequest actionRequest = actionRequestRepository.findByIdAndProjectId(actionRequestId, projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "조치 요청을 찾을 수 없습니다."));
-		actionRequest.updateStatus(request.statusCode());
-		return ActionRequestResponse.from(actionRequest);
+		actionRequest.updateStatus(ActionRequestStatus.from(request.statusCode()));
+		return ActionResponses.ActionRequestResponse.from(actionRequest);
 	}
 
 	@Transactional(readOnly = true)
-	public List<ActionRequestResponse> list(Long currentUserId, Long projectId) {
+	public List<ActionResponses.ActionRequestResponse> list(Long currentUserId, Long projectId) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		return actionRequestRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
 				.stream()
-				.map(ActionRequestResponse::from)
+				.map(ActionResponses.ActionRequestResponse::from)
 				.toList();
 	}
 
 	@Transactional(readOnly = true)
-	public ActionRequestResponse getDetail(Long currentUserId, Long projectId, Long actionRequestId) {
+	public ActionResponses.ActionRequestResponse getDetail(Long currentUserId, Long projectId, Long actionRequestId) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		ActionRequest actionRequest = actionRequestRepository.findByIdAndProjectId(actionRequestId, projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "조치 요청을 찾을 수 없습니다."));
-		return ActionRequestResponse.from(actionRequest);
+		return ActionResponses.ActionRequestResponse.from(actionRequest);
 	}
 }
