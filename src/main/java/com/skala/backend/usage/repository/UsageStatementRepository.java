@@ -13,6 +13,8 @@ public interface UsageStatementRepository extends JpaRepository<UsageStatement, 
 
 	Optional<UsageStatement> findFirstByProjectIdAndReportMonthOrderByRevisionNoDesc(Long projectId, LocalDate reportMonth);
 
+	Optional<UsageStatement> findByIdAndProjectId(Long id, Long projectId);
+
 	List<UsageStatement> findByProjectIdOrderByReportMonthDescRevisionNoDesc(Long projectId);
 
 	boolean existsByIdAndProjectId(Long id, Long projectId);

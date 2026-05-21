@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -64,7 +65,6 @@ public class EvidenceCommandService {
 			EvidenceFileLink link = linkRepository.save(EvidenceFileLink.create(
 					item.getId(),
 					file.getId(),
-					item.getCategoryCode(),
 					request.evidenceTypeCode()
 			));
 			recalculateRequirements(item.getId());
@@ -88,7 +88,7 @@ public class EvidenceCommandService {
 			throw new ApiException(HttpStatus.CONFLICT, "대상 상세항목에 이미 연결된 파일입니다.");
 		}
 
-		link.moveTo(targetItem.getId(), targetItem.getCategoryCode(), request.evidenceTypeCode());
+		link.moveTo(targetItem.getId(), request.evidenceTypeCode());
 		recalculateRequirements(previousItemId);
 		recalculateRequirements(targetItem.getId());
 		return new EvidenceLinkResponse(link.getId());
@@ -111,7 +111,9 @@ public class EvidenceCommandService {
 		Set<Long> itemIds = links.stream().map(EvidenceFileLink::getUsageStatementItemId).collect(Collectors.toSet());
 		linkRepository.deleteByFileId(fileId);
 		linkRepository.flush();
-		itemIds.forEach(this::recalculateRequirements);
+		if (!itemIds.isEmpty()) {
+			recalculateRequirementsForItems(itemIds);
+		}
 	}
 
 	private void recalculateRequirements(Long itemId) {
@@ -126,6 +128,25 @@ public class EvidenceCommandService {
 				.collect(Collectors.toSet());
 
 		for (EvidenceRequirement requirement : requirements) {
+			requirement.updateSatisfied(linkedTypes.contains(requirement.getEvidenceTypeCode()));
+		}
+	}
+
+	private void recalculateRequirementsForItems(Set<Long> itemIds) {
+		List<EvidenceRequirement> requirements = requirementRepository.findByUsageStatementItemIdInAndActiveTrue(itemIds);
+		if (requirements.isEmpty()) {
+			return;
+		}
+
+		Map<Long, Set<String>> linkedTypesByItemId = linkRepository.findByUsageStatementItemIdIn(itemIds)
+				.stream()
+				.collect(Collectors.groupingBy(
+						EvidenceFileLink::getUsageStatementItemId,
+						Collectors.mapping(EvidenceFileLink::getEvidenceTypeCode, Collectors.toSet())
+				));
+
+		for (EvidenceRequirement requirement : requirements) {
+			Set<String> linkedTypes = linkedTypesByItemId.getOrDefault(requirement.getUsageStatementItemId(), Set.of());
 			requirement.updateSatisfied(linkedTypes.contains(requirement.getEvidenceTypeCode()));
 		}
 	}

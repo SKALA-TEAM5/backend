@@ -1,24 +1,18 @@
 package com.skala.backend.project.service;
 
+import com.skala.backend.evidence.repository.EvidenceFileLinkRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.domain.Project;
 import com.skala.backend.project.domain.ProjectSort;
 import com.skala.backend.project.domain.ProjectStatusCode;
 import com.skala.backend.project.domain.ProjectUserAssignment;
-import com.skala.backend.project.dto.ProjectAssigneeListResponse;
-import com.skala.backend.project.dto.ProjectAssigneeResponse;
-import com.skala.backend.project.dto.ProjectCardResponse;
-import com.skala.backend.project.dto.ProjectCreateRequest;
-import com.skala.backend.project.dto.ProjectDetailDataResponse;
-import com.skala.backend.project.dto.ProjectDetailResponse;
-import com.skala.backend.project.dto.ProjectListResponse;
-import com.skala.backend.project.dto.ProjectUpdateRequest;
+import com.skala.backend.project.dto.ProjectRequests;
+import com.skala.backend.project.dto.ProjectResponses;
 import com.skala.backend.project.repository.ProjectCardRow;
 import com.skala.backend.project.repository.ProjectRepository;
 import com.skala.backend.project.repository.ProjectUserAssignmentRepository;
 import com.skala.backend.user.domain.RoleCode;
 import com.skala.backend.user.domain.User;
-import com.skala.backend.user.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -27,32 +21,33 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 @Service
 public class ProjectService {
 
 	private static final int MAX_PAGE_SIZE = 10;
 
+	private final ProjectAccessService projectAccessService;
 	private final ProjectRepository projectRepository;
 	private final ProjectUserAssignmentRepository assignmentRepository;
-	private final UserRepository userRepository;
+	private final EvidenceFileLinkRepository linkRepository;
 
 	public ProjectService(
+			ProjectAccessService projectAccessService,
 			ProjectRepository projectRepository,
 			ProjectUserAssignmentRepository assignmentRepository,
-			UserRepository userRepository
+			EvidenceFileLinkRepository linkRepository
 	) {
+		this.projectAccessService = projectAccessService;
 		this.projectRepository = projectRepository;
 		this.assignmentRepository = assignmentRepository;
-		this.userRepository = userRepository;
+		this.linkRepository = linkRepository;
 	}
 
 	@Transactional(readOnly = true)
-	public ProjectListResponse listProjects(
+	public ProjectResponses.ListResponse listProjects(
 			Long currentUserId,
 			String scope,
 			String keyword,
@@ -66,18 +61,18 @@ public class ProjectService {
 			Integer page,
 			Integer size
 	) {
-		User currentUser = requireCurrentUser(currentUserId);
-		requireProjectWorkAccessible(currentUser);
+		projectAccessService.requireProjectWorkAccessible(currentUserId);
+		User currentUser = projectAccessService.requireCurrentUser(currentUserId);
 		validateDateRange(periodFrom, periodTo);
 		int pageNumber = validatePage(page);
 		int pageSize = validateSize(size);
 		ProjectSort projectSort = ProjectSort.from(sort);
 
-		if (!canManageProjects(currentUser) && assigneeUserId != null) {
+		if (!isProjectManager(currentUser) && assigneeUserId != null) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
 
-		Long visibleUserId = visibleUserIdForScope(currentUser, scope);
+		Long visibleUserId = resolveVisibleUserId(currentUser, scope);
 		Page<ProjectCardRow> result = projectRepository.searchCards(
 				containsPattern(keyword),
 				containsPattern(projectName),
@@ -92,12 +87,12 @@ public class ProjectService {
 				pageSize
 		);
 
-		List<ProjectCardResponse> items = result.getContent()
+		List<ProjectResponses.CardResponse> items = result.getContent()
 				.stream()
-				.map(ProjectCardResponse::from)
+				.map(row -> ProjectResponses.CardResponse.from(row, isProjectManager(currentUser)))
 				.toList();
 
-		return new ProjectListResponse(
+		return new ProjectResponses.ListResponse(
 				pageNumber,
 				pageSize,
 				result.getTotalElements(),
@@ -107,8 +102,8 @@ public class ProjectService {
 	}
 
 	@Transactional
-	public ProjectDetailDataResponse createProject(Long currentUserId, ProjectCreateRequest request) {
-		requireProjectManager(currentUserId);
+	public ProjectResponses.DetailDataResponse createProject(Long currentUserId, ProjectRequests.CreateRequest request) {
+		User creator = projectAccessService.requireAdmin(currentUserId);
 		validateDateRange(request.constructionStartDate(), request.constructionEndDate());
 
 		Project project = Project.create(
@@ -125,20 +120,20 @@ public class ProjectService {
 				request.status()
 		);
 
-		return toDetailDataResponse(projectRepository.save(project));
+		Project savedProject = projectRepository.save(project);
+		assignmentRepository.save(ProjectUserAssignment.create(savedProject, creator, creator));
+		return toDetailDataResponse(savedProject);
 	}
 
 	@Transactional(readOnly = true)
-	public ProjectDetailDataResponse getProject(Long currentUserId, Long projectId) {
-		User currentUser = requireCurrentUser(currentUserId);
-		Project project = findProject(projectId);
-		requireProjectReadable(currentUser, projectId);
+	public ProjectResponses.DetailDataResponse getProject(Long currentUserId, Long projectId) {
+		Project project = projectAccessService.requireReadable(currentUserId, projectId);
 		return toDetailDataResponse(project);
 	}
 
 	@Transactional
-	public ProjectDetailDataResponse updateProject(Long currentUserId, Long projectId, ProjectUpdateRequest request) {
-		requireProjectManager(currentUserId);
+	public ProjectResponses.DetailDataResponse updateProject(Long currentUserId, Long projectId, ProjectRequests.UpdateRequest request) {
+		projectAccessService.requireProjectManager(currentUserId);
 		if (request.isEmpty()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "수정할 값이 없습니다.");
 		}
@@ -151,7 +146,7 @@ public class ProjectService {
 
 	@Transactional
 	public void deleteProject(Long currentUserId, Long projectId) {
-		requireProjectManager(currentUserId);
+		projectAccessService.requireProjectManager(currentUserId);
 		Project project = findProject(projectId);
 		try {
 			assignmentRepository.deleteByProjectId(projectId);
@@ -162,82 +157,21 @@ public class ProjectService {
 		}
 	}
 
-	@Transactional(readOnly = true)
-	public ProjectAssigneeListResponse listAssignees(Long currentUserId, Long projectId) {
-		User currentUser = requireCurrentUser(currentUserId);
-		findProject(projectId);
-		requireProjectReadable(currentUser, projectId);
-		return assigneeListResponse(projectId);
-	}
+	private ProjectResponses.DetailDataResponse toDetailDataResponse(Project project) {
+		List<ProjectResponses.AssigneeResponse> assignees = assignmentRepository.findByProjectIdOrderByIdAsc(project.getId())
+				.stream()
+				.map(ProjectResponses.AssigneeResponse::from)
+				.toList();
 
-	@Transactional
-	public ProjectAssigneeListResponse replaceAssignees(Long currentUserId, Long projectId, List<Long> assigneeUserIds) {
-		User assignedBy = requireProjectManager(currentUserId);
-		Project project = findProject(projectId);
-		List<Long> userIds = validateAssigneeIds(assigneeUserIds);
-
-		assignmentRepository.deleteByProjectId(projectId);
-		assignmentRepository.flush();
-		for (Long userId : userIds) {
-			User user = findUser(userId);
-			assignmentRepository.save(ProjectUserAssignment.create(project, user, assignedBy));
-		}
-
-		return assigneeListResponse(projectId);
-	}
-
-	@Transactional
-	public void addAssignee(Long currentUserId, Long projectId, Long userId) {
-		User assignedBy = requireProjectManager(currentUserId);
-		Project project = findProject(projectId);
-		User user = findUser(userId);
-
-		if (assignmentRepository.existsByProjectIdAndUserId(projectId, userId)) {
-			throw new ApiException(HttpStatus.CONFLICT, "이미 할당된 담당자입니다.");
-		}
-
-		assignmentRepository.save(ProjectUserAssignment.create(project, user, assignedBy));
-	}
-
-	@Transactional
-	public void removeAssignee(Long currentUserId, Long projectId, Long userId) {
-		requireProjectManager(currentUserId);
-		findProject(projectId);
-		ProjectUserAssignment assignment = assignmentRepository.findByProjectIdAndUserId(projectId, userId)
-				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "할당 정보를 찾을 수 없습니다."));
-
-		assignmentRepository.delete(assignment);
-	}
-
-	private ProjectCardResponse toCardResponse(Project project) {
-		return ProjectCardResponse.of(
+		return new ProjectResponses.DetailDataResponse(ProjectResponses.DetailResponse.of(
 				project,
-				assignmentRepository.countByProjectId(project.getId()),
-				projectRepository.findLatestProgressRate(project.getId()),
-				projectRepository.hasOpenActionRequest(project.getId())
-		);
+				assignees,
+				linkRepository.countUncheckedMatchedFiles(project.getId())
+		));
 	}
 
-	private ProjectDetailDataResponse toDetailDataResponse(Project project) {
-		List<ProjectAssigneeResponse> assignees = assignmentRepository.findByProjectIdOrderByIdAsc(project.getId())
-				.stream()
-				.map(ProjectAssigneeResponse::from)
-				.toList();
-
-		return new ProjectDetailDataResponse(ProjectDetailResponse.of(project, assignees));
-	}
-
-	private ProjectAssigneeListResponse assigneeListResponse(Long projectId) {
-		List<ProjectAssigneeResponse> assignees = assignmentRepository.findByProjectIdOrderByIdAsc(projectId)
-				.stream()
-				.map(ProjectAssigneeResponse::from)
-				.toList();
-
-		return new ProjectAssigneeListResponse(projectId, assignees);
-	}
-
-	private void applyUpdate(Project project, ProjectUpdateRequest request) {
-		if (request.contractNo() != null) project.updateContractNo(request.contractNo());
+	private void applyUpdate(Project project, ProjectRequests.UpdateRequest request) {
+		if (request.contractNo() != null) project.updateContractNo(requireText("contractNo", request.contractNo()));
 		if (request.constructionCompany() != null) project.updateConstructionCompany(requireText("constructionCompany", request.constructionCompany()));
 		if (request.projectName() != null) project.updateProjectName(requireText("projectName", request.projectName()));
 		if (request.siteLocation() != null) project.updateSiteLocation(requireText("siteLocation", request.siteLocation()));
@@ -250,88 +184,35 @@ public class ProjectService {
 		if (request.status() != null) project.updateStatus(request.status());
 	}
 
-	private User requireProjectManager(Long currentUserId) {
-		User user = requireCurrentUser(currentUserId);
-		if (!canManageProjects(user)) {
-			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-		}
-		return user;
-	}
-
-	private void requireProjectWorkAccessible(User user) {
-		if (user.getRoleCode() == RoleCode.SYSTEM_ADMIN) {
-			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-		}
-	}
-
-	private void requireProjectReadable(User currentUser, Long projectId) {
-		if (canManageProjects(currentUser)) {
-			return;
-		}
-		if (!assignmentRepository.existsByProjectIdAndUserId(projectId, currentUser.getId())) {
-			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-		}
-	}
-
-	private boolean canManageProjects(User user) {
+	private boolean isProjectManager(User user) {
 		return user.getRoleCode() == RoleCode.ADMIN || user.getRoleCode() == RoleCode.AGENT;
 	}
 
-	private Long visibleUserIdForScope(User currentUser, String scope) {
+	private Long resolveVisibleUserId(User currentUser, String scope) {
 		String normalizedScope = normalizeScope(currentUser, scope);
-		if ("all".equals(normalizedScope)) {
-			return null;
-		}
-		return currentUser.getId();
+		return "all".equals(normalizedScope) ? null : currentUser.getId();
 	}
 
 	private String normalizeScope(User currentUser, String scope) {
-		String normalizedScope = normalize(scope);
-		if (normalizedScope != null) {
-			normalizedScope = normalizedScope.toLowerCase(Locale.ROOT);
+		String normalized = normalize(scope);
+		if (normalized != null) {
+			normalized = normalized.toLowerCase(Locale.ROOT);
 		}
-		if (normalizedScope == null) {
-			return canManageProjects(currentUser) ? "all" : "assigned";
+		if (normalized == null) {
+			return isProjectManager(currentUser) ? "all" : "assigned";
 		}
-		if (!normalizedScope.equals("all") && !normalizedScope.equals("assigned")) {
+		if (!normalized.equals("all") && !normalized.equals("assigned")) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "scope는 all 또는 assigned만 사용할 수 있습니다.");
 		}
-		if (!canManageProjects(currentUser) && normalizedScope.equals("all")) {
+		if (!isProjectManager(currentUser) && normalized.equals("all")) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}
-		return normalizedScope;
-	}
-
-	private User requireCurrentUser(Long currentUserId) {
-		if (currentUserId == null) {
-			throw new ApiException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.");
-		}
-
-		return userRepository.findById(currentUserId)
-				.orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
+		return normalized;
 	}
 
 	private Project findProject(Long projectId) {
 		return projectRepository.findById(projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다."));
-	}
-
-	private User findUser(Long userId) {
-		return userRepository.findById(userId)
-				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
-	}
-
-	private List<Long> validateAssigneeIds(List<Long> userIds) {
-		if (userIds == null) {
-			throw new ApiException(HttpStatus.BAD_REQUEST, "assigneeUserIds는 필수입니다.");
-		}
-
-		Set<Long> uniqueUserIds = new HashSet<>(userIds);
-		if (uniqueUserIds.size() != userIds.size()) {
-			throw new ApiException(HttpStatus.BAD_REQUEST, "담당자 목록에 중복이 있습니다.");
-		}
-
-		return userIds;
 	}
 
 	private void validateDateRange(LocalDate from, LocalDate to) {

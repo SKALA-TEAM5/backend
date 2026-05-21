@@ -132,6 +132,22 @@ public class EvidenceQueryService {
 	}
 
 	@Transactional(readOnly = true)
+	public List<RequirementResponse> listRequirements(Long currentUserId, Long projectId, Long itemId) {
+		projectAccessService.requireReadable(currentUserId, projectId);
+		itemRepository.findProjectItem(projectId, itemId)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "상세항목을 찾을 수 없습니다."));
+		Map<String, String> evidenceTypeNames = codeLookupService.evidenceTypeNames();
+		return requirementRepository.findByUsageStatementItemIdAndActiveTrue(itemId)
+				.stream()
+				.map(r -> new RequirementResponse(
+						r.getEvidenceTypeCode(),
+						evidenceTypeNames.getOrDefault(r.getEvidenceTypeCode(), r.getEvidenceTypeCode()),
+						r.isSatisfied()
+				))
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
 	public UsageStatementItem requireProjectItem(Long projectId, Long itemId) {
 		return itemRepository.findProjectItem(projectId, itemId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "상세항목을 찾을 수 없습니다."));

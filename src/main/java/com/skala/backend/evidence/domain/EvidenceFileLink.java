@@ -25,11 +25,11 @@ public class EvidenceFileLink {
 	@Column(name = "file_id", nullable = false)
 	private Long fileId;
 
-	@Column(name = "category_code", nullable = false, length = 50)
-	private String categoryCode;
-
 	@Column(name = "evidence_type_code", nullable = false, length = 30)
 	private String evidenceTypeCode;
+
+	@Column(name = "checked_at")
+	private Instant checkedAt;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -40,15 +40,14 @@ public class EvidenceFileLink {
 	protected EvidenceFileLink() {
 	}
 
-	private EvidenceFileLink(Long usageStatementItemId, Long fileId, String categoryCode, String evidenceTypeCode) {
+	private EvidenceFileLink(Long usageStatementItemId, Long fileId, String evidenceTypeCode) {
 		this.usageStatementItemId = usageStatementItemId;
 		this.fileId = fileId;
-		this.categoryCode = categoryCode;
 		this.evidenceTypeCode = evidenceTypeCode;
 	}
 
-	public static EvidenceFileLink create(Long usageStatementItemId, Long fileId, String categoryCode, String evidenceTypeCode) {
-		return new EvidenceFileLink(usageStatementItemId, fileId, categoryCode, evidenceTypeCode);
+	public static EvidenceFileLink create(Long usageStatementItemId, Long fileId, String evidenceTypeCode) {
+		return new EvidenceFileLink(usageStatementItemId, fileId, evidenceTypeCode);
 	}
 
 	@PrePersist
@@ -63,17 +62,16 @@ public class EvidenceFileLink {
 		this.updatedAt = Instant.now();
 	}
 
-	public void moveTo(Long targetItemId, String categoryCode, String evidenceTypeCode) {
+	public void moveTo(Long targetItemId, String evidenceTypeCode) {
 		this.usageStatementItemId = targetItemId;
-		this.categoryCode = categoryCode;
 		this.evidenceTypeCode = evidenceTypeCode;
 	}
 
 	public Long getId() { return id; }
 	public Long getUsageStatementItemId() { return usageStatementItemId; }
 	public Long getFileId() { return fileId; }
-	public String getCategoryCode() { return categoryCode; }
 	public String getEvidenceTypeCode() { return evidenceTypeCode; }
+	public Instant getCheckedAt() { return checkedAt; }
 	public Instant getCreatedAt() { return createdAt; }
 	public Instant getUpdatedAt() { return updatedAt; }
 }

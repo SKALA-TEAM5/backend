@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -159,15 +160,12 @@ class ProjectRequirementContractTest {
 	@Test
 	void admin은_scope로_전체와_내_담당_프로젝트를_전환할_수_있다() throws Exception {
 		Map<String, String> manager = createUser("admin");
+		Map<String, String> otherManager = createUser("admin");
 		Cookie managerCookie = loginCookie(manager);
-		int managerId = readUserIdFromLogin(manager);
+		Cookie otherManagerCookie = loginCookie(otherManager);
 		String prefix = "scope-" + UUID.randomUUID();
 		int assignedProjectId = createProject(managerCookie, prefix + "-내담당");
-		int otherProjectId = createProject(managerCookie, prefix + "-전체전용");
-
-		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", assignedProjectId, managerId)
-						.cookie(managerCookie))
-				.andExpect(status().isOk());
+		int otherProjectId = createProject(otherManagerCookie, prefix + "-전체전용");
 
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
@@ -190,25 +188,23 @@ class ProjectRequirementContractTest {
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
 				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
 
-		mockMvc.perform(get("/projects")
-						.cookie(managerCookie)
-						.param("scope", "assigned")
-						.param("assigneeUserId", String.valueOf(managerId))
-						.param("keyword", prefix))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.items", hasSize(1)))
-				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
-
 		mockMvc.perform(get("/projects/{projectId}", otherProjectId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk());
 	}
 
 	@Test
-	void agent는_admin과_동일하게_프로젝트를_관리할_수_있다() throws Exception {
+	void agent는_프로젝트를_생성할_수_없지만_기존_프로젝트는_관리할_수_있다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
 		Cookie agentCookie = loginCookie(createUser("agent"));
 		int projectUserId = createUserId("user");
-		int projectId = createProject(agentCookie, "agent 생성 프로젝트");
+		int projectId = createProject(managerCookie, "agent 관리 프로젝트");
+
+		mockMvc.perform(post("/projects")
+						.cookie(agentCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(projectRequest("agent 생성 시도"))))
+				.andExpect(status().isForbidden());
 
 		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, projectUserId)
 						.cookie(agentCookie))
@@ -250,12 +246,95 @@ class ProjectRequirementContractTest {
 				.andExpect(jsonPath("$.data.items", hasSize(2)))
 				.andExpect(jsonPath("$.data.items[0].id").value(highProgressProjectId))
 				.andExpect(jsonPath("$.data.items[0].assigneeNames[0]").value("홍길동"))
-				.andExpect(jsonPath("$.data.items[0].assigneeCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].assigneeCount").value(2))
 				.andExpect(jsonPath("$.data.items[0].latestCumulativeProgressRate").value(80))
 				.andExpect(jsonPath("$.data.items[0].hasActionRequest").value(true))
 				.andExpect(jsonPath("$.data.items[1].id").value(lowProgressProjectId))
 				.andExpect(jsonPath("$.data.items[1].latestCumulativeProgressRate").value(10))
 				.andExpect(jsonPath("$.data.items[1].hasActionRequest").value(false));
+	}
+
+	@Test
+	void 사용내역서는_연월로_최신_revision을_조회할_수_있다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(managerCookie, "월별 사용내역서 프로젝트");
+
+		insertUsageStatement(projectId, "2026-04-01", 1, 30);
+		insertUsageStatement(projectId, "2026-04-01", 2, 45);
+
+		mockMvc.perform(get("/projects/{projectId}/usage-statements/by-month", projectId)
+						.cookie(managerCookie)
+						.param("year", "2026")
+						.param("month", "4"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.projectId").value(projectId))
+				.andExpect(jsonPath("$.data.statement.reportMonth").value("2026-04-01"))
+				.andExpect(jsonPath("$.data.statement.revisionNo").value(2))
+				.andExpect(jsonPath("$.data.statement.cumulativeProgressRate").value(45));
+	}
+
+	@Test
+	void 프로젝트와_아카이브는_미확인_매칭_카운트를_보여주고_mark_api로_확인_처리한다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		Map<String, String> assignee = createUser("user");
+		Cookie assigneeCookie = loginCookie(assignee);
+		int assigneeId = readUserIdFromLogin(assignee);
+		String projectName = "미확인 매칭 프로젝트-" + UUID.randomUUID();
+		int projectId = createProject(managerCookie, projectName);
+		int statementId = insertUsageStatementId(projectId, "2026-04-01", 1, 30);
+		int itemId = insertUsageStatementItem(statementId, "CAT_01");
+		int fileId = insertProjectFile(projectId, assigneeId);
+		insertEvidenceFileLink(itemId, fileId, "transaction_statement");
+
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, assigneeId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("projectName", projectName))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items[0].id").value(projectId))
+				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(get("/projects/{projectId}", projectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.project.uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(get("/projects/{projectId}/archive/categories", projectId)
+						.cookie(assigneeCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.uncheckedMatchedFileCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(get("/projects/{projectId}/archive/categories", projectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.uncheckedMatchedFileCount").value(1))
+				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(1));
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(post("/projects/{projectId}/archive/mark-checked", projectId)
+						.cookie(assigneeCookie))
+				.andExpect(status().isForbidden());
+		assertUncheckedLinkCount(projectId, 1);
+
+		mockMvc.perform(post("/projects/{projectId}/archive/mark-checked", projectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.projectId").value(projectId))
+				.andExpect(jsonPath("$.data.checkedLinkCount").value(1));
+		assertUncheckedLinkCount(projectId, 0);
+
+		mockMvc.perform(get("/projects/{projectId}/archive/categories", projectId)
+						.cookie(managerCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.uncheckedMatchedFileCount").value(0))
+				.andExpect(jsonPath("$.data.items[0].uncheckedMatchedFileCount").value(0));
 	}
 
 	@Test
@@ -311,10 +390,10 @@ class ProjectRequirementContractTest {
 	void 목록은_다중검색조건을_AND로_결합하고_기간겹침과_상태를_필터링한다() throws Exception {
 		Cookie managerCookie = loginCookie(createUser("admin"));
 		String prefix = "AND-" + UUID.randomUUID();
-		int matchedProjectId = createProject(managerCookie, projectRequest(prefix + "-대상", "AND-MATCH", "suspended", "2026-03-01", "2026-05-31"));
+		int matchedProjectId = createProject(managerCookie, projectRequest(prefix + "-대상", "AND-MATCH-대상", "suspended", "2026-03-01", "2026-05-31"));
 		createProject(managerCookie, projectRequest(prefix + "-계약번호불일치", "AND-OTHER", "suspended", "2026-03-01", "2026-05-31"));
-		createProject(managerCookie, projectRequest(prefix + "-상태불일치", "AND-MATCH", "active", "2026-03-01", "2026-05-31"));
-		createProject(managerCookie, projectRequest(prefix + "-기간불일치", "AND-MATCH", "suspended", "2026-08-01", "2026-09-30"));
+		createProject(managerCookie, projectRequest(prefix + "-상태불일치", "AND-MATCH-상태불일치", "active", "2026-03-01", "2026-05-31"));
+		createProject(managerCookie, projectRequest(prefix + "-기간불일치", "AND-MATCH-기간불일치", "suspended", "2026-08-01", "2026-09-30"));
 
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
@@ -421,7 +500,7 @@ class ProjectRequirementContractTest {
 
 		mockMvc.perform(get("/projects/{projectId}/assignees", assignedProjectId).cookie(assigneeCookie))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.assignees", hasSize(1)));
+				.andExpect(jsonPath("$.data.assignees", hasSize(2)));
 
 		mockMvc.perform(patch("/projects/{projectId}", assignedProjectId)
 						.cookie(assigneeCookie)
@@ -503,11 +582,62 @@ class ProjectRequirementContractTest {
 	}
 
 	private void insertUsageStatement(int projectId, String reportMonth, int progressRate) {
+		insertUsageStatement(projectId, reportMonth, 1, progressRate);
+	}
+
+	private void insertUsageStatement(int projectId, String reportMonth, int revisionNo, int progressRate) {
 		jdbcTemplate.update("""
 				INSERT INTO service.usage_statements
 					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate)
-				VALUES (?, ?::date, 1, ?::date, ?)
-				""", projectId, reportMonth, reportMonth, progressRate);
+				VALUES (?, ?::date, ?, ?::date, ?)
+				""", projectId, reportMonth, revisionNo, reportMonth, progressRate);
+	}
+
+	private int insertUsageStatementId(int projectId, String reportMonth, int revisionNo, int progressRate) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.usage_statements
+					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate)
+				VALUES (?, ?::date, ?, ?::date, ?)
+				RETURNING id
+				""", Integer.class, projectId, reportMonth, revisionNo, reportMonth, progressRate);
+	}
+
+	private int insertUsageStatementItem(int usageStatementId, String categoryCode) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.usage_statement_items
+					(usage_statement_id, category_code, used_on, item_name, quantity, unit_price, total_amount, page_no)
+				VALUES (?, ?, '2026-04-01', '테스트 항목', 1, 1000, 1000, 1)
+				RETURNING id
+				""", Integer.class, usageStatementId, categoryCode);
+	}
+
+	private int insertProjectFile(int projectId, int uploadedByUserId) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.files
+					(project_id, uploaded_by_user_id, uploaded_evidence_type_code, original_filename, storage_key, mime_type, size_bytes)
+				VALUES (?, ?, 'transaction_statement', 'receipt.pdf', ?, 'application/pdf', 1024)
+				RETURNING id
+				""", Integer.class, projectId, uploadedByUserId, "tests/" + UUID.randomUUID() + "/receipt.pdf");
+	}
+
+	private void insertEvidenceFileLink(int itemId, int fileId, String evidenceTypeCode) {
+		jdbcTemplate.update("""
+				INSERT INTO service.evidence_file_links
+					(usage_statement_item_id, file_id, evidence_type_code)
+				VALUES (?, ?, ?)
+				""", itemId, fileId, evidenceTypeCode);
+	}
+
+	private void assertUncheckedLinkCount(int projectId, int expectedCount) {
+		Integer count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)::int
+				FROM service.evidence_file_links l
+				JOIN service.usage_statement_items i ON i.id = l.usage_statement_item_id
+				JOIN service.usage_statements s ON s.id = i.usage_statement_id
+				WHERE s.project_id = ?
+					AND l.checked_at IS NULL
+				""", Integer.class, projectId);
+		assertThat(count).isEqualTo(expectedCount);
 	}
 
 	private void insertOpenActionRequest(int projectId, int requestedByUserId, int assigneeUserId) {

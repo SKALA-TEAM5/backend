@@ -10,6 +10,7 @@ import com.skala.backend.usage.domain.UsageStatement;
 import com.skala.backend.usage.domain.UsageStatementItem;
 import com.skala.backend.usage.domain.UsageStatementSummary;
 import com.skala.backend.usage.dto.UsageStatementResponses.LatestUsageStatementResponse;
+import com.skala.backend.usage.dto.UsageStatementResponses.UsageStatementStatusResponse;
 import com.skala.backend.usage.dto.UsageStatementResponses.SourceFileResponse;
 import com.skala.backend.usage.dto.UsageStatementResponses.UsageStatementDetailDataResponse;
 import com.skala.backend.usage.dto.UsageStatementResponses.UsageStatementDetailResponse;
@@ -24,6 +25,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DateTimeException;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 
@@ -80,6 +84,7 @@ public class UsageStatementService {
 						statement.getRevisionNo(),
 						statement.getDocumentWrittenDate(),
 						statement.getCumulativeProgressRate(),
+						statement.getStatusCode(),
 						summaryRepository.countByUsageStatementId(statement.getId()),
 						itemRepository.countByUsageStatementId(statement.getId()),
 						linkedCounts.getOrDefault(statement.getId(), 0L),
@@ -94,6 +99,15 @@ public class UsageStatementService {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		UsageStatement statement = statementRepository.findById(usageStatementId)
 				.filter(found -> found.getProjectId().equals(projectId))
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
+		return new UsageStatementDetailDataResponse(projectId, toDetail(statement));
+	}
+
+	@Transactional(readOnly = true)
+	public UsageStatementDetailDataResponse getByMonth(Long currentUserId, Long projectId, int year, int month) {
+		projectAccessService.requireReadable(currentUserId, projectId);
+		LocalDate reportMonth = toReportMonth(year, month);
+		UsageStatement statement = statementRepository.findFirstByProjectIdAndReportMonthOrderByRevisionNoDesc(projectId, reportMonth)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
 		return new UsageStatementDetailDataResponse(projectId, toDetail(statement));
 	}
@@ -135,6 +149,7 @@ public class UsageStatementService {
 				statement.getRevisionNo(),
 				statement.getDocumentWrittenDate(),
 				statement.getCumulativeProgressRate(),
+				statement.getStatusCode(),
 				toSourceFile(statement.getSourceFileId()),
 				summaries,
 				itemResponses
@@ -165,5 +180,41 @@ public class UsageStatementService {
 						file.getUploadedAt()
 				))
 				.orElse(null);
+	}
+
+	@Transactional
+	public UsageStatementStatusResponse submit(Long currentUserId, Long projectId, Long statementId) {
+		projectAccessService.requireWritable(currentUserId, projectId);
+		UsageStatement statement = statementRepository.findByIdAndProjectId(statementId, projectId)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
+		statement.submit();
+		// TODO: SHE 담당자 알림 발송 (R-33, 알림 서비스 구현 후 연동)
+		return new UsageStatementStatusResponse(statement.getId(), statement.getStatusCode());
+	}
+
+	@Transactional
+	public UsageStatementStatusResponse requestSupplement(Long currentUserId, Long projectId, Long statementId) {
+		projectAccessService.requireAdmin(currentUserId);
+		UsageStatement statement = statementRepository.findByIdAndProjectId(statementId, projectId)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
+		statement.requestSupplement();
+		return new UsageStatementStatusResponse(statement.getId(), statement.getStatusCode());
+	}
+
+	@Transactional
+	public UsageStatementStatusResponse completeReview(Long currentUserId, Long projectId, Long statementId) {
+		projectAccessService.requireAdmin(currentUserId);
+		UsageStatement statement = statementRepository.findByIdAndProjectId(statementId, projectId)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
+		statement.completeReview();
+		return new UsageStatementStatusResponse(statement.getId(), statement.getStatusCode());
+	}
+
+	private LocalDate toReportMonth(int year, int month) {
+		try {
+			return YearMonth.of(year, month).atDay(1);
+		} catch (DateTimeException exception) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "year와 month가 올바르지 않습니다.");
+		}
 	}
 }

@@ -9,6 +9,7 @@ import com.skala.backend.evidence.service.EvidenceCommandService;
 import com.skala.backend.evidence.service.EvidenceQueryService;
 import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
+import com.skala.backend.usage.dto.UsageStatementResponses.RequirementResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -24,6 +25,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/projects/{projectId}")
@@ -83,5 +86,31 @@ public class ProjectEvidenceLinkController {
 	) {
 		ItemEvidenceFilesResponse response = queryService.listItemFiles(currentUser.id(), projectId, itemId);
 		return ResponseEntity.ok(ApiResponse.success(response, "상세항목 증빙 파일 조회에 성공했습니다."));
+	}
+
+	@GetMapping("/usage-statement-items/{itemId}/evidence-requirements")
+	@Operation(
+			tags = {"에이전트 경고"},
+			summary = "상세항목 서류 충족 현황 조회",
+			description = """
+					safety-doc 에이전트가 판정한 서류 제출 현황을 반환합니다.
+
+					**사용 시나리오**
+					에이전트 경고 목록(`GET /agents/warnings`)에서 `agentTypeCode = 'safety-doc'`인 경고를 \
+					클릭했을 때, 해당 항목에 어떤 서류가 부족한지 상세하게 확인하기 위해 호출합니다.
+
+					**응답 해석**
+					- `satisfied = false` → 아직 제출되지 않은 서류 (보완 필요)
+					- `satisfied = true`  → 제출 완료된 서류
+					- `is_active = false`인 항목은 제외됩니다 (에이전트 재실행 시 무효화된 이전 판정).
+					"""
+	)
+	public ResponseEntity<ApiResponse<List<RequirementResponse>>> listRequirements(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@PathVariable Long itemId
+	) {
+		List<RequirementResponse> response = queryService.listRequirements(currentUser.id(), projectId, itemId);
+		return ResponseEntity.ok(ApiResponse.success(response, "서류 충족 현황 조회에 성공했습니다."));
 	}
 }

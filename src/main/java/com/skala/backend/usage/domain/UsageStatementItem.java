@@ -5,6 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
@@ -56,6 +58,68 @@ public class UsageStatementItem {
 	private Instant updatedAt;
 
 	protected UsageStatementItem() {
+	}
+
+	public static UsageStatementItem create(
+			Long usageStatementId,
+			String categoryCode,
+			LocalDate usedOn,
+			String itemName,
+			String unit,
+			BigDecimal quantity,
+			BigDecimal unitPrice,
+			BigDecimal totalAmount,
+			String remark,
+			Integer pageNo
+	) {
+		UsageStatementItem item = new UsageStatementItem();
+		item.usageStatementId = usageStatementId;
+		item.categoryCode = categoryCode;
+		item.usedOn = usedOn;
+		item.itemName = itemName;
+		item.unit = unit;
+		item.quantity = quantity;
+		item.unitPrice = unitPrice;
+		item.totalAmount = totalAmount;
+		item.remark = remark;
+		item.pageNo = pageNo;
+		return item;
+	}
+
+	@PrePersist
+	void prePersist() {
+		Instant now = Instant.now();
+		this.createdAt = now;
+		this.updatedAt = now;
+	}
+
+	@PreUpdate
+	void preUpdate() {
+		this.updatedAt = Instant.now();
+	}
+
+	public void update(
+			LocalDate usedOn,
+			String itemName,
+			String unit,
+			BigDecimal quantity,
+			BigDecimal unitPrice,
+			BigDecimal totalAmount,
+			String remark,
+			Integer pageNo
+	) {
+		this.usedOn = usedOn;
+		this.itemName = itemName;
+		this.unit = unit;
+		this.quantity = quantity;
+		this.unitPrice = unitPrice;
+		this.totalAmount = totalAmount;
+		this.remark = remark;
+		this.pageNo = pageNo;
+	}
+
+	public void changeCategory(String categoryCode) {
+		this.categoryCode = categoryCode;
 	}
 
 	public Long getId() { return id; }

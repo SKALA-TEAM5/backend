@@ -41,6 +41,45 @@ public class ProjectAccessService {
 		return project;
 	}
 
+	public User requireAdmin(Long currentUserId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() != RoleCode.ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return currentUser;
+	}
+
+	public User requireSystemAdmin(Long currentUserId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() != RoleCode.SYSTEM_ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return currentUser;
+	}
+
+	public User requireSystemAdminOrAdmin(Long currentUserId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() != RoleCode.SYSTEM_ADMIN && currentUser.getRoleCode() != RoleCode.ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return currentUser;
+	}
+
+	public User requireProjectManager(Long currentUserId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() != RoleCode.ADMIN && currentUser.getRoleCode() != RoleCode.AGENT) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return currentUser;
+	}
+
+	public void requireProjectWorkAccessible(Long currentUserId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() == RoleCode.SYSTEM_ADMIN) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+	}
+
 	public User requireCurrentUser(Long currentUserId) {
 		if (currentUserId == null) {
 			throw new ApiException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.");

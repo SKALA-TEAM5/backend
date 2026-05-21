@@ -23,7 +23,11 @@ public final class EvidenceResponses {
 	public record EvidenceLinkResponse(Long linkId) {
 	}
 
-	public record ArchiveCategoryListResponse(Long projectId, List<ArchiveCategoryResponse> items) {
+	public record ArchiveCategoryListResponse(
+			Long projectId,
+			long uncheckedMatchedFileCount,
+			List<ArchiveCategoryResponse> items
+	) {
 	}
 
 	public record ArchiveCategoryResponse(
@@ -32,6 +36,7 @@ public final class EvidenceResponses {
 			long itemCount,
 			long linkedFileCount,
 			long linkCount,
+			long uncheckedMatchedFileCount,
 			long unsatisfiedRequirementCount
 	) {
 	}
@@ -52,7 +57,11 @@ public final class EvidenceResponses {
 			String remark,
 			Integer pageNo,
 			long linkedFileCount,
+			long uncheckedMatchedFileCount,
 			long unsatisfiedRequirementCount
 	) {
+	}
+
+	public record ArchiveMarkCheckedResponse(Long projectId, int checkedLinkCount) {
 	}
 }
