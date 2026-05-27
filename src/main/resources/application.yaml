@@ -4,6 +4,18 @@ server:
 spring:
   application:
     name: backend
+  flyway:
+    enabled: ${FLYWAY_ENABLED:false}
+    user: ${FLYWAY_USER:safety_user}
+    password: ${FLYWAY_PASSWORD:safety_password}
+    locations: classpath:db/migration
+    placeholders:
+      serviceAppUser: ${SERVICE_APP_USER:safety_service_app}
+      serviceAppPassword: ${SERVICE_APP_PASSWORD:safety_service_app_password}
+      lawAppUser: ${LAW_APP_USER:safety_law_app}
+      lawAppPassword: ${LAW_APP_PASSWORD:safety_law_app_password}
+      devAdminUser: ${DEV_ADMIN_USER:dev_admin}
+      devAdminPassword: ${DEV_ADMIN_PASSWORD:dev_admin}
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:safety}?currentSchema=service
     username: ${SERVICE_APP_USER:safety_service_app}

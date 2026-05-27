@@ -35,30 +35,14 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Run Flyway migrations
-        run: |
-          docker run --rm --network host \
-            -v ${{ github.workspace }}/db/migrations:/flyway/migrations \
-            flyway/flyway:10-alpine \
-            -url="jdbc:postgresql://localhost:5432/safety" \
-            -user=safety_user \
-            -password=safety_password \
-            -locations=filesystem:/flyway/migrations \
-            -placeholders.serviceAppUser=safety_service_app \
-            -placeholders.serviceAppPassword=safety_service_app_password \
-            -placeholders.lawAppUser=safety_law_app \
-            -placeholders.lawAppPassword=safety_law_app_password \
-            -placeholders.devAdminUser=dev_admin \
-            -placeholders.devAdminPassword=dev_admin \
-            -baselineOnMigrate=true \
-            migrate
-
       - name: Run tests
-        working-directory: backend
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
           POSTGRES_DB: safety
+          FLYWAY_ENABLED: true
+          FLYWAY_USER: safety_user
+          FLYWAY_PASSWORD: safety_password
           SERVICE_APP_USER: safety_service_app
           SERVICE_APP_PASSWORD: safety_service_app_password
           APP_JWT_SECRET: local-development-jwt-secret-must-be-at-least-32-bytes
