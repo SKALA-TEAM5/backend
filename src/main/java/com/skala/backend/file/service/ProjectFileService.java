@@ -9,20 +9,19 @@ import com.skala.backend.file.repository.ProjectFileRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.errors.ErrorResponseException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -40,20 +39,23 @@ public class ProjectFileService {
 	private final ProjectFileRepository fileRepository;
 	private final CodeLookupService codeLookupService;
 	private final EvidenceCommandService evidenceCommandService;
-	private final Path uploadRoot;
+	private final MinioClient minioClient;
+	private final String bucket;
 
 	public ProjectFileService(
 			ProjectAccessService projectAccessService,
 			ProjectFileRepository fileRepository,
 			CodeLookupService codeLookupService,
 			EvidenceCommandService evidenceCommandService,
-			@Value("${app.file-storage.upload-root}") String uploadRoot
+			MinioClient minioClient,
+			@Value("${app.file-storage.bucket}") String bucket
 	) {
 		this.projectAccessService = projectAccessService;
 		this.fileRepository = fileRepository;
 		this.codeLookupService = codeLookupService;
 		this.evidenceCommandService = evidenceCommandService;
-		this.uploadRoot = Path.of(uploadRoot).toAbsolutePath().normalize();
+		this.minioClient = minioClient;
+		this.bucket = bucket;
 	}
 
 	@Transactional(readOnly = true)
@@ -90,17 +92,20 @@ public class ProjectFileService {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "file은 필수입니다.");
 		}
 
-		String originalFilename = multipartFile.getOriginalFilename() == null ? "upload" : Path.of(multipartFile.getOriginalFilename()).getFileName().toString();
+		String originalFilename = multipartFile.getOriginalFilename() == null ? "upload" : multipartFile.getOriginalFilename();
 		String mimeType = multipartFile.getContentType() == null ? "application/octet-stream" : multipartFile.getContentType();
 		String storageKey = storageKey(projectId, originalFilename);
-		Path target = resolveStorageKey(storageKey);
 
-		try {
-			Files.createDirectories(target.getParent());
-			try (InputStream inputStream = multipartFile.getInputStream()) {
-				Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
-			}
-		} catch (IOException exception) {
+		try (InputStream inputStream = multipartFile.getInputStream()) {
+			minioClient.putObject(
+					PutObjectArgs.builder()
+							.bucket(bucket)
+							.object(storageKey)
+							.stream(inputStream, multipartFile.getSize(), -1)
+							.contentType(mimeType)
+							.build()
+			);
+		} catch (Exception e) {
 			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 저장에 실패했습니다.");
 		}
 
@@ -155,18 +160,20 @@ public class ProjectFileService {
 	}
 
 	private FileResource toResource(ProjectFile file, boolean inline) {
-		Path path = resolveStorageKey(file.getStorageKey());
-		if (!Files.exists(path) || !Files.isRegularFile(path)) {
-			throw new ApiException(HttpStatus.NOT_FOUND, "저장된 파일을 찾을 수 없습니다.");
-		}
 		try {
-			return new FileResource(
-					new UrlResource(path.toUri()),
-					file.getOriginalFilename(),
-					file.getMimeType(),
-					inline
+			InputStream stream = minioClient.getObject(
+					GetObjectArgs.builder()
+							.bucket(bucket)
+							.object(file.getStorageKey())
+							.build()
 			);
-		} catch (MalformedURLException exception) {
+			return new FileResource(new InputStreamResource(stream), file.getOriginalFilename(), file.getMimeType(), inline);
+		} catch (ErrorResponseException e) {
+			if ("NoSuchKey".equals(e.errorResponse().code())) {
+				throw new ApiException(HttpStatus.NOT_FOUND, "저장된 파일을 찾을 수 없습니다.");
+			}
+			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일을 읽을 수 없습니다.");
+		} catch (Exception e) {
 			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일을 읽을 수 없습니다.");
 		}
 	}
@@ -181,6 +188,7 @@ public class ProjectFileService {
 				file.getSizeBytes(),
 				file.getCapturedAt(),
 				file.getUploadedAt(),
+				file.getStatusCode(),
 				linkedCounts.getOrDefault(file.getId(), 0L)
 		);
 	}
@@ -193,14 +201,6 @@ public class ProjectFileService {
 		}
 		LocalDate today = LocalDate.now(ZoneOffset.UTC);
 		return "projects/%d/%s/%s%s".formatted(projectId, today, UUID.randomUUID(), extension);
-	}
-
-	private Path resolveStorageKey(String storageKey) {
-		Path path = uploadRoot.resolve(storageKey).normalize();
-		if (!path.startsWith(uploadRoot)) {
-			throw new ApiException(HttpStatus.BAD_REQUEST, "잘못된 파일 경로입니다.");
-		}
-		return path;
 	}
 
 	private int validatePage(Integer page) {

@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 public final class AgentResponses {
 
@@ -16,8 +15,6 @@ public final class AgentResponses {
 
 	@Schema(description = "Agent 실행 응답")
 	public record RunResponse(
-			@Schema(description = "배치 실행 단위 ID — FastAPI 호출 시 동일한 값을 전달하며, 경고 조회 시 runId로 활용")
-			UUID runId,
 			@Schema(description = "Agent 유형", example = "validator") String agentType,
 			@Schema(description = "실행 상태", example = "succeeded") String status,
 			@Schema(description = "저장된 로그 ID 목록") List<Long> logIds,
@@ -29,7 +26,6 @@ public final class AgentResponses {
 			@Schema(description = "로그 ID") Long agentLogId,
 			@Schema(description = "에이전트 유형", example = "link") String agentTypeCode,
 			@Schema(description = "실행 상태", example = "completed") String statusCode,
-			@Schema(description = "배치 실행 단위 ID") UUID runId,
 			@Schema(description = "사용내역서 ID") Long usageStatementId,
 			@Schema(description = "보고월") LocalDate reportMonth,
 			@Schema(description = "상세항목 ID") Long itemId,
@@ -41,7 +37,6 @@ public final class AgentResponses {
 		public static WarningResponse from(AgentLogRepository.AgentWarningRow row) {
 			return new WarningResponse(
 					row.getId(), row.getAgentTypeCode(), row.getStatusCode(),
-					row.getRunId() != null ? UUID.fromString(row.getRunId()) : null,
 					row.getUsageStatementId(), row.getReportMonth(),
 					row.getUsageStatementItemId(), row.getItemName(),
 					row.getCategoryCode(), row.getDetails(), row.getCreatedAt()
@@ -56,13 +51,12 @@ public final class AgentResponses {
 			@Schema(description = "에이전트 유형", example = "vision") String agentTypeCode,
 			@Schema(description = "실행 상태", example = "completed") String statusCode,
 			@Schema(description = "사용 모델명") String modelName,
-			@Schema(description = "배치 실행 단위 ID") UUID runId,
 			@Schema(description = "생성일시") Instant createdAt
 	) {
 		public static LogResponse from(AgentLog log) {
 			return new LogResponse(
 					log.getId(), log.getUsageStatementId(), log.getAgentTypeCode(),
-					log.getStatusCode(), log.getModelName(), log.getRunId(), log.getCreatedAt()
+					log.getStatusCode(), log.getModelName(), log.getCreatedAt()
 			);
 		}
 	}

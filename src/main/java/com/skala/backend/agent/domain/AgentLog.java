@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Entity
 @Table(name = "agent_logs", schema = "service")
@@ -42,9 +41,6 @@ public class AgentLog {
     @Column(name = "details", columnDefinition = "jsonb")
     private String details;
 
-    @Column(name = "run_id")
-    private UUID runId;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -58,6 +54,5 @@ public class AgentLog {
     public String getStatusCode() { return status.getCode(); }
     public String getModelName() { return modelName; }
     public String getDetails() { return details; }
-    public UUID getRunId() { return runId; }
     public Instant getCreatedAt() { return createdAt; }
 }

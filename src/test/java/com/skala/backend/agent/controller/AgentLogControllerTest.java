@@ -39,36 +39,15 @@ class AgentLogControllerTest {
 	// ─── R-28: agent_logs 조회 ────────────────────────────────────────────
 
 	@Test
-	void runId로_해당_배치의_로그만_오름차순으로_조회한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		int projectId = createProject(adminCookie);
-		int statementId = insertStatement(projectId);
-		UUID runId = UUID.randomUUID();
-
-		insertAgentLog(projectId, statementId, "vision", runId);
-		insertAgentLog(projectId, statementId, "link", runId);
-		insertAgentLog(projectId, statementId, "safety-doc", UUID.randomUUID()); // 다른 배치 로그
-
-		mockMvc.perform(get("/projects/{pid}/agents/logs", projectId)
-						.cookie(adminCookie)
-						.param("runId", runId.toString()))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data", hasSize(2)))
-				.andExpect(jsonPath("$.data[0].agentTypeCode").value("vision"))
-				.andExpect(jsonPath("$.data[0].runId").value(runId.toString()))
-				.andExpect(jsonPath("$.data[1].agentTypeCode").value("link"));
-	}
-
-	@Test
 	void usageStatementId로_해당_사용내역서의_로그를_내림차순으로_조회한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId, "2026-05-01");
 		int otherStatementId = insertStatement(projectId, "2026-04-01");
 
-		insertAgentLog(projectId, statementId, "classi", null);
-		insertAgentLog(projectId, statementId, "legal", null);
-		insertAgentLog(projectId, otherStatementId, "classi", null); // 다른 사용내역서
+		insertAgentLog(projectId, statementId, "classi");
+		insertAgentLog(projectId, statementId, "legal");
+		insertAgentLog(projectId, otherStatementId, "classi"); // 다른 사용내역서
 
 		mockMvc.perform(get("/projects/{pid}/agents/logs", projectId)
 						.cookie(adminCookie)
@@ -80,39 +59,7 @@ class AgentLogControllerTest {
 	}
 
 	@Test
-	void runId로_조회_시_다른_프로젝트의_같은_runId_로그는_제외된다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		int projectId = createProject(adminCookie);
-		int otherProjectId = createProject(adminCookie);
-		int statementId = insertStatement(projectId);
-		int otherStatementId = insertStatement(otherProjectId);
-		UUID sharedRunId = UUID.randomUUID();
-
-		insertAgentLog(projectId, statementId, "vision", sharedRunId);
-		insertAgentLog(otherProjectId, otherStatementId, "link", sharedRunId); // 다른 프로젝트
-
-		mockMvc.perform(get("/projects/{pid}/agents/logs", projectId)
-						.cookie(adminCookie)
-						.param("runId", sharedRunId.toString()))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data", hasSize(1)))
-				.andExpect(jsonPath("$.data[0].agentTypeCode").value("vision"));
-	}
-
-	@Test
-	void 존재하지_않는_runId_조회_시_빈_배열을_반환한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		int projectId = createProject(adminCookie);
-
-		mockMvc.perform(get("/projects/{pid}/agents/logs", projectId)
-						.cookie(adminCookie)
-						.param("runId", UUID.randomUUID().toString()))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data", hasSize(0)));
-	}
-
-	@Test
-	void runId와_usageStatementId_모두_없으면_400을_반환한다() throws Exception {
+	void usageStatementId가_없으면_400을_반환한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
 
@@ -152,12 +99,11 @@ class AgentLogControllerTest {
 		int projectId = createProject(adminCookie);
 		assign(adminCookie, projectId, userId);
 		int statementId = insertStatement(projectId);
-		UUID runId = UUID.randomUUID();
-		insertAgentLog(projectId, statementId, "classi", runId);
+		insertAgentLog(projectId, statementId, "classi");
 
 		mockMvc.perform(get("/projects/{pid}/agents/logs", projectId)
 						.cookie(userCookie)
-						.param("runId", runId.toString()))
+						.param("usageStatementId", String.valueOf(statementId)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data", hasSize(1)));
 	}
@@ -172,7 +118,7 @@ class AgentLogControllerTest {
 		int itemId = insertItem(statementId);
 
 		insertWarningLog(projectId, statementId, "link", itemId);   // 경고 대상
-		insertAgentLog(projectId, statementId, "classi", null);     // 정상 완료 — 제외
+		insertAgentLog(projectId, statementId, "classi");           // 정상 완료 — 제외
 
 		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId)
 						.cookie(adminCookie))
@@ -194,7 +140,7 @@ class AgentLogControllerTest {
 						.cookie(adminCookie))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data", hasSize(1)))
-				.andExpect(jsonPath("$.data[0].statusCode").value("failed"));
+				.andExpect(jsonPath("$.data[0].statusCode").value("fail"));
 	}
 
 	@Test
@@ -203,8 +149,8 @@ class AgentLogControllerTest {
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId);
 
-		insertAgentLog(projectId, statementId, "classi", null);
-		insertAgentLog(projectId, statementId, "legal", null);
+		insertAgentLog(projectId, statementId, "classi");
+		insertAgentLog(projectId, statementId, "legal");
 
 		mockMvc.perform(get("/projects/{pid}/agents/warnings", projectId)
 						.cookie(adminCookie))
@@ -363,27 +309,19 @@ class AgentLogControllerTest {
 				""", Integer.class, statementId);
 	}
 
-	private void insertAgentLog(int projectId, int statementId, String agentTypeCode, UUID runId) {
-		if (runId != null) {
-			jdbcTemplate.update("""
-					INSERT INTO service.agent_logs
-						(project_id, usage_statement_id, agent_type_code, status_code, run_id)
-					VALUES (?, ?, ?, 'completed', ?)
-					""", projectId, statementId, agentTypeCode, runId);
-		} else {
-			jdbcTemplate.update("""
-					INSERT INTO service.agent_logs
-						(project_id, usage_statement_id, agent_type_code, status_code)
-					VALUES (?, ?, ?, 'completed')
-					""", projectId, statementId, agentTypeCode);
-		}
+	private void insertAgentLog(int projectId, int statementId, String agentTypeCode) {
+		jdbcTemplate.update("""
+				INSERT INTO service.agent_logs
+					(project_id, usage_statement_id, agent_type_code, status_code)
+				VALUES (?, ?, ?, 'success')
+				""", projectId, statementId, agentTypeCode);
 	}
 
 	private void insertWarningLog(int projectId, int statementId, String agentTypeCode, int itemId) {
 		jdbcTemplate.update("""
 				INSERT INTO service.agent_logs
 					(project_id, usage_statement_id, agent_type_code, status_code, usage_statement_item_id)
-				VALUES (?, ?, ?, 'completed', ?)
+				VALUES (?, ?, ?, 'success', ?)
 				""", projectId, statementId, agentTypeCode, itemId);
 	}
 
@@ -391,7 +329,7 @@ class AgentLogControllerTest {
 		jdbcTemplate.update("""
 				INSERT INTO service.agent_logs
 					(project_id, usage_statement_id, agent_type_code, status_code)
-				VALUES (?, ?, ?, 'failed')
+				VALUES (?, ?, ?, 'fail')
 				""", projectId, statementId, agentTypeCode);
 	}
 }

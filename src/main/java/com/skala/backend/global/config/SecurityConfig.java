@@ -3,6 +3,7 @@ package com.skala.backend.global.config;
 import com.skala.backend.auth.security.JsonAccessDeniedHandler;
 import com.skala.backend.auth.security.JsonAuthenticationEntryPoint;
 import com.skala.backend.auth.security.JwtAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,15 +25,18 @@ public class SecurityConfig {
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final JsonAuthenticationEntryPoint authenticationEntryPoint;
 	private final JsonAccessDeniedHandler accessDeniedHandler;
+	private final List<String> allowedOrigins;
 
 	public SecurityConfig(
 			JwtAuthenticationFilter jwtAuthenticationFilter,
 			JsonAuthenticationEntryPoint authenticationEntryPoint,
-			JsonAccessDeniedHandler accessDeniedHandler
+			JsonAccessDeniedHandler accessDeniedHandler,
+			@Value("${app.cors.allowed-origins}") List<String> allowedOrigins
 	) {
 		this.jwtAuthenticationFilter = jwtAuthenticationFilter;
 		this.authenticationEntryPoint = authenticationEntryPoint;
 		this.accessDeniedHandler = accessDeniedHandler;
+		this.allowedOrigins = allowedOrigins;
 	}
 
 	@Bean
@@ -68,10 +72,7 @@ public class SecurityConfig {
 	@Bean
 	CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration configuration = new CorsConfiguration();
-		configuration.setAllowedOrigins(List.of(
-				"http://localhost:3000",
-				"http://127.0.0.1:3000"
-		));
+		configuration.setAllowedOrigins(allowedOrigins);
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
 		configuration.setAllowCredentials(true);
