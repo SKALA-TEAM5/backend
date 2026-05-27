@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: team5-backend
+  namespace: skala3-finalproj-class2-team5
+  labels:
+    app: team5-backend
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: team5-backend
+  template:
+    metadata:
+      labels:
+        app: team5-backend
+    spec:
+      imagePullSecrets:
+        - name: team5-harbor-secret
+      containers:
+        - name: backend
+          image: amdp-registry.skala-ai.com/skala26a-ai2/team5-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: team5-backend-config
+            - secretRef:
+                name: team5-backend-secret
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
