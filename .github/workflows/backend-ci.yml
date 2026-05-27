@@ -1,0 +1,72 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'db/migrations/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'db/migrations/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: safety
+          POSTGRES_USER: safety_user
+          POSTGRES_PASSWORD: safety_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Run Flyway migrations
+        run: |
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/db/migrations:/flyway/migrations \
+            flyway/flyway:10-alpine \
+            -url="jdbc:postgresql://localhost:5432/safety" \
+            -user=safety_user \
+            -password=safety_password \
+            -locations=filesystem:/flyway/migrations \
+            -placeholders.serviceAppUser=safety_service_app \
+            -placeholders.serviceAppPassword=safety_service_app_password \
+            -placeholders.lawAppUser=safety_law_app \
+            -placeholders.lawAppPassword=safety_law_app_password \
+            -placeholders.devAdminUser=dev_admin \
+            -placeholders.devAdminPassword=dev_admin \
+            -baselineOnMigrate=true \
+            migrate
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: safety
+          SERVICE_APP_USER: safety_service_app
+          SERVICE_APP_PASSWORD: safety_service_app_password
+          APP_JWT_SECRET: local-development-jwt-secret-must-be-at-least-32-bytes
+          APP_MINIO_ENDPOINT: http://localhost:9000
+        run: ./gradlew test
