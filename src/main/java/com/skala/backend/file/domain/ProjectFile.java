@@ -45,6 +45,9 @@ public class ProjectFile {
 	@Column(name = "uploaded_at", nullable = false)
 	private Instant uploadedAt;
 
+	@Column(name = "status_code", nullable = false, length = 20)
+	private String statusCode = "draft";
+
 	@Column(name = "deleted_at")
 	private Instant deletedAt;
 
@@ -89,6 +92,7 @@ public class ProjectFile {
 	public Long getSizeBytes() { return sizeBytes; }
 	public Instant getCapturedAt() { return capturedAt; }
 	public Instant getUploadedAt() { return uploadedAt; }
+	public String getStatusCode() { return statusCode; }
 	public Instant getDeletedAt() { return deletedAt; }
 	public Long getDeletedByUserId() { return deletedByUserId; }
 }

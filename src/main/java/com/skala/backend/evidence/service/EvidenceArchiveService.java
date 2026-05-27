@@ -158,7 +158,7 @@ public class EvidenceArchiveService {
 
 	@Transactional
 	public ArchiveMarkCheckedResponse markChecked(Long currentUserId, Long projectId) {
-		projectAccessService.requireReadable(currentUserId, projectId);
+		projectAccessService.requireProjectManager(currentUserId);
 		int checkedLinkCount = linkRepository.markProjectLinksChecked(projectId);
 		return new ArchiveMarkCheckedResponse(projectId, checkedLinkCount);
 	}

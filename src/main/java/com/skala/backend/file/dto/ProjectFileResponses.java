@@ -20,6 +20,7 @@ public final class ProjectFileResponses {
 			Long sizeBytes,
 			Instant capturedAt,
 			Instant uploadedAt,
+			String statusCode,
 			long linkedItemCount
 	) {
 	}

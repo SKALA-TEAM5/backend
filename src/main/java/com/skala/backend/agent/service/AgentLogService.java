@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class AgentLogService {
@@ -23,17 +22,13 @@ public class AgentLogService {
     }
 
     @Transactional(readOnly = true)
-    public List<AgentResponses.LogResponse> getLogs(Long currentUserId, Long projectId, UUID runId, Long usageStatementId) {
+    public List<AgentResponses.LogResponse> getLogs(Long currentUserId, Long projectId, Long usageStatementId) {
         projectAccessService.requireReadable(currentUserId, projectId);
-        if (runId != null) {
-            return agentLogRepository.findByProjectIdAndRunIdOrderByCreatedAtAsc(projectId, runId)
-                    .stream().map(AgentResponses.LogResponse::from).toList();
+        if (usageStatementId == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "usageStatementId는 필수입니다.");
         }
-        if (usageStatementId != null) {
-            return agentLogRepository.findByProjectIdAndUsageStatementIdOrderByCreatedAtDesc(projectId, usageStatementId)
-                    .stream().map(AgentResponses.LogResponse::from).toList();
-        }
-        throw new ApiException(HttpStatus.BAD_REQUEST, "runId 또는 usageStatementId 중 하나는 필수입니다.");
+        return agentLogRepository.findByProjectIdAndUsageStatementIdOrderByCreatedAtDesc(projectId, usageStatementId)
+                .stream().map(AgentResponses.LogResponse::from).toList();
     }
 
     @Transactional(readOnly = true)

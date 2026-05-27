@@ -28,5 +28,11 @@ app:
       secure: ${APP_AUTH_COOKIE_SECURE:false}
       same-site: ${APP_AUTH_COOKIE_SAME_SITE:Lax}
   file-storage:
-    # Local dev upload root. Keep files under repository ./volumes/upload.
-    upload-root: ${APP_FILE_UPLOAD_ROOT:../volumes/upload}
+    endpoint: ${APP_MINIO_ENDPOINT:http://localhost:9000}
+    bucket: ${APP_MINIO_BUCKET:safety-files}
+    access-key: ${APP_MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${APP_MINIO_SECRET_KEY:minioadmin}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+  fastapi:
+    base-url: ${APP_FASTAPI_BASE_URL:http://localhost:8001}

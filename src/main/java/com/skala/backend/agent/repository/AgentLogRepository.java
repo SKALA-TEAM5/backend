@@ -8,18 +8,15 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
 
-    List<AgentLog> findByProjectIdAndRunIdOrderByCreatedAtAsc(Long projectId, UUID runId);
     List<AgentLog> findByProjectIdAndUsageStatementIdOrderByCreatedAtDesc(Long projectId, Long usageStatementId);
 
     interface AgentWarningRow {
         Long getId();
         String getAgentTypeCode();
         String getStatusCode();
-        String getRunId();
         Long getUsageStatementId();
         Long getUsageStatementItemId();
         LocalDate getReportMonth();
@@ -34,7 +31,6 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
                 al.id                              AS id,
                 al.agent_type_code                 AS agentTypeCode,
                 al.status_code                     AS statusCode,
-                al.run_id::text                    AS runId,
                 al.usage_statement_id              AS usageStatementId,
                 al.usage_statement_item_id         AS usageStatementItemId,
                 us.report_month                    AS reportMonth,
@@ -49,7 +45,7 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
                 ON usi.id = al.usage_statement_item_id
             WHERE al.project_id = :projectId
               AND (:usageStatementId IS NULL OR al.usage_statement_id = :usageStatementId)
-              AND (al.usage_statement_item_id IS NOT NULL OR al.status_code = 'failed')
+              AND (al.usage_statement_item_id IS NOT NULL OR al.status_code = 'fail')
             ORDER BY al.created_at DESC
             """)
     List<AgentWarningRow> findWarnings(

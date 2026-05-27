@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skala.backend.user.domain.RoleCode;
 import com.skala.backend.user.domain.User;
 import com.skala.backend.user.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,7 @@ class ActionRequestControllerTest {
 	@Autowired MockMvc mockMvc;
 	@Autowired ObjectMapper objectMapper;
 	@Autowired JdbcTemplate jdbcTemplate;
+	@Autowired EntityManager entityManager;
 	@Autowired UserRepository userRepository;
 	@Autowired PasswordEncoder passwordEncoder;
 
@@ -485,6 +487,7 @@ class ActionRequestControllerTest {
 				.andExpect(jsonPath("$.data.closedAt", notNullValue()));
 
 		// closed_at DB 제약조건 충족 검증
+		entityManager.flush();
 		Integer count = jdbcTemplate.queryForObject(
 				"SELECT count(*)::int FROM service.action_requests WHERE id = ? AND closed_at IS NOT NULL",
 				Integer.class, actionRequestId);

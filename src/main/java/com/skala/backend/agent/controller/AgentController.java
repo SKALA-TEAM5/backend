@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/projects/{projectId}/agents")
@@ -61,9 +60,6 @@ public class AgentController {
 					JSON 문자열입니다. `reason` 키에 사람이 읽을 수 있는 사유가 담겨 있습니다.
 					예: `{"reason": "영수증 금액(50,000원)이 항목 금액(80,000원)과 불일치"}`
 
-					**runId 활용**
-					같은 배치 실행의 전체 로그를 보려면 `GET /agents/logs?runId={runId}` 를 호출하세요.
-
 					**필터링**
 					`usageStatementId` 파라미터를 전달하면 해당 사용내역서의 경고만 반환합니다.
 					생략하면 프로젝트 전체 경고를 반환합니다.
@@ -80,14 +76,13 @@ public class AgentController {
 	}
 
 	@GetMapping("/logs")
-	@Operation(summary = "agent_logs 조회", description = "runId 또는 usageStatementId 중 하나를 필수로 전달합니다.")
+	@Operation(summary = "agent_logs 조회", description = "usageStatementId는 필수입니다.")
 	public ResponseEntity<ApiResponse<List<AgentResponses.LogResponse>>> getLogs(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
-			@RequestParam(required = false) UUID runId,
 			@RequestParam(required = false) Long usageStatementId
 	) {
-		List<AgentResponses.LogResponse> response = agentLogService.getLogs(currentUser.id(), projectId, runId, usageStatementId);
+		List<AgentResponses.LogResponse> response = agentLogService.getLogs(currentUser.id(), projectId, usageStatementId);
 		return ResponseEntity.ok(ApiResponse.success(response, "agent 로그 조회에 성공했습니다."));
 	}
 

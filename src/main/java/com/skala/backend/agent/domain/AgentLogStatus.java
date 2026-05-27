@@ -6,10 +6,11 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.Arrays;
 
 public enum AgentLogStatus {
+    PENDING("pending"),
     RUNNING("running"),
-    SUCCEEDED("succeeded"),
-    COMPLETED("completed"),
-    FAILED("failed");
+    SUCCESS("success"),
+    FAIL("fail"),
+    CANCELED("canceled");
 
     private final String code;
 

@@ -45,4 +45,11 @@ public class GlobalExceptionHandler {
 				.status(HttpStatus.BAD_REQUEST)
 				.body(ErrorResponse.of("잘못된 요청 파라미터입니다."));
 	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException exception) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_REQUEST)
+				.body(ErrorResponse.of(exception.getMessage()));
+	}
 }
