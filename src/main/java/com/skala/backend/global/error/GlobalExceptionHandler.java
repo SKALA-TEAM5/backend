@@ -6,6 +6,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
@@ -51,5 +52,12 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 				.status(HttpStatus.BAD_REQUEST)
 				.body(ErrorResponse.of(exception.getMessage()));
+	}
+
+	@ExceptionHandler(RestClientException.class)
+	ResponseEntity<ErrorResponse> handleRestClientException(RestClientException exception) {
+		return ResponseEntity
+				.status(HttpStatus.SERVICE_UNAVAILABLE)
+				.body(ErrorResponse.of("AI 서비스와 통신에 실패했습니다. 잠시 후 다시 시도해주세요."));
 	}
 }

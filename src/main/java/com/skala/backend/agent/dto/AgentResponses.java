@@ -6,20 +6,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
 
 public final class AgentResponses {
 
 	private AgentResponses() {}
-
-	@Schema(description = "Agent 실행 응답")
-	public record RunResponse(
-			@Schema(description = "Agent 유형", example = "validator") String agentType,
-			@Schema(description = "실행 상태", example = "succeeded") String status,
-			@Schema(description = "저장된 로그 ID 목록") List<Long> logIds,
-			@Schema(description = "Agent 실행 결과") Map<String, Object> result
-	) {}
 
 	@Schema(description = "에이전트 경고 조회 응답")
 	public record WarningResponse(

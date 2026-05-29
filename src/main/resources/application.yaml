@@ -36,3 +36,4 @@ app:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
   fastapi:
     base-url: ${APP_FASTAPI_BASE_URL:http://localhost:8001}
+    timeout-seconds: ${APP_FASTAPI_TIMEOUT_SECONDS:40}

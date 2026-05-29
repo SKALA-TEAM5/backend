@@ -1,17 +1,42 @@
 package com.skala.backend.agent.service;
 
+import com.skala.backend.agent.client.FastApiAgentClient;
 import com.skala.backend.agent.dto.AgentRequests;
-import com.skala.backend.agent.dto.AgentResponses;
-import com.skala.backend.auth.security.AuthenticatedUser;
-import com.skala.backend.global.error.ApiException;
-import org.springframework.http.HttpStatus;
+import com.skala.backend.project.service.ProjectAccessService;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AgentService {
 
-	// FastAPI 엔드포인트 확정 후 구현 예정
-	public AgentResponses.RunResponse run(AuthenticatedUser currentUser, Long projectId, String agentType, AgentRequests.RunRequest request) {
-		throw new ApiException(HttpStatus.NOT_IMPLEMENTED, "FastAPI 연동 구현 예정입니다.");
+	private final FastApiAgentClient fastApiAgentClient;
+	private final ProjectAccessService projectAccessService;
+
+	public AgentService(FastApiAgentClient fastApiAgentClient, ProjectAccessService projectAccessService) {
+		this.fastApiAgentClient = fastApiAgentClient;
+		this.projectAccessService = projectAccessService;
+	}
+
+	public void parse(Long currentUserId, Long projectId, AgentRequests.ParseRequest request) {
+		projectAccessService.requireReadable(currentUserId, projectId);
+		fastApiAgentClient.parseUsageStatement(request.fileId());
+	}
+
+	public void classify(Long currentUserId, Long projectId, AgentRequests.ClassifyRequest request) {
+		projectAccessService.requireReadable(currentUserId, projectId);
+		fastApiAgentClient.classifyItem(
+				projectId,
+				request.usageStatementId(),
+				request.itemName(),
+				request.usedOn(),
+				request.unit(),
+				request.quantity(),
+				request.unitPrice(),
+				request.totalAmount()
+		);
+	}
+
+	public void validate(Long currentUserId, Long projectId, AgentRequests.ValidateRequest request) {
+		projectAccessService.requireReadable(currentUserId, projectId);
+		fastApiAgentClient.runValidation(projectId, request.usageStatementId());
 	}
 }

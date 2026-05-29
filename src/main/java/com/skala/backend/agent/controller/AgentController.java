@@ -26,7 +26,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/projects/{projectId}/agents")
-@Tag(name = "Agent", description = "agent_logs 조회 및 FastAPI agent 호출 스켈레톤")
+@Tag(name = "Agent", description = "agent_logs 조회 API")
 @SecurityRequirement(name = OpenApiConfig.COOKIE_AUTH)
 public class AgentController {
 
@@ -76,27 +76,75 @@ public class AgentController {
 	}
 
 	@GetMapping("/logs")
-	@Operation(summary = "agent_logs 조회", description = "usageStatementId는 필수입니다.")
+	@Operation(
+			summary = "agent_logs 조회",
+			description = "Agent 실행 상태를 조회합니다. `statusCode`가 `pending`/`running`이면 처리 중, `success`/`fail`이면 완료입니다."
+	)
 	public ResponseEntity<ApiResponse<List<AgentResponses.LogResponse>>> getLogs(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
+			@Parameter(description = "사용내역서 ID")
 			@RequestParam(required = false) Long usageStatementId
 	) {
 		List<AgentResponses.LogResponse> response = agentLogService.getLogs(currentUser.id(), projectId, usageStatementId);
 		return ResponseEntity.ok(ApiResponse.success(response, "agent 로그 조회에 성공했습니다."));
 	}
 
-	// 스켈레톤 — FastAPI 엔드포인트 확정 후 구현 예정 (현재 501 반환)
-	@PostMapping("/{agentType}/run")
-	@Operation(summary = "Agent 실행 (스켈레톤)", description = "FastAPI 엔드포인트 확정 후 구현 예정입니다.")
-	public ResponseEntity<ApiResponse<AgentResponses.RunResponse>> runAgent(
-			@Parameter(hidden = true)
-			@AuthenticationPrincipal AuthenticatedUser currentUser,
+	@PostMapping("/parse")
+	@Operation(
+			tags = {"AI 실행"},
+			summary = "사용내역서 분석 (OCR + classi)",
+			description = """
+					사용내역서 파일을 OCR로 읽어 세부항목을 추출하고 카테고리를 분류합니다.
+					사용내역서 파일 업로드 완료 직후 호출합니다.
+					실행 결과는 `GET /agents/logs`의 `statusCode`로 확인합니다.
+					"""
+	)
+	public ResponseEntity<ApiResponse<Void>> parse(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
-			@PathVariable String agentType,
-			@Valid @RequestBody AgentRequests.RunRequest request
+			@Valid @RequestBody AgentRequests.ParseRequest request
 	) {
-		AgentResponses.RunResponse response = agentService.run(currentUser, projectId, agentType, request);
-		return ResponseEntity.ok(ApiResponse.success(response, "Agent 실행 결과를 저장했습니다."));
+		agentService.parse(currentUser.id(), projectId, request);
+		return ResponseEntity.ok(ApiResponse.success(null, "사용내역서 분석 요청이 접수되었습니다."));
+	}
+
+	@PostMapping("/classify")
+	@Operation(
+			tags = {"AI 실행"},
+			summary = "세부항목 분류 (classi)",
+			description = """
+					사용자가 입력한 세부항목 데이터를 classi agent에 전달해 카테고리를 분류하고 DB에 적재합니다.
+					세부항목 추가 폼에서 "등록" 버튼 클릭 시 호출합니다.
+					완료 후 프론트엔드는 사용내역서 상세를 재조회해 추가된 항목을 확인합니다.
+					"""
+	)
+	public ResponseEntity<ApiResponse<Void>> classify(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@Valid @RequestBody AgentRequests.ClassifyRequest request
+	) {
+		agentService.classify(currentUser.id(), projectId, request);
+		return ResponseEntity.ok(ApiResponse.success(null, "항목 분류 요청이 접수되었습니다."));
+	}
+
+	@PostMapping("/validate")
+	@Operation(
+			tags = {"AI 실행"},
+			summary = "유효성 검증 (link + vision + safety_docs)",
+			description = """
+					증빙 파일의 유효성을 검증합니다. link, vision, safety_docs agent가 동시에 실행됩니다.
+					사용자가 "유효성 검증" 버튼을 클릭했을 때 호출합니다.
+					실행 결과는 `GET /agents/logs`의 `statusCode`로 확인하고,
+					완료 후 `GET /agents/warnings`에서 문제 항목을 확인합니다.
+					"""
+	)
+	public ResponseEntity<ApiResponse<Void>> validate(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@Valid @RequestBody AgentRequests.ValidateRequest request
+	) {
+		agentService.validate(currentUser.id(), projectId, request);
+		return ResponseEntity.ok(ApiResponse.success(null, "유효성 검증 요청이 접수되었습니다."));
 	}
 }
