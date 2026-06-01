@@ -6,6 +6,8 @@ import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.project.service.ProjectAccessService;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class AgentService {
 
@@ -22,18 +24,18 @@ public class AgentService {
 		return fastApiAgentClient.parseUsageStatement(projectId, request.fileId());
 	}
 
-	public void validate(Long currentUserId, Long projectId, AgentRequests.ValidateRequest request) {
+	public List<AgentResponses.AgentRunResult> validate(Long currentUserId, Long projectId, AgentRequests.ValidateRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
-		fastApiAgentClient.runValidation(projectId, request.usageStatementId(), currentUserId);
+		return fastApiAgentClient.runValidation(projectId, request.usageStatementId(), currentUserId);
 	}
 
-	public void legal(Long currentUserId, Long projectId, AgentRequests.LegalRequest request) {
+	public AgentResponses.AgentRunResult legal(Long currentUserId, Long projectId, AgentRequests.LegalRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
-		fastApiAgentClient.runLegal(projectId, request.usageStatementId(), currentUserId);
+		return fastApiAgentClient.runLegal(projectId, request.usageStatementId(), currentUserId);
 	}
 
-	public void report(Long currentUserId, Long projectId, AgentRequests.ReportRequest request) {
+	public AgentResponses.AgentRunResult report(Long currentUserId, Long projectId, AgentRequests.ReportRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
-		fastApiAgentClient.runReport(projectId, request.usageStatementId(), currentUserId);
+		return fastApiAgentClient.runReport(projectId, request.usageStatementId(), currentUserId);
 	}
 }

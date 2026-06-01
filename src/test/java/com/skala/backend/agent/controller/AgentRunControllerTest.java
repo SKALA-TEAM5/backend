@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -120,13 +121,20 @@ class AgentRunControllerTest {
 	}
 
 	// ─── POST /agents/validate ────────────────────────────────────────────
-	// validate는 비동기 — FastAPI 접수 확인 후 즉시 200 반환, 폴링으로 완료 확인
+	// validate는 동기 — FastAPI 완료까지 대기, 3개 agent 결과 배열 반환
 
 	@Test
-	void validate_성공_시_즉시_200을_반환한다() throws Exception {
+	void validate_성공_시_3개_agent_결과를_반환한다() throws Exception {
 		Cookie cookie = loginCookie(createUser("admin"));
 		int projectId = createProject(cookie);
 		int statementId = insertStatement(projectId);
+
+		when(fastApiAgentClient.runValidation(anyLong(), anyLong(), anyLong()))
+				.thenReturn(List.of(
+						new AgentResponses.AgentRunResult("vision",     "success", "success", "현장사진 확인 완료"),
+						new AgentResponses.AgentRunResult("link",       "success", "hil",     "금액 불일치"),
+						new AgentResponses.AgentRunResult("safety-doc", "success", "success", "필수 서류 충족")
+				));
 
 		mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
 						.cookie(cookie)
@@ -134,9 +142,14 @@ class AgentRunControllerTest {
 						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data").isEmpty());
+				.andExpect(jsonPath("$.data").isArray())
+				.andExpect(jsonPath("$.data[0].agentTypeCode").value("vision"))
+				.andExpect(jsonPath("$.data[0].statusCode").value("success"))
+				.andExpect(jsonPath("$.data[0].resultCode").value("success"))
+				.andExpect(jsonPath("$.data[1].agentTypeCode").value("link"))
+				.andExpect(jsonPath("$.data[1].resultCode").value("hil"))
+				.andExpect(jsonPath("$.data[2].agentTypeCode").value("safety-doc"));
 
-		// triggered_by_user_id 포함 3개 인자로 호출됐는지 확인
 		verify(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
 	}
 
@@ -180,13 +193,16 @@ class AgentRunControllerTest {
 	}
 
 	// ─── POST /agents/legal ───────────────────────────────────────────────
-	// legal은 비동기 — 즉시 반환, 폴링으로 완료 확인
+	// legal은 동기 — FastAPI 완료까지 대기, agent 결과 단건 반환
 
 	@Test
-	void legal_성공_시_즉시_200을_반환한다() throws Exception {
+	void legal_성공_시_agent_결과를_반환한다() throws Exception {
 		Cookie cookie = loginCookie(createUser("admin"));
 		int projectId = createProject(cookie);
 		int statementId = insertStatement(projectId);
+
+		when(fastApiAgentClient.runLegal(anyLong(), anyLong(), anyLong()))
+				.thenReturn(new AgentResponses.AgentRunResult("legal", "success", "hil", "한도 초과 항목 발견"));
 
 		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
 						.cookie(cookie)
@@ -194,7 +210,10 @@ class AgentRunControllerTest {
 						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data").isEmpty());
+				.andExpect(jsonPath("$.data.agentTypeCode").value("legal"))
+				.andExpect(jsonPath("$.data.statusCode").value("success"))
+				.andExpect(jsonPath("$.data.resultCode").value("hil"))
+				.andExpect(jsonPath("$.data.reason").value("한도 초과 항목 발견"));
 
 		verify(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
 	}
@@ -239,13 +258,16 @@ class AgentRunControllerTest {
 	}
 
 	// ─── POST /agents/report ──────────────────────────────────────────────
-	// report는 비동기 — 즉시 반환, 폴링으로 완료 확인
+	// report는 동기 — FastAPI 완료까지 대기, agent 결과 단건 반환
 
 	@Test
-	void report_성공_시_즉시_200을_반환한다() throws Exception {
+	void report_성공_시_agent_결과를_반환한다() throws Exception {
 		Cookie cookie = loginCookie(createUser("admin"));
 		int projectId = createProject(cookie);
 		int statementId = insertStatement(projectId);
+
+		when(fastApiAgentClient.runReport(anyLong(), anyLong(), anyLong()))
+				.thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", "보고서 생성 완료"));
 
 		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
 						.cookie(cookie)
@@ -253,7 +275,10 @@ class AgentRunControllerTest {
 						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data").isEmpty());
+				.andExpect(jsonPath("$.data.agentTypeCode").value("report"))
+				.andExpect(jsonPath("$.data.statusCode").value("success"))
+				.andExpect(jsonPath("$.data.resultCode").value("success"))
+				.andExpect(jsonPath("$.data.reason").value("보고서 생성 완료"));
 
 		verify(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
 	}

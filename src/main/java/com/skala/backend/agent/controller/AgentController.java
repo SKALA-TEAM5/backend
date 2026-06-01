@@ -112,53 +112,44 @@ public class AgentController {
 	@Operation(
 			tags = {"AI 실행"},
 			summary = "유효성 검증 (link + vision + safety-doc)",
-			description = """
-					증빙 파일의 유효성을 검증합니다. link, vision, safety-doc agent가 동시에 실행됩니다.
-					비동기 호출 — 즉시 반환. 완료 여부는 `GET /agents/logs`의 statusCode로 폴링합니다.
-					"""
+			description = "증빙 파일의 유효성을 검증합니다. link, vision, safety-doc agent가 동시에 실행됩니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환."
 	)
-	public ResponseEntity<ApiResponse<Void>> validate(
+	public ResponseEntity<ApiResponse<List<AgentResponses.AgentRunResult>>> validate(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@Valid @RequestBody AgentRequests.ValidateRequest request
 	) {
-		agentService.validate(currentUser.id(), projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(null, "유효성 검증 요청이 접수되었습니다."));
+		List<AgentResponses.AgentRunResult> result = agentService.validate(currentUser.id(), projectId, request);
+		return ResponseEntity.ok(ApiResponse.success(result, "유효성 검증이 완료되었습니다."));
 	}
 
 	@PostMapping("/legal")
 	@Operation(
 			tags = {"AI 실행"},
 			summary = "법령 검증 (legal)",
-			description = """
-					사용내역서 항목의 법령 적합성을 검증합니다.
-					비동기 호출 — 즉시 반환. 완료 여부는 `GET /agents/logs`의 statusCode로 폴링합니다.
-					"""
+			description = "사용내역서 항목의 법령 적합성을 검증합니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환."
 	)
-	public ResponseEntity<ApiResponse<Void>> legal(
+	public ResponseEntity<ApiResponse<AgentResponses.AgentRunResult>> legal(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@Valid @RequestBody AgentRequests.LegalRequest request
 	) {
-		agentService.legal(currentUser.id(), projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(null, "법령 검증 요청이 접수되었습니다."));
+		AgentResponses.AgentRunResult result = agentService.legal(currentUser.id(), projectId, request);
+		return ResponseEntity.ok(ApiResponse.success(result, "법령 검증이 완료되었습니다."));
 	}
 
 	@PostMapping("/report")
 	@Operation(
 			tags = {"AI 실행"},
 			summary = "보고서 생성 (report)",
-			description = """
-					사용내역서 기반 보고서를 생성합니다.
-					비동기 호출 — 즉시 반환. 완료 여부는 `GET /agents/logs`의 statusCode로 폴링합니다.
-					"""
+			description = "사용내역서 기반 보고서를 생성합니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환."
 	)
-	public ResponseEntity<ApiResponse<Void>> report(
+	public ResponseEntity<ApiResponse<AgentResponses.AgentRunResult>> report(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@Valid @RequestBody AgentRequests.ReportRequest request
 	) {
-		agentService.report(currentUser.id(), projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(null, "보고서 생성 요청이 접수되었습니다."));
+		AgentResponses.AgentRunResult result = agentService.report(currentUser.id(), projectId, request);
+		return ResponseEntity.ok(ApiResponse.success(result, "보고서 생성이 완료되었습니다."));
 	}
 }

@@ -3,6 +3,7 @@ package com.skala.backend.agent.client;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.skala.backend.agent.dto.AgentResponses;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -11,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -74,39 +76,42 @@ public class FastApiAgentClient {
 				.getBody();
 	}
 
-	public void runValidation(Long projectId, Long usageStatementId, Long triggeredByUserId) {
-		restClient.post()
+	public List<AgentResponses.AgentRunResult> runValidation(Long projectId, Long usageStatementId, Long triggeredByUserId) {
+		return restClient.post()
 				.uri("/orchestrator/usage-statements/evidence")
 				.body(Map.of(
-						"project_id", projectId,
-						"usage_statement_id", usageStatementId,
+						"project_id",           projectId,
+						"usage_statement_id",   usageStatementId,
 						"triggered_by_user_id", triggeredByUserId
 				))
 				.retrieve()
-				.toBodilessEntity();
+				.toEntity(new ParameterizedTypeReference<List<AgentResponses.AgentRunResult>>() {})
+				.getBody();
 	}
 
-	public void runLegal(Long projectId, Long usageStatementId, Long triggeredByUserId) {
-		restClient.post()
+	public AgentResponses.AgentRunResult runLegal(Long projectId, Long usageStatementId, Long triggeredByUserId) {
+		return restClient.post()
 				.uri("/orchestrator/usage-statements/legal")
 				.body(Map.of(
-						"project_id", projectId,
-						"usage_statement_id", usageStatementId,
+						"project_id",           projectId,
+						"usage_statement_id",   usageStatementId,
 						"triggered_by_user_id", triggeredByUserId
 				))
 				.retrieve()
-				.toBodilessEntity();
+				.toEntity(AgentResponses.AgentRunResult.class)
+				.getBody();
 	}
 
-	public void runReport(Long projectId, Long usageStatementId, Long triggeredByUserId) {
-		restClient.post()
+	public AgentResponses.AgentRunResult runReport(Long projectId, Long usageStatementId, Long triggeredByUserId) {
+		return restClient.post()
 				.uri("/orchestrator/usage-statements/report")
 				.body(Map.of(
-						"project_id", projectId,
-						"usage_statement_id", usageStatementId,
+						"project_id",           projectId,
+						"usage_statement_id",   usageStatementId,
 						"triggered_by_user_id", triggeredByUserId
 				))
 				.retrieve()
-				.toBodilessEntity();
+				.toEntity(AgentResponses.AgentRunResult.class)
+				.getBody();
 	}
 }
