@@ -34,6 +34,12 @@ public final class AgentResponses {
 		}
 	}
 
+	@Schema(description = "사용내역서 파싱 결과")
+	public record ParseResult(
+			@Schema(description = "생성된 사용내역서 ID") Long usageStatementId,
+			@Schema(description = "파싱된 세부항목 수") int itemCount
+	) {}
+
 	@Schema(description = "agent_logs 조회 응답")
 	public record LogResponse(
 			@Schema(description = "로그 ID") Long id,
