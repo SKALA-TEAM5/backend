@@ -49,6 +49,20 @@ public final class AgentResponses {
 			                              @Schema(description = "프론트 표시용 사유")                String reason
 	) {}
 
+	@Schema(description = "보고서 상세 조회 응답 (agent_logs.details 포함)")
+	public record ReportDetailResponse(
+			@Schema(description = "에이전트 유형", example = "report") String agentTypeCode,
+			@Schema(description = "실행 상태", example = "success") String statusCode,
+			@Schema(description = "보고서 내용 (JSON)") String details,
+			@Schema(description = "생성일시") Instant createdAt
+	) {
+		public static ReportDetailResponse from(AgentLog log) {
+			return new ReportDetailResponse(
+					log.getAgentTypeCode(), log.getStatusCode(), log.getDetails(), log.getCreatedAt()
+			);
+		}
+	}
+
 	@Schema(description = "agent_logs 조회 응답")
 	public record LogResponse(
 			@Schema(description = "로그 ID") Long id,

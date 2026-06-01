@@ -224,6 +224,73 @@ class AgentLogControllerTest {
 				.andExpect(status().isForbidden());
 	}
 
+	// ─── GET /agents/report ──────────────────────────────────────────────
+
+	@Test
+	void 보고서_로그가_있으면_details를_포함한_상세를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertReportLog(projectId, statementId, "success", "2026-05-01T00:00:00Z");
+
+		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.agentTypeCode").value("report"))
+				.andExpect(jsonPath("$.data.statusCode").value("success"))
+				.andExpect(jsonPath("$.data.details").isNotEmpty())
+				.andExpect(jsonPath("$.data.createdAt").exists());
+	}
+
+	@Test
+	void 보고서_로그가_없으면_404를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+
+		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void 보고서_조회_시_usageStatementId_누락하면_400을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+
+		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 쿠키_없이_보고서를_조회하면_401을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+
+		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void 비담당자_user는_보고서를_조회할_수_없다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		Cookie outsiderCookie = loginCookie(createUser("user"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertReportLog(projectId, statementId, "success", "2026-05-01T00:00:00Z");
+
+		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
+						.cookie(outsiderCookie)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isForbidden());
+	}
+
 	// ─── fixtures ─────────────────────────────────────────────────────────
 
 	private Map<String, String> createUser(String roleCode) {
@@ -337,5 +404,13 @@ class AgentLogControllerTest {
 					(project_id, usage_statement_id, agent_type_code, status_code)
 				VALUES (?, ?, ?, 'fail')
 				""", projectId, statementId, agentTypeCode);
+	}
+
+	private void insertReportLog(int projectId, int statementId, String statusCode, String createdAt) {
+		jdbcTemplate.update("""
+				INSERT INTO service.agent_logs
+					(project_id, usage_statement_id, agent_type_code, status_code, details, created_at)
+				VALUES (?, ?, 'report', ?, '{"summary": "보고서 생성 완료"}'::jsonb, ?::timestamptz)
+				""", projectId, statementId, statusCode, createdAt);
 	}
 }

@@ -1,9 +1,12 @@
 package com.skala.backend.agent.service;
 
 import com.skala.backend.agent.domain.AgentLog;
+import com.skala.backend.agent.domain.AgentTypeCode;
 import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.agent.repository.AgentLogRepository;
+import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.ProjectAccessService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,5 +39,15 @@ public class AgentLogService {
                 .stream()
                 .map(AgentResponses.WarningResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AgentResponses.ReportDetailResponse getReportDetail(Long currentUserId, Long projectId, Long usageStatementId) {
+        projectAccessService.requireReadable(currentUserId, projectId);
+        AgentLog log = agentLogRepository
+                .findTopByProjectIdAndUsageStatementIdAndAgentTypeCodeOrderByCreatedAtDesc(
+                        projectId, usageStatementId, AgentTypeCode.REPORT)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "보고서 데이터가 없습니다."));
+        return AgentResponses.ReportDetailResponse.from(log);
     }
 }

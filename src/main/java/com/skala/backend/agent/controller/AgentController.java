@@ -152,4 +152,20 @@ public class AgentController {
 		AgentResponses.AgentRunResult result = agentService.report(currentUser.id(), projectId, request);
 		return ResponseEntity.ok(ApiResponse.success(result, "보고서 생성이 완료되었습니다."));
 	}
+
+	@GetMapping("/report")
+	@Operation(
+			tags = {"AI 실행"},
+			summary = "보고서 상세 조회",
+			description = "agent_logs에 저장된 최신 보고서 데이터(details JSONB)를 반환합니다."
+	)
+	public ResponseEntity<ApiResponse<AgentResponses.ReportDetailResponse>> getReportDetail(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@Parameter(description = "사용내역서 ID", required = true)
+			@RequestParam Long usageStatementId
+	) {
+		AgentResponses.ReportDetailResponse result = agentLogService.getReportDetail(currentUser.id(), projectId, usageStatementId);
+		return ResponseEntity.ok(ApiResponse.success(result, "보고서 조회에 성공했습니다."));
+	}
 }
