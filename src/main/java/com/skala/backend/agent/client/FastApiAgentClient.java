@@ -78,7 +78,7 @@ public class FastApiAgentClient {
 
 	public List<AgentResponses.AgentRunResult> runValidation(Long projectId, Long usageStatementId, Long triggeredByUserId) {
 		return restClient.post()
-				.uri("/orchestrator/usage-statements/evidence")
+				.uri("/orchestrator/usage-statements/validate")
 				.body(Map.of(
 						"project_id",           projectId,
 						"usage_statement_id",   usageStatementId,
