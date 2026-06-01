@@ -59,13 +59,19 @@ class AgentLogControllerTest {
 	}
 
 	@Test
-	void usageStatementId가_없으면_400을_반환한다() throws Exception {
+	void usageStatementId_없이_조회하면_프로젝트_전체_로그를_반환한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
+		int statementA = insertStatement(projectId, "2026-05-01");
+		int statementB = insertStatement(projectId, "2026-04-01");
+
+		insertAgentLog(projectId, statementA, "classi");
+		insertAgentLog(projectId, statementB, "legal");
 
 		mockMvc.perform(get("/projects/{pid}/agents/logs", projectId)
 						.cookie(adminCookie))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data", hasSize(2)));
 	}
 
 	@Test
