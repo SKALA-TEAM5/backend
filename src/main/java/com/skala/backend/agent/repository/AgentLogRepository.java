@@ -11,6 +11,8 @@ import java.util.List;
 
 public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
 
+    List<AgentLog> findByProjectIdOrderByCreatedAtDesc(Long projectId);
+
     List<AgentLog> findByProjectIdAndUsageStatementIdOrderByCreatedAtDesc(Long projectId, Long usageStatementId);
 
     interface AgentWarningRow {
