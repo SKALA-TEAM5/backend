@@ -1,5 +1,6 @@
 package com.skala.backend.agent.client;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,11 @@ import java.util.Map;
 
 @Component
 public class FastApiAgentClient {
+
+	public record ClassifyResult(
+			@JsonProperty("item_id") Long itemId,
+			@JsonProperty("category_code") String categoryCode
+	) {}
 
 	private final RestClient restClient;
 
@@ -39,11 +45,12 @@ public class FastApiAgentClient {
 				.toBodilessEntity();
 	}
 
-	public void classifyItem(Long projectId, Long usageStatementId, String itemName,
-			LocalDate usedOn, String unit, BigDecimal quantity, BigDecimal unitPrice, Long totalAmount) {
+	public ClassifyResult classifyItem(Long projectId, Long usageStatementId, String categoryCode,
+			String itemName, LocalDate usedOn, String unit, BigDecimal quantity, BigDecimal unitPrice, BigDecimal totalAmount) {
 		Map<String, Object> body = new HashMap<>();
 		body.put("project_id", projectId);
 		body.put("usage_statement_id", usageStatementId);
+		body.put("category_code", categoryCode);
 		body.put("item_name", itemName);
 		body.put("used_on", usedOn);
 		body.put("unit", unit);
@@ -51,11 +58,12 @@ public class FastApiAgentClient {
 		body.put("unit_price", unitPrice);
 		body.put("total_amount", totalAmount);
 
-		restClient.post()
+		return restClient.post()
 				.uri("/api/v1/orchestrator/usage-statements/classify")
 				.body(body)
 				.retrieve()
-				.toBodilessEntity();
+				.toEntity(ClassifyResult.class)
+				.getBody();
 	}
 
 	public void runValidation(Long projectId, Long usageStatementId) {

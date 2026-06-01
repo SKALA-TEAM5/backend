@@ -109,25 +109,6 @@ public class AgentController {
 		return ResponseEntity.ok(ApiResponse.success(null, "사용내역서 분석 요청이 접수되었습니다."));
 	}
 
-	@PostMapping("/classify")
-	@Operation(
-			tags = {"AI 실행"},
-			summary = "세부항목 분류 (classi)",
-			description = """
-					사용자가 입력한 세부항목 데이터를 classi agent에 전달해 카테고리를 분류하고 DB에 적재합니다.
-					세부항목 추가 폼에서 "등록" 버튼 클릭 시 호출합니다.
-					완료 후 프론트엔드는 사용내역서 상세를 재조회해 추가된 항목을 확인합니다.
-					"""
-	)
-	public ResponseEntity<ApiResponse<Void>> classify(
-			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
-			@PathVariable Long projectId,
-			@Valid @RequestBody AgentRequests.ClassifyRequest request
-	) {
-		agentService.classify(currentUser.id(), projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(null, "항목 분류 요청이 접수되었습니다."));
-	}
-
 	@PostMapping("/validate")
 	@Operation(
 			tags = {"AI 실행"},

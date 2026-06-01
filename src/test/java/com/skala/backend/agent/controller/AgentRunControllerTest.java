@@ -22,7 +22,6 @@ import org.springframework.web.client.RestClientException;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -109,97 +108,6 @@ class AgentRunControllerTest {
 						.cookie(cookie)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
-				.andExpect(status().isServiceUnavailable());
-	}
-
-	// ─── POST /agents/classify ────────────────────────────────────────────
-
-	@Test
-	void 담당자_user가_classify를_호출하면_FastAPI가_호출되고_200을_반환한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		Map<String, String> user = createUser("user");
-		Cookie userCookie = loginCookie(user);
-		int projectId = createProject(adminCookie);
-		assign(adminCookie, projectId, readUserId(user));
-		int statementId = insertStatement(projectId);
-
-		mockMvc.perform(post("/projects/{pid}/agents/classify", projectId)
-						.cookie(userCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of(
-								"usageStatementId", statementId,
-								"itemName", "안전모",
-								"usedOn", "2026-04-15",
-								"unit", "개",
-								"quantity", 10,
-								"unitPrice", 15000,
-								"totalAmount", 150000
-						))))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.success").value(true));
-
-		verify(fastApiAgentClient).classifyItem(anyLong(), anyLong(), any(), any(), any(), any(), any(), anyLong());
-	}
-
-	@Test
-	void classify_요청에_itemName이_없으면_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/classify", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of(
-								"usageStatementId", 1,
-								"usedOn", "2026-04-15",
-								"quantity", 10,
-								"unitPrice", 15000,
-								"totalAmount", 150000
-						))))
-				.andExpect(status().isBadRequest());
-	}
-
-	@Test
-	void classify_미인증_요청은_401을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/classify", projectId)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of(
-								"usageStatementId", 1,
-								"itemName", "안전모",
-								"usedOn", "2026-04-15",
-								"quantity", 10,
-								"unitPrice", 15000,
-								"totalAmount", 150000
-						))))
-				.andExpect(status().isUnauthorized());
-	}
-
-	@Test
-	void FastAPI_장애_시_classify는_503을_반환한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		Map<String, String> user = createUser("user");
-		Cookie userCookie = loginCookie(user);
-		int projectId = createProject(adminCookie);
-		assign(adminCookie, projectId, readUserId(user));
-		int statementId = insertStatement(projectId);
-
-		doThrow(new RestClientException("FastAPI unavailable"))
-				.when(fastApiAgentClient).classifyItem(anyLong(), anyLong(), any(), any(), any(), any(), any(), anyLong());
-
-		mockMvc.perform(post("/projects/{pid}/agents/classify", projectId)
-						.cookie(userCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of(
-								"usageStatementId", statementId,
-								"itemName", "안전모",
-								"usedOn", "2026-04-15",
-								"quantity", 10,
-								"unitPrice", 15000,
-								"totalAmount", 150000
-						))))
 				.andExpect(status().isServiceUnavailable());
 	}
 

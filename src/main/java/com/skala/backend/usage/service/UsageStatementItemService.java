@@ -1,5 +1,6 @@
 package com.skala.backend.usage.service;
 
+import com.skala.backend.agent.client.FastApiAgentClient;
 import com.skala.backend.evidence.repository.EvidenceFileLinkRepository;
 import com.skala.backend.evidence.repository.EvidenceRequirementRepository;
 import com.skala.backend.evidence.service.EvidenceQueryService;
@@ -10,6 +11,7 @@ import com.skala.backend.usage.domain.UsageStatementItem;
 import com.skala.backend.usage.dto.UsageStatementItemRequests.ChangeCategoryRequest;
 import com.skala.backend.usage.dto.UsageStatementItemRequests.CreateItemRequest;
 import com.skala.backend.usage.dto.UsageStatementItemRequests.UpdateItemRequest;
+import com.skala.backend.usage.dto.UsageStatementResponses.CreateItemResponse;
 import com.skala.backend.usage.dto.UsageStatementResponses.UsageStatementItemResponse;
 import com.skala.backend.usage.repository.UsageStatementItemRepository;
 import com.skala.backend.usage.repository.UsageStatementRepository;
@@ -23,6 +25,7 @@ import java.util.Map;
 @Service
 public class UsageStatementItemService {
 
+	private final FastApiAgentClient fastApiAgentClient;
 	private final ProjectAccessService projectAccessService;
 	private final UsageStatementRepository statementRepository;
 	private final UsageStatementItemRepository itemRepository;
@@ -32,6 +35,7 @@ public class UsageStatementItemService {
 	private final CodeLookupService codeLookupService;
 
 	public UsageStatementItemService(
+			FastApiAgentClient fastApiAgentClient,
 			ProjectAccessService projectAccessService,
 			UsageStatementRepository statementRepository,
 			UsageStatementItemRepository itemRepository,
@@ -40,6 +44,7 @@ public class UsageStatementItemService {
 			EvidenceQueryService evidenceQueryService,
 			CodeLookupService codeLookupService
 	) {
+		this.fastApiAgentClient = fastApiAgentClient;
 		this.projectAccessService = projectAccessService;
 		this.statementRepository = statementRepository;
 		this.itemRepository = itemRepository;
@@ -49,34 +54,35 @@ public class UsageStatementItemService {
 		this.codeLookupService = codeLookupService;
 	}
 
-	@Transactional
-	public UsageStatementItemResponse createItem(Long currentUserId, Long projectId, Long usageStatementId, CreateItemRequest request) {
+	public CreateItemResponse createItem(Long currentUserId, Long projectId, Long usageStatementId, CreateItemRequest request) {
 		projectAccessService.requireWritable(currentUserId, projectId);
 
 		if (!statementRepository.existsByIdAndProjectId(usageStatementId, projectId)) {
 			throw new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다.");
 		}
 
-		Map<String, String> categoryNames = codeLookupService.categoryNames();
-		if (!categoryNames.containsKey(request.categoryCode())) {
+		if (!codeLookupService.categoryNames().containsKey(request.categoryCode())) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "존재하지 않는 카테고리 코드입니다.");
 		}
 
-		UsageStatementItem item = UsageStatementItem.create(
+		FastApiAgentClient.ClassifyResult result = fastApiAgentClient.classifyItem(
+				projectId,
 				usageStatementId,
 				request.categoryCode(),
-				request.usedOn(),
 				request.itemName(),
+				request.usedOn(),
 				request.unit(),
 				request.quantity(),
 				request.unitPrice(),
-				request.totalAmount(),
-				request.remark(),
-				request.pageNo()
+				request.totalAmount()
 		);
-		item = itemRepository.save(item);
 
-		return toItemResponse(item, categoryNames);
+		if (result == null) {
+			throw new ApiException(HttpStatus.BAD_GATEWAY, "classi 응답을 처리할 수 없습니다.");
+		}
+
+		boolean categoryChanged = !request.categoryCode().equals(result.categoryCode());
+		return new CreateItemResponse(result.itemId(), request.categoryCode(), result.categoryCode(), categoryChanged);
 	}
 
 	@Transactional

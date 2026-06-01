@@ -21,20 +21,6 @@ public class AgentService {
 		fastApiAgentClient.parseUsageStatement(request.fileId());
 	}
 
-	public void classify(Long currentUserId, Long projectId, AgentRequests.ClassifyRequest request) {
-		projectAccessService.requireReadable(currentUserId, projectId);
-		fastApiAgentClient.classifyItem(
-				projectId,
-				request.usageStatementId(),
-				request.itemName(),
-				request.usedOn(),
-				request.unit(),
-				request.quantity(),
-				request.unitPrice(),
-				request.totalAmount()
-		);
-	}
-
 	public void validate(Long currentUserId, Long projectId, AgentRequests.ValidateRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		fastApiAgentClient.runValidation(projectId, request.usageStatementId());
