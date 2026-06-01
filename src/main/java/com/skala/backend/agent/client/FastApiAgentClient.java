@@ -1,7 +1,9 @@
 package com.skala.backend.agent.client;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.skala.backend.agent.dto.AgentResponses;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -10,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -20,12 +23,17 @@ public class FastApiAgentClient {
 			@JsonProperty("category_code") String categoryCode
 	) {}
 
+	private record ParseResponse(
+			@JsonProperty("usage_statement_id") Long usageStatementId,
+			@JsonProperty("item_count") int itemCount
+	) {}
+
 	private final RestClient restClient;
 
 	public FastApiAgentClient(
 			RestClient.Builder builder,
 			@Value("${app.fastapi.base-url:http://localhost:8001}") String baseUrl,
-			@Value("${app.fastapi.timeout-seconds:40}") int timeoutSeconds
+			@Value("${app.fastapi.timeout-seconds:60}") int timeoutSeconds
 	) {
 		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
 		factory.setConnectTimeout(Duration.ofSeconds(10));
@@ -37,12 +45,14 @@ public class FastApiAgentClient {
 				.build();
 	}
 
-	public void parseUsageStatement(Long fileId) {
-		restClient.post()
-				.uri("/api/v1/orchestrator/usage-statements/parse")
-				.body(Map.of("file_id", fileId))
+	public AgentResponses.ParseResult parseUsageStatement(Long projectId, Long fileId) {
+		ParseResponse body = restClient.post()
+				.uri("/orchestrator/usage-statements/parse")
+				.body(Map.of("project_id", projectId, "file_id", fileId))
 				.retrieve()
-				.toBodilessEntity();
+				.toEntity(ParseResponse.class)
+				.getBody();
+		return new AgentResponses.ParseResult(body.usageStatementId(), body.itemCount());
 	}
 
 	public ClassifyResult classifyItem(Long projectId, Long usageStatementId, String categoryCode,
@@ -59,21 +69,49 @@ public class FastApiAgentClient {
 		body.put("total_amount", totalAmount);
 
 		return restClient.post()
-				.uri("/api/v1/orchestrator/usage-statements/classify")
+				.uri("/orchestrator/usage-statements/classify")
 				.body(body)
 				.retrieve()
 				.toEntity(ClassifyResult.class)
 				.getBody();
 	}
 
-	public void runValidation(Long projectId, Long usageStatementId) {
-		restClient.post()
-				.uri("/api/v1/orchestrator/usage-statements/evidence")
+	public List<AgentResponses.AgentRunResult> runValidation(Long projectId, Long usageStatementId, Long triggeredByUserId) {
+		return restClient.post()
+				.uri("/orchestrator/usage-statements/validate")
 				.body(Map.of(
-						"project_id", projectId,
-						"usage_statement_id", usageStatementId
+						"project_id",           projectId,
+						"usage_statement_id",   usageStatementId,
+						"triggered_by_user_id", triggeredByUserId
 				))
 				.retrieve()
-				.toBodilessEntity();
+				.toEntity(new ParameterizedTypeReference<List<AgentResponses.AgentRunResult>>() {})
+				.getBody();
+	}
+
+	public AgentResponses.AgentRunResult runLegal(Long projectId, Long usageStatementId, Long triggeredByUserId) {
+		return restClient.post()
+				.uri("/orchestrator/usage-statements/legal")
+				.body(Map.of(
+						"project_id",           projectId,
+						"usage_statement_id",   usageStatementId,
+						"triggered_by_user_id", triggeredByUserId
+				))
+				.retrieve()
+				.toEntity(AgentResponses.AgentRunResult.class)
+				.getBody();
+	}
+
+	public AgentResponses.AgentRunResult runReport(Long projectId, Long usageStatementId, Long triggeredByUserId) {
+		return restClient.post()
+				.uri("/orchestrator/usage-statements/report")
+				.body(Map.of(
+						"project_id",           projectId,
+						"usage_statement_id",   usageStatementId,
+						"triggered_by_user_id", triggeredByUserId
+				))
+				.retrieve()
+				.toEntity(AgentResponses.AgentRunResult.class)
+				.getBody();
 	}
 }

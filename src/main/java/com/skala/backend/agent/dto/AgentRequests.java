@@ -18,4 +18,16 @@ public final class AgentRequests {
 			@Schema(description = "사용내역서 ID", example = "42")
 			@NotNull(message = "usageStatementId는 필수입니다.") Long usageStatementId
 	) {}
+
+	@Schema(description = "법령 검증 실행 요청")
+	public record LegalRequest(
+			@Schema(description = "사용내역서 ID", example = "42")
+			@NotNull(message = "usageStatementId는 필수입니다.") Long usageStatementId
+	) {}
+
+	@Schema(description = "보고서 생성 실행 요청")
+	public record ReportRequest(
+			@Schema(description = "사용내역서 ID", example = "42")
+			@NotNull(message = "usageStatementId는 필수입니다.") Long usageStatementId
+	) {}
 }

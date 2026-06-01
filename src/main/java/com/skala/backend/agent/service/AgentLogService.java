@@ -1,5 +1,7 @@
 package com.skala.backend.agent.service;
 
+import com.skala.backend.agent.domain.AgentLog;
+import com.skala.backend.agent.domain.AgentTypeCode;
 import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.agent.repository.AgentLogRepository;
 import com.skala.backend.global.error.ApiException;
@@ -24,11 +26,10 @@ public class AgentLogService {
     @Transactional(readOnly = true)
     public List<AgentResponses.LogResponse> getLogs(Long currentUserId, Long projectId, Long usageStatementId) {
         projectAccessService.requireReadable(currentUserId, projectId);
-        if (usageStatementId == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "usageStatementId는 필수입니다.");
-        }
-        return agentLogRepository.findByProjectIdAndUsageStatementIdOrderByCreatedAtDesc(projectId, usageStatementId)
-                .stream().map(AgentResponses.LogResponse::from).toList();
+        List<AgentLog> logs = usageStatementId == null
+                ? agentLogRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
+                : agentLogRepository.findByProjectIdAndUsageStatementIdOrderByCreatedAtDesc(projectId, usageStatementId);
+        return logs.stream().map(AgentResponses.LogResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
@@ -38,5 +39,15 @@ public class AgentLogService {
                 .stream()
                 .map(AgentResponses.WarningResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AgentResponses.ReportDetailResponse getReportDetail(Long currentUserId, Long projectId, Long usageStatementId) {
+        projectAccessService.requireReadable(currentUserId, projectId);
+        AgentLog log = agentLogRepository
+                .findTopByProjectIdAndUsageStatementIdAndAgentTypeCodeOrderByCreatedAtDesc(
+                        projectId, usageStatementId, AgentTypeCode.REPORT)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "보고서 데이터가 없습니다."));
+        return AgentResponses.ReportDetailResponse.from(log);
     }
 }
