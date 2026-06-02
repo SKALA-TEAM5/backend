@@ -76,7 +76,7 @@ class AgentRunResultTest {
 	@Test
 	void 직렬화_시_camelCase로_출력된다() throws Exception {
 		AgentResponses.AgentRunResult result =
-				new AgentResponses.AgentRunResult("legal", "success", "hil", "한도 초과");
+				new AgentResponses.AgentRunResult("legal", "success", "hil", "한도 초과", null);
 
 		String json = objectMapper.writeValueAsString(result);
 

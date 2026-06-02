@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
 
 public final class AgentResponses {
 
@@ -46,7 +47,8 @@ public final class AgentResponses {
 			@JsonAlias("agent_type_code") @Schema(description = "에이전트 유형", example = "vision") String agentTypeCode,
 			@JsonAlias("status_code")     @Schema(description = "실행 상태",    example = "success") String statusCode,
 			@JsonAlias("result_code")     @Schema(description = "판단 결과",    example = "hil")     String resultCode,
-			                              @Schema(description = "프론트 표시용 사유")                String reason
+			                              @Schema(description = "프론트 표시용 사유")                String reason,
+			                              @Schema(description = "보고서 초안 (report agent 전용, 나머지는 null)") Map<String, Object> reportDraft
 	) {}
 
 	@Schema(description = "보고서 상세 조회 응답 (agent_logs.details 포함)")
