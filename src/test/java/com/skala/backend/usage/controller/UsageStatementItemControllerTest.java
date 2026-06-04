@@ -1,6 +1,7 @@
 package com.skala.backend.usage.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skala.backend.agent.client.FastApiAgentClient;
 import com.skala.backend.user.domain.RoleCode;
 import com.skala.backend.user.domain.User;
 import com.skala.backend.user.repository.UserRepository;
@@ -12,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,8 +21,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -48,6 +57,15 @@ class UsageStatementItemControllerTest {
 	@Autowired
 	PasswordEncoder passwordEncoder;
 
+	@MockitoBean
+	FastApiAgentClient fastApiAgentClient;
+
+	@BeforeEach
+	void stubClassifyItem() {
+		lenient().when(fastApiAgentClient.classifyItem(anyLong(), anyLong(), anyString(), anyString(), any(), any(), any(), any(), any()))
+				.thenReturn(new FastApiAgentClient.ClassifyResult(99L, "CAT_01"));
+	}
+
 	// ─── R-12: 세부항목 수동 추가 ───────────────────────────────────────
 
 	@Test
@@ -65,16 +83,31 @@ class UsageStatementItemControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(defaultItemRequest())))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.itemId").isNumber())
-				.andExpect(jsonPath("$.data.categoryCode").value("CAT_01"))
-				.andExpect(jsonPath("$.data.itemName").value("안전모 구입"))
-				.andExpect(jsonPath("$.data.usedOn").value("2026-05-01"))
-				.andExpect(jsonPath("$.data.quantity").value(10))
-				.andExpect(jsonPath("$.data.unitPrice").value(5000))
-				.andExpect(jsonPath("$.data.totalAmount").value(50000))
-				.andExpect(jsonPath("$.data.pageNo").value(1))
-				.andExpect(jsonPath("$.data.evidenceFiles").isArray())
-				.andExpect(jsonPath("$.data.requirements").isArray());
+				.andExpect(jsonPath("$.data.itemId").value(99))
+				.andExpect(jsonPath("$.data.requestedCategoryCode").value("CAT_01"))
+				.andExpect(jsonPath("$.data.assignedCategoryCode").value("CAT_01"))
+				.andExpect(jsonPath("$.data.categoryChanged").value(false));
+
+		verify(fastApiAgentClient).classifyItem(anyLong(), anyLong(), anyString(), anyString(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void classi가_카테고리를_변경하면_categoryChanged_true를_반환한다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(managerCookie);
+		int statementId = insertUsageStatement(projectId);
+
+		lenient().when(fastApiAgentClient.classifyItem(anyLong(), anyLong(), anyString(), anyString(), any(), any(), any(), any(), any()))
+				.thenReturn(new FastApiAgentClient.ClassifyResult(99L, "CAT_02"));
+
+		mockMvc.perform(post("/projects/{pid}/usage-statements/{sid}/items", projectId, statementId)
+						.cookie(managerCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(defaultItemRequest())))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.data.requestedCategoryCode").value("CAT_01"))
+				.andExpect(jsonPath("$.data.assignedCategoryCode").value("CAT_02"))
+				.andExpect(jsonPath("$.data.categoryChanged").value(true));
 	}
 
 	@Test
@@ -529,13 +562,11 @@ class UsageStatementItemControllerTest {
 	}
 
 	private int createItemViaApi(Cookie cookie, int projectId, int statementId) throws Exception {
-		MvcResult result = mockMvc.perform(post("/projects/{pid}/usage-statements/{sid}/items", projectId, statementId)
+		mockMvc.perform(post("/projects/{pid}/usage-statements/{sid}/items", projectId, statementId)
 						.cookie(cookie)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(defaultItemRequest())))
-				.andExpect(status().isCreated())
-				.andReturn();
-		return objectMapper.readTree(result.getResponse().getContentAsString())
-				.path("data").path("itemId").asInt();
+				.andExpect(status().isCreated());
+		return insertUsageStatementItem(statementId, "CAT_01");
 	}
 }

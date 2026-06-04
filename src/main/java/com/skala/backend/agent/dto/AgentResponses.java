@@ -1,11 +1,13 @@
 package com.skala.backend.agent.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.skala.backend.agent.domain.AgentLog;
 import com.skala.backend.agent.repository.AgentLogRepository;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
 
 public final class AgentResponses {
 
@@ -30,6 +32,35 @@ public final class AgentResponses {
 					row.getUsageStatementId(), row.getReportMonth(),
 					row.getUsageStatementItemId(), row.getItemName(),
 					row.getCategoryCode(), row.getDetails(), row.getCreatedAt()
+			);
+		}
+	}
+
+	@Schema(description = "사용내역서 파싱 결과")
+	public record ParseResult(
+			@Schema(description = "생성된 사용내역서 ID") Long usageStatementId,
+			@Schema(description = "파싱된 세부항목 수") int itemCount
+	) {}
+
+	@Schema(description = "agent 동기 실행 결과 (validate / legal / report)")
+	public record AgentRunResult(
+			@JsonAlias("agent_type_code") @Schema(description = "에이전트 유형", example = "vision") String agentTypeCode,
+			@JsonAlias("status_code")     @Schema(description = "실행 상태",    example = "success") String statusCode,
+			@JsonAlias("result_code")     @Schema(description = "판단 결과",    example = "hil")     String resultCode,
+			                              @Schema(description = "프론트 표시용 사유")                String reason,
+			                              @Schema(description = "보고서 초안 (report agent 전용, 나머지는 null)") Map<String, Object> reportDraft
+	) {}
+
+	@Schema(description = "보고서 상세 조회 응답 (agent_logs.details 포함)")
+	public record ReportDetailResponse(
+			@Schema(description = "에이전트 유형", example = "report") String agentTypeCode,
+			@Schema(description = "실행 상태", example = "success") String statusCode,
+			@Schema(description = "보고서 내용 (JSON)") String details,
+			@Schema(description = "생성일시") Instant createdAt
+	) {
+		public static ReportDetailResponse from(AgentLog log) {
+			return new ReportDetailResponse(
+					log.getAgentTypeCode(), log.getStatusCode(), log.getDetails(), log.getCreatedAt()
 			);
 		}
 	}

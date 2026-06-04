@@ -33,7 +33,8 @@ public class OpenApiConfig {
 			"프로젝트 아카이브",
 			"에이전트 경고",
 			"Agent",
-			"AI 실행"
+			"AI 실행",
+			"공통 코드"
 	);
 
 	private static final List<String> PATH_ORDER = List.of(
@@ -64,8 +65,9 @@ public class OpenApiConfig {
 			"/projects/{projectId}/usage-statement-items/{itemId}/evidence-requirements",
 			"/projects/{projectId}/agents/logs",
 			"/projects/{projectId}/agents/parse",
-			"/projects/{projectId}/agents/classify",
-			"/projects/{projectId}/agents/validate"
+			"/projects/{projectId}/agents/validate",
+			"/projects/{projectId}/usage-statements/{usageStatementId}/items",
+			"/categories"
 	);
 
 	@Bean
@@ -87,7 +89,8 @@ public class OpenApiConfig {
 						new Tag().name("프로젝트 아카이브").description("프로젝트 아카이브 조회 API"),
 						new Tag().name("에이전트 경고").description("에이전트가 발견한 문제 항목 조회 API — 경고 목록과 서류 충족 현황을 함께 사용합니다"),
 						new Tag().name("Agent").description("agent_logs 조회 API"),
-						new Tag().name("AI 실행").description("FastAPI Orchestrator 호출 API — 비동기 실행, 결과는 GET /agents/logs로 확인")
+						new Tag().name("AI 실행").description("FastAPI Orchestrator 호출 API — 비동기 실행, 결과는 GET /agents/logs로 확인"),
+						new Tag().name("공통 코드").description("카테고리 등 공통 코드 조회 API")
 				))
 				.components(new Components()
 						.addSecuritySchemes(COOKIE_AUTH, new SecurityScheme()

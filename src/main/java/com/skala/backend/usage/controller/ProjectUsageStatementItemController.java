@@ -6,6 +6,7 @@ import com.skala.backend.global.response.ApiResponse;
 import com.skala.backend.usage.dto.UsageStatementItemRequests.ChangeCategoryRequest;
 import com.skala.backend.usage.dto.UsageStatementItemRequests.CreateItemRequest;
 import com.skala.backend.usage.dto.UsageStatementItemRequests.UpdateItemRequest;
+import com.skala.backend.usage.dto.UsageStatementResponses.CreateItemResponse;
 import com.skala.backend.usage.dto.UsageStatementResponses.UsageStatementItemResponse;
 import com.skala.backend.usage.service.UsageStatementItemService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,14 +38,23 @@ public class ProjectUsageStatementItemController {
 	}
 
 	@PostMapping
-	@Operation(summary = "세부항목 수동 추가 (R-12)")
-	public ResponseEntity<ApiResponse<UsageStatementItemResponse>> createItem(
+	@Operation(
+			tags = {"AI 실행"},
+			summary = "세부항목 추가 (classi)",
+			description = """
+					사용자가 입력한 세부항목 데이터를 FastAPI classi agent에 전달합니다.
+					classi가 카테고리를 검증하고 DB에 적재합니다.
+					추가된 항목은 사용내역서 재조회(`GET /usage-statements/{id}`)로 확인합니다.
+					진행 상황은 `GET /agents/logs`의 `statusCode` 필드로 확인하세요.
+					"""
+	)
+	public ResponseEntity<ApiResponse<CreateItemResponse>> createItem(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@PathVariable Long usageStatementId,
 			@Valid @RequestBody CreateItemRequest request
 	) {
-		UsageStatementItemResponse response = itemService.createItem(currentUser.id(), projectId, usageStatementId, request);
+		CreateItemResponse response = itemService.createItem(currentUser.id(), projectId, usageStatementId, request);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response, "세부항목이 추가되었습니다."));
 	}
 

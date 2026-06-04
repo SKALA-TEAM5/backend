@@ -56,6 +56,14 @@ public final class UsageStatementResponses {
 	) {
 	}
 
+	public record CreateItemResponse(
+			Long itemId,
+			String requestedCategoryCode,
+			String assignedCategoryCode,
+			boolean categoryChanged
+	) {
+	}
+
 	public record UsageStatementSummaryResponse(
 			String categoryCode,
 			String categoryName,
