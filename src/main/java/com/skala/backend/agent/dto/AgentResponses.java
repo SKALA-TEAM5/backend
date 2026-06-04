@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 public final class AgentResponses {
@@ -64,6 +65,39 @@ public final class AgentResponses {
 			);
 		}
 	}
+
+	@Schema(description = "TODO 항목 단건")
+	public record TodoItem(
+			@Schema(description = "세부항목 ID (항목 단위가 아닌 경우 null)") Long usageStatementItemId,
+			@Schema(description = "조치 사유") String reason
+	) {}
+
+	@Schema(description = "agent별 TODO 엔트리")
+	public record AgentTodoEntry(
+			@Schema(description = "에이전트 유형", example = "safety-doc") String agentTypeCode,
+			@Schema(description = "판단 결과", example = "hil") String resultCode,
+			@Schema(description = "요약 사유") String reason,
+			@Schema(description = "TODO 항목 목록") List<TodoItem> items
+	) {}
+
+	@Schema(description = "TODO 목록 응답")
+	public record TodoListResponse(
+			@Schema(description = "validate 버튼 결과 TODO (safety-doc / link / vision 중 hil·fail만)") List<AgentTodoEntry> validate,
+			@Schema(description = "legal 버튼 결과 TODO (없으면 null)") AgentTodoEntry legal
+	) {}
+
+	@Schema(description = "버튼 단건 상태")
+	public record ButtonState(
+			@Schema(description = "활성화 여부") boolean enabled,
+			@Schema(description = "비활성화 사유 (활성화 시 null)") String reason
+	) {}
+
+	@Schema(description = "AI 버튼 상태 응답")
+	public record ButtonStatesResponse(
+			@Schema(description = "validate 버튼") ButtonState validate,
+			@Schema(description = "legal 버튼")   ButtonState legal,
+			@Schema(description = "report 버튼")  ButtonState report
+	) {}
 
 	@Schema(description = "agent_logs 조회 응답")
 	public record LogResponse(

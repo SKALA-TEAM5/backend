@@ -74,6 +74,13 @@ public class UsageStatement {
 		this.status = UsageStatementStatus.REVIEW_COMPLETED;
 	}
 
+	public void revertToDraft() {
+		if (status != UsageStatementStatus.SUPPLEMENT_REQUIRED) {
+			return;
+		}
+		this.status = UsageStatementStatus.DRAFT;
+	}
+
 	public Long getId() { return id; }
 	public Long getProjectId() { return projectId; }
 	public Long getSourceFileId() { return sourceFileId; }

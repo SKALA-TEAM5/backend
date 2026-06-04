@@ -38,7 +38,14 @@ public final class UsageStatementItemRequests {
 
 			@NotNull(message = "totalAmount는 필수입니다.")
 			@PositiveOrZero(message = "totalAmount는 0 이상이어야 합니다.")
-			BigDecimal totalAmount
+			BigDecimal totalAmount,
+
+			@Size(max = 1000, message = "remark는 1000자 이하여야 합니다.")
+			String remark,
+
+			@NotNull(message = "pageNo는 필수입니다.")
+			@Positive(message = "pageNo는 0보다 커야 합니다.")
+			Integer pageNo
 	) {
 	}
 

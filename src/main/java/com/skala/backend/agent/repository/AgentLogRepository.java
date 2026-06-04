@@ -1,6 +1,7 @@
 package com.skala.backend.agent.repository;
 
 import com.skala.backend.agent.domain.AgentLog;
+import com.skala.backend.agent.domain.AgentLogStatus;
 import com.skala.backend.agent.domain.AgentTypeCode;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -8,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +21,35 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
 
     Optional<AgentLog> findTopByProjectIdAndUsageStatementIdAndAgentTypeCodeOrderByCreatedAtDesc(
             Long projectId, Long usageStatementId, AgentTypeCode agentTypeCode);
+
+    boolean existsByUsageStatementIdAndAgentTypeCodeAndUsageStatementItemIdIsNull(
+            Long usageStatementId, AgentTypeCode agentTypeCode);
+
+    boolean existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(
+            Long usageStatementId, AgentTypeCode agentTypeCode, Collection<AgentLogStatus> statuses);
+
+    interface AgentTodoRow {
+        String getAgentTypeCode();
+        String getStatusCode();
+        String getResultCode();
+        String getReason();
+        String getDetails();
+    }
+
+    @Query(nativeQuery = true, value = """
+            SELECT
+                al.agent_type_code  AS agentTypeCode,
+                al.status_code      AS statusCode,
+                al.result_code      AS resultCode,
+                al.reason           AS reason,
+                al.details::text    AS details
+            FROM service.agent_logs al
+            WHERE al.usage_statement_id = :statementId
+              AND al.agent_type_code IN ('safety-doc', 'link', 'vision', 'legal')
+              AND al.usage_statement_item_id IS NULL
+              AND (al.status_code = 'fail' OR al.result_code IN ('hil', 'fail'))
+            """)
+    List<AgentTodoRow> findTodoLogs(@Param("statementId") Long statementId);
 
     interface AgentWarningRow {
         Long getId();

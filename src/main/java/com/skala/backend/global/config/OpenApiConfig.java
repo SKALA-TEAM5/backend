@@ -34,6 +34,7 @@ public class OpenApiConfig {
 			"에이전트 경고",
 			"Agent",
 			"AI 실행",
+			"AI 사용량",
 			"공통 코드"
 	);
 
@@ -67,6 +68,11 @@ public class OpenApiConfig {
 			"/projects/{projectId}/agents/parse",
 			"/projects/{projectId}/agents/validate",
 			"/projects/{projectId}/usage-statements/{usageStatementId}/items",
+			"/usage-records/by-user",
+			"/usage-records/by-project",
+			"/usage-records/by-agent",
+			"/usage-records/by-month",
+			"/usage-records/by-date",
 			"/categories"
 	);
 
@@ -90,6 +96,7 @@ public class OpenApiConfig {
 						new Tag().name("에이전트 경고").description("에이전트가 발견한 문제 항목 조회 API — 경고 목록과 서류 충족 현황을 함께 사용합니다"),
 						new Tag().name("Agent").description("agent_logs 조회 API"),
 						new Tag().name("AI 실행").description("FastAPI Orchestrator 호출 API — 비동기 실행, 결과는 GET /agents/logs로 확인"),
+						new Tag().name("AI 사용량").description("에이전트 토큰 사용량 집계 조회 API — 사용자/프로젝트/에이전트/일별 breakdown"),
 						new Tag().name("공통 코드").description("카테고리 등 공통 코드 조회 API")
 				))
 				.components(new Components()

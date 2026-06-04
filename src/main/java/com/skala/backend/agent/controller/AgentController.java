@@ -38,6 +38,58 @@ public class AgentController {
 		this.agentLogService = agentLogService;
 	}
 
+	@GetMapping("/todos")
+	@Operation(
+			summary = "TODO 목록 조회",
+			description = """
+					validate / legal 버튼 실행 결과 중 hil 또는 fail 항목을 버튼 단위로 반환합니다.
+
+					**포함 기준**
+					- `result_code = 'hil'` 또는 `status_code = 'fail'` 인 agent만 포함
+					- success / skipped는 생략
+
+					**validate** : safety-doc / link / vision 중 해당 항목 배열
+					**legal** : legal agent 단건 (없으면 null). 사용내역서 상태가 `review_completed`이면 항상 null 반환.
+
+					버튼을 누를 때마다 agent_logs가 갱신되므로 항상 최신 결과를 반영합니다.
+					"""
+	)
+	public ResponseEntity<ApiResponse<AgentResponses.TodoListResponse>> getTodos(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@Parameter(description = "사용내역서 ID", required = true)
+			@RequestParam Long usageStatementId
+	) {
+		AgentResponses.TodoListResponse response =
+				agentLogService.getTodos(currentUser.id(), projectId, usageStatementId);
+		return ResponseEntity.ok(ApiResponse.success(response, "TODO 목록 조회에 성공했습니다."));
+	}
+
+	@GetMapping("/button-states")
+	@Operation(
+			summary = "AI 버튼 활성화 상태 조회",
+			description = """
+					사용내역서 기준 validate / legal / report 버튼의 활성화 여부를 반환합니다.
+
+					**활성화 규칙**
+					- `validate` : 항상 활성화. safety-doc 실행 중(running/pending)이면 비활성화.
+					- `legal`    : safety-doc 로그가 1건 이상 존재하고 실행 중이 아닐 때 활성화.
+					- `report`   : legal 로그가 1건 이상 존재하고 실행 중이 아닐 때 활성화.
+
+					`enabled=false`이면 `reason` 필드에 사유가 담깁니다.
+					"""
+	)
+	public ResponseEntity<ApiResponse<AgentResponses.ButtonStatesResponse>> getButtonStates(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@Parameter(description = "사용내역서 ID", required = true)
+			@RequestParam Long usageStatementId
+	) {
+		AgentResponses.ButtonStatesResponse response =
+				agentService.getButtonStates(currentUser.id(), projectId, usageStatementId);
+		return ResponseEntity.ok(ApiResponse.success(response, "버튼 상태 조회에 성공했습니다."));
+	}
+
 	@GetMapping("/warnings")
 	@Operation(
 			tags = {"에이전트 경고"},

@@ -21,7 +21,8 @@ public final class ProjectFileResponses {
 			Instant capturedAt,
 			Instant uploadedAt,
 			String statusCode,
-			long linkedItemCount
+			long linkedItemCount,
+			String detail
 	) {
 	}
 
@@ -31,7 +32,8 @@ public final class ProjectFileResponses {
 			String uploadedEvidenceTypeCode,
 			String mimeType,
 			Long sizeBytes,
-			Instant uploadedAt
+			Instant uploadedAt,
+			String detail
 	) {
 	}
 }

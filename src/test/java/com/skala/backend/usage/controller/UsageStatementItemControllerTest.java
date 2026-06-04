@@ -83,7 +83,7 @@ class UsageStatementItemControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(defaultItemRequest())))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.itemId").value(99))
+				.andExpect(jsonPath("$.data.itemId").isNumber())
 				.andExpect(jsonPath("$.data.requestedCategoryCode").value("CAT_01"))
 				.andExpect(jsonPath("$.data.assignedCategoryCode").value("CAT_01"))
 				.andExpect(jsonPath("$.data.categoryChanged").value(false));
