@@ -53,12 +53,6 @@ jobs:
             --region "${AWS_REGION}" \
             --name "${EKS_CLUSTER_NAME}"
 
-      - name: Apply Kubernetes manifests
-        run: |
-          kubectl apply -f k8s/backend-configmap.yaml
-          kubectl apply -f k8s/backend-service.yaml
-          kubectl apply -f k8s/backend-deployment.yaml
-
       - name: Restart backend deployment
         run: |
           kubectl rollout restart deployment/team5-backend -n "${K8S_NAMESPACE}"
