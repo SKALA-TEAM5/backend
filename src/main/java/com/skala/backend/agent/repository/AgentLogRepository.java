@@ -1,6 +1,7 @@
 package com.skala.backend.agent.repository;
 
 import com.skala.backend.agent.domain.AgentLog;
+import com.skala.backend.agent.domain.AgentLogStatus;
 import com.skala.backend.agent.domain.AgentTypeCode;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -8,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +21,12 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
 
     Optional<AgentLog> findTopByProjectIdAndUsageStatementIdAndAgentTypeCodeOrderByCreatedAtDesc(
             Long projectId, Long usageStatementId, AgentTypeCode agentTypeCode);
+
+    boolean existsByUsageStatementIdAndAgentTypeCodeAndUsageStatementItemIdIsNull(
+            Long usageStatementId, AgentTypeCode agentTypeCode);
+
+    boolean existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(
+            Long usageStatementId, AgentTypeCode agentTypeCode, Collection<AgentLogStatus> statuses);
 
     interface AgentWarningRow {
         Long getId();

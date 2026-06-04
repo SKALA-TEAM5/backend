@@ -169,11 +169,9 @@ public class FastApiAgentClient {
 			return new AgentResponses.AgentRunResult("report", "fail", "fail", message, null);
 		}
 
-		// reportDraft: result.report.result.reportDraft
+		// reportDraft: result.reportDraft (report 형제 위치)
 		@SuppressWarnings("unchecked")
-		Map<String, Object> reportResult = (Map<String, Object>) report.get("result");
-		@SuppressWarnings("unchecked")
-		Map<String, Object> reportDraft  = reportResult != null ? (Map<String, Object>) reportResult.get("reportDraft") : null;
+		Map<String, Object> reportDraft = result != null ? (Map<String, Object>) result.get("reportDraft") : null;
 
 		return new AgentResponses.AgentRunResult(
 				"report",

@@ -65,6 +65,19 @@ public final class AgentResponses {
 		}
 	}
 
+	@Schema(description = "버튼 단건 상태")
+	public record ButtonState(
+			@Schema(description = "활성화 여부") boolean enabled,
+			@Schema(description = "비활성화 사유 (활성화 시 null)") String reason
+	) {}
+
+	@Schema(description = "AI 버튼 상태 응답")
+	public record ButtonStatesResponse(
+			@Schema(description = "validate 버튼") ButtonState validate,
+			@Schema(description = "legal 버튼")   ButtonState legal,
+			@Schema(description = "report 버튼")  ButtonState report
+	) {}
+
 	@Schema(description = "agent_logs 조회 응답")
 	public record LogResponse(
 			@Schema(description = "로그 ID") Long id,
