@@ -54,6 +54,7 @@ public class UsageStatementItemService {
 		this.codeLookupService = codeLookupService;
 	}
 
+	@Transactional
 	public CreateItemResponse createItem(Long currentUserId, Long projectId, Long usageStatementId, CreateItemRequest request) {
 		projectAccessService.requireWritable(currentUserId, projectId);
 
@@ -65,7 +66,7 @@ public class UsageStatementItemService {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "존재하지 않는 카테고리 코드입니다.");
 		}
 
-		FastApiAgentClient.ClassifyResult result = fastApiAgentClient.classifyItem(
+		FastApiAgentClient.ClassifyResult classi = fastApiAgentClient.classifyItem(
 				projectId,
 				usageStatementId,
 				request.categoryCode(),
@@ -77,12 +78,26 @@ public class UsageStatementItemService {
 				request.totalAmount()
 		);
 
-		if (result == null) {
-			throw new ApiException(HttpStatus.BAD_GATEWAY, "classi 응답을 처리할 수 없습니다.");
-		}
+		String assignedCategory = (classi != null && classi.categoryCode() != null)
+				? classi.categoryCode()
+				: request.categoryCode();
 
-		boolean categoryChanged = !request.categoryCode().equals(result.categoryCode());
-		return new CreateItemResponse(result.itemId(), request.categoryCode(), result.categoryCode(), categoryChanged);
+		UsageStatementItem item = UsageStatementItem.create(
+				usageStatementId,
+				assignedCategory,
+				request.usedOn(),
+				request.itemName(),
+				request.unit(),
+				request.quantity(),
+				request.unitPrice(),
+				request.totalAmount(),
+				request.remark(),
+				request.pageNo()
+		);
+		itemRepository.save(item);
+
+		boolean categoryChanged = !request.categoryCode().equals(assignedCategory);
+		return new CreateItemResponse(item.getId(), request.categoryCode(), assignedCategory, categoryChanged);
 	}
 
 	@Transactional
