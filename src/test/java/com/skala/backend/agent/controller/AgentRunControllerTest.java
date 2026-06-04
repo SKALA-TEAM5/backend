@@ -131,9 +131,9 @@ class AgentRunControllerTest {
 
 		when(fastApiAgentClient.runValidation(anyLong(), anyLong(), anyLong()))
 				.thenReturn(List.of(
-						new AgentResponses.AgentRunResult("vision",     "success", "success", "현장사진 확인 완료"),
-						new AgentResponses.AgentRunResult("link",       "success", "hil",     "금액 불일치"),
-						new AgentResponses.AgentRunResult("safety-doc", "success", "success", "필수 서류 충족")
+						new AgentResponses.AgentRunResult("vision",     "success", "success", "현장사진 확인 완료", null),
+						new AgentResponses.AgentRunResult("link",       "success", "hil",     "금액 불일치",       null),
+						new AgentResponses.AgentRunResult("safety-doc", "success", "success", "필수 서류 충족",     null)
 				));
 
 		mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
@@ -202,7 +202,7 @@ class AgentRunControllerTest {
 		int statementId = insertStatement(projectId);
 
 		when(fastApiAgentClient.runLegal(anyLong(), anyLong(), anyLong()))
-				.thenReturn(new AgentResponses.AgentRunResult("legal", "success", "hil", "한도 초과 항목 발견"));
+				.thenReturn(new AgentResponses.AgentRunResult("legal", "success", "hil", "한도 초과 항목 발견", null));
 
 		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
 						.cookie(cookie)
@@ -267,7 +267,8 @@ class AgentRunControllerTest {
 		int statementId = insertStatement(projectId);
 
 		when(fastApiAgentClient.runReport(anyLong(), anyLong(), anyLong()))
-				.thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", "보고서 생성 완료"));
+				.thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", "보고서 생성 완료",
+						Map.of("summary", "4월 안전관리비 사용내역 요약")));
 
 		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
 						.cookie(cookie)
@@ -278,7 +279,8 @@ class AgentRunControllerTest {
 				.andExpect(jsonPath("$.data.agentTypeCode").value("report"))
 				.andExpect(jsonPath("$.data.statusCode").value("success"))
 				.andExpect(jsonPath("$.data.resultCode").value("success"))
-				.andExpect(jsonPath("$.data.reason").value("보고서 생성 완료"));
+				.andExpect(jsonPath("$.data.reason").value("보고서 생성 완료"))
+				.andExpect(jsonPath("$.data.reportDraft.summary").value("4월 안전관리비 사용내역 요약"));
 
 		verify(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
 	}

@@ -103,7 +103,7 @@ public class FastApiAgentClient {
 	}
 
 	public AgentResponses.AgentRunResult runReport(Long projectId, Long usageStatementId, Long triggeredByUserId) {
-		return restClient.post()
+		Map<String, Object> raw = restClient.post()
 				.uri("/orchestrator/usage-statements/report")
 				.body(Map.of(
 						"project_id",           projectId,
@@ -111,7 +111,29 @@ public class FastApiAgentClient {
 						"triggered_by_user_id", triggeredByUserId
 				))
 				.retrieve()
-				.toEntity(AgentResponses.AgentRunResult.class)
+				.toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
 				.getBody();
+		return mapReportResponse(raw);
+	}
+
+	static AgentResponses.AgentRunResult mapReportResponse(Map<String, Object> raw) {
+		String status  = (String) raw.get("status");
+		String message = (String) raw.get("message");
+
+		if (!"success".equals(status)) {
+			return new AgentResponses.AgentRunResult("report", status != null ? status : "fail", "fail", message, null);
+		}
+
+		@SuppressWarnings("unchecked") Map<String, Object> result     = (Map<String, Object>) raw.get("result");
+		@SuppressWarnings("unchecked") Map<String, Object> report     = (Map<String, Object>) result.get("report");
+		@SuppressWarnings("unchecked") Map<String, Object> reportDraft = (Map<String, Object>) result.get("reportDraft");
+
+		return new AgentResponses.AgentRunResult(
+				"report",
+				(String) report.get("status_code"),
+				(String) report.get("result_code"),
+				(String) report.get("reason"),
+				reportDraft
+		);
 	}
 }
