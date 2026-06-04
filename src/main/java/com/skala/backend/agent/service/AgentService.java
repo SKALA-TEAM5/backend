@@ -8,6 +8,8 @@ import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.agent.repository.AgentLogRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.ProjectAccessService;
+import com.skala.backend.usage.domain.UsageStatementStatus;
+import com.skala.backend.usage.repository.UsageStatementRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -19,12 +21,14 @@ public class AgentService {
 	private final FastApiAgentClient fastApiAgentClient;
 	private final ProjectAccessService projectAccessService;
 	private final AgentLogRepository agentLogRepository;
+	private final UsageStatementRepository usageStatementRepository;
 
 	public AgentService(FastApiAgentClient fastApiAgentClient, ProjectAccessService projectAccessService,
-			AgentLogRepository agentLogRepository) {
+			AgentLogRepository agentLogRepository, UsageStatementRepository usageStatementRepository) {
 		this.fastApiAgentClient = fastApiAgentClient;
 		this.projectAccessService = projectAccessService;
 		this.agentLogRepository = agentLogRepository;
+		this.usageStatementRepository = usageStatementRepository;
 	}
 
 	public AgentResponses.ParseResult parse(Long currentUserId, Long projectId, AgentRequests.ParseRequest request) {
@@ -39,6 +43,12 @@ public class AgentService {
 
 	public AgentResponses.AgentRunResult legal(Long currentUserId, Long projectId, AgentRequests.LegalRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
+		String status = usageStatementRepository.findById(request.usageStatementId())
+				.map(s -> s.getStatusCode())
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
+		if (!UsageStatementStatus.UPLOAD_COMPLETED.getCode().equals(status)) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "제출된 사용내역서에서만 법령 검증을 실행할 수 있습니다.");
+		}
 		if (!agentLogRepository.existsByUsageStatementIdAndAgentTypeCodeAndUsageStatementItemIdIsNull(
 				request.usageStatementId(), AgentTypeCode.SAFETY_DOC)) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "validate를 먼저 실행해야 합니다.");
