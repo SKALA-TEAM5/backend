@@ -125,7 +125,8 @@ public class ProjectFileService {
 				file.getUploadedEvidenceTypeCode(),
 				file.getMimeType(),
 				file.getSizeBytes(),
-				file.getUploadedAt()
+				file.getUploadedAt(),
+				file.getDetail()
 		);
 	}
 
@@ -189,7 +190,8 @@ public class ProjectFileService {
 				file.getCapturedAt(),
 				file.getUploadedAt(),
 				file.getStatusCode(),
-				linkedCounts.getOrDefault(file.getId(), 0L)
+				linkedCounts.getOrDefault(file.getId(), 0L),
+				file.getDetail()
 		);
 	}
 

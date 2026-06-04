@@ -248,6 +248,36 @@ class AgentTodoControllerTest {
                 .andExpect(jsonPath("$.data.validate").isArray());
     }
 
+    @Test
+    void review_completed_상태면_legal_hil이어도_null을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        updateStatementStatus(statementId, "review_completed");
+        insertTodoLog(projectId, statementId, "legal", "success", "hil", "법령 위반 1건", null);
+
+        mockMvc.perform(get("/projects/{pid}/agents/todos", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(statementId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal").isEmpty());
+    }
+
+    @Test
+    void supplement_required_상태면_legal_hil이_반환된다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        updateStatementStatus(statementId, "supplement_required");
+        insertTodoLog(projectId, statementId, "legal", "success", "hil", "법령 위반 1건", null);
+
+        mockMvc.perform(get("/projects/{pid}/agents/todos", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(statementId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.agentTypeCode").value("legal"));
+    }
+
     // ─── fixtures ─────────────────────────────────────────────────────────
 
     private Map<String, String> createUser(String roleCode) {
@@ -332,6 +362,11 @@ class AgentTodoControllerTest {
                 VALUES (?, 'CAT_01', '2026-05-01', '안전관리자 임금', '월', 1, 500000, 500000, 1)
                 RETURNING id
                 """, Integer.class, statementId);
+    }
+
+    private void updateStatementStatus(int statementId, String statusCode) {
+        jdbcTemplate.update("UPDATE service.usage_statements SET status_code = ? WHERE id = ?",
+                statusCode, statementId);
     }
 
     private void insertTodoLog(int projectId, int statementId, String agentTypeCode,

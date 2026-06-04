@@ -8,6 +8,8 @@ import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.agent.repository.AgentLogRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.ProjectAccessService;
+import com.skala.backend.usage.domain.UsageStatementStatus;
+import com.skala.backend.usage.repository.UsageStatementRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +24,14 @@ public class AgentLogService {
 
     private final ProjectAccessService projectAccessService;
     private final AgentLogRepository agentLogRepository;
+    private final UsageStatementRepository usageStatementRepository;
     private final ObjectMapper objectMapper;
 
     public AgentLogService(ProjectAccessService projectAccessService, AgentLogRepository agentLogRepository,
-            ObjectMapper objectMapper) {
+            UsageStatementRepository usageStatementRepository, ObjectMapper objectMapper) {
         this.projectAccessService = projectAccessService;
         this.agentLogRepository = agentLogRepository;
+        this.usageStatementRepository = usageStatementRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -70,7 +74,11 @@ public class AgentLogService {
                 .map(this::toTodoEntry)
                 .toList();
 
-        AgentResponses.AgentTodoEntry legal = rows.stream()
+        boolean isReviewCompleted = usageStatementRepository.findById(usageStatementId)
+                .map(s -> UsageStatementStatus.REVIEW_COMPLETED.getCode().equals(s.getStatusCode()))
+                .orElse(false);
+
+        AgentResponses.AgentTodoEntry legal = isReviewCompleted ? null : rows.stream()
                 .filter(r -> "legal".equals(r.getAgentTypeCode()))
                 .findFirst()
                 .map(this::toTodoEntry)

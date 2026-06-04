@@ -54,6 +54,9 @@ public class ProjectFile {
 	@Column(name = "deleted_by_user_id")
 	private Long deletedByUserId;
 
+	@Column(name = "detail", columnDefinition = "jsonb", insertable = false, updatable = false)
+	private String detail;
+
 	protected ProjectFile() {
 	}
 
@@ -95,4 +98,5 @@ public class ProjectFile {
 	public String getStatusCode() { return statusCode; }
 	public Instant getDeletedAt() { return deletedAt; }
 	public Long getDeletedByUserId() { return deletedByUserId; }
+	public String getDetail() { return detail; }
 }
