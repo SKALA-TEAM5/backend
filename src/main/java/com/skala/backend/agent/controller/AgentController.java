@@ -49,7 +49,7 @@ public class AgentController {
 					- success / skipped는 생략
 
 					**validate** : safety-doc / link / vision 중 해당 항목 배열
-					**legal** : legal agent 단건 (없으면 null)
+					**legal** : legal agent 단건 (없으면 null). 사용내역서 상태가 `review_completed`이면 항상 null 반환.
 
 					버튼을 누를 때마다 agent_logs가 갱신되므로 항상 최신 결과를 반영합니다.
 					"""
