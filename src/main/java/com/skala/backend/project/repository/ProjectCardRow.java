@@ -16,7 +16,6 @@ public record ProjectCardRow(
 		LocalDate constructionEndDate,
 		BigDecimal latestCumulativeProgressRate,
 		ProjectStatusCode status,
-		boolean hasActionRequest,
 		long uncheckedMatchedFileCount,
 		String latestUsageStatementStatusCode
 ) {
