@@ -126,15 +126,52 @@ class UsageStatementStatusControllerTest {
 	// ─── R-34: 보완 요청 (requestSupplement) ─────────────────────────────
 
 	@Test
-	void admin은_upload_completed_사용내역서에_보완_요청을_할_수_있다() throws Exception {
+	void admin은_법령_검토_완료_후_보완_요청을_할_수_있다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId, "upload_completed");
+		insertLog(projectId, statementId, "legal", "success", "success");
+
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/request-supplement", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("supplement_required"));
+	}
+
+	@Test
+	void 법령_에이전트_hil_결과에서도_보완_요청을_할_수_있다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId, "upload_completed");
+		insertLog(projectId, statementId, "legal", "success", "hil");
+
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/request-supplement", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("supplement_required"));
+	}
+
+	@Test
+	void 법령_에이전트_없이_보완_요청하면_409를_반환한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId, "upload_completed");
 
 		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/request-supplement", projectId, statementId)
 						.cookie(adminCookie))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.statusCode").value("supplement_required"));
+				.andExpect(status().isConflict());
+	}
+
+	@Test
+	void 법령_에이전트_fail_결과에서_보완_요청하면_409를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId, "upload_completed");
+		insertLog(projectId, statementId, "legal", "success", "fail");
+
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/request-supplement", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isConflict());
 	}
 
 	@Test
@@ -188,10 +225,11 @@ class UsageStatementStatusControllerTest {
 	// ─── R-35: 최종 승인 (completeReview) ────────────────────────────────
 
 	@Test
-	void admin은_upload_completed_사용내역서를_최종_승인할_수_있다() throws Exception {
+	void admin은_법령_검토_완료_후_upload_completed_사용내역서를_최종_승인할_수_있다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId, "upload_completed");
+		insertLog(projectId, statementId, "legal", "success", "success");
 
 		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/complete-review", projectId, statementId)
 						.cookie(adminCookie))
@@ -200,15 +238,39 @@ class UsageStatementStatusControllerTest {
 	}
 
 	@Test
-	void admin은_supplement_required_사용내역서를_최종_승인할_수_있다() throws Exception {
+	void admin은_법령_검토_완료_후_supplement_required_사용내역서를_최종_승인할_수_있다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId, "supplement_required");
+		insertLog(projectId, statementId, "legal", "success", "hil");
 
 		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/complete-review", projectId, statementId)
 						.cookie(adminCookie))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.statusCode").value("review_completed"));
+	}
+
+	@Test
+	void 법령_에이전트_없이_최종_승인하면_409를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId, "upload_completed");
+
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/complete-review", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isConflict());
+	}
+
+	@Test
+	void 법령_에이전트_fail_결과에서_최종_승인하면_409를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId, "upload_completed");
+		insertLog(projectId, statementId, "legal", "success", "fail");
+
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/complete-review", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isConflict());
 	}
 
 	@Test
@@ -265,6 +327,9 @@ class UsageStatementStatusControllerTest {
 						.cookie(userCookie))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.statusCode").value("upload_completed"));
+
+		// 법령 에이전트 완료
+		insertLog(projectId, statementId, "legal", "success", "success");
 
 		// upload_completed → supplement_required
 		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/request-supplement", projectId, statementId)
@@ -425,5 +490,13 @@ class UsageStatementStatusControllerTest {
 					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate, status_code)
 				VALUES (?, ?::date, 1, ?::date, 30, ?)
 				""", projectId, reportMonth, reportMonth, statusCode);
+	}
+
+	private void insertLog(int projectId, int statementId, String agentTypeCode, String statusCode, String resultCode) {
+		jdbcTemplate.update("""
+				INSERT INTO service.agent_logs
+					(project_id, usage_statement_id, agent_type_code, status_code, result_code)
+				VALUES (?, ?, ?, ?, ?)
+				""", projectId, statementId, agentTypeCode, statusCode, resultCode);
 	}
 }

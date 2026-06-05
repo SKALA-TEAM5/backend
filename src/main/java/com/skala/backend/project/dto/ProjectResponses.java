@@ -54,7 +54,6 @@ public final class ProjectResponses {
 			@Schema(description = "공사 종료일", example = "2026-12-31") LocalDate constructionEndDate,
 			@Schema(description = "최근 누적 공정률", example = "35.5") BigDecimal latestCumulativeProgressRate,
 			@Schema(description = "프로젝트 상태", example = "active") ProjectStatusCode status,
-			@Schema(description = "처리 요청 존재 여부", example = "false") boolean hasActionRequest,
 			@Schema(description = "관리자가 아직 확인하지 않은 매칭 파일 수", example = "3") long uncheckedMatchedFileCount,
 			@Schema(description = "최신 사용내역서 상태", example = "upload_completed") String latestUsageStatementStatusCode
 	) {
@@ -62,7 +61,7 @@ public final class ProjectResponses {
 			return new CardResponse(
 					row.id(), row.projectName(), row.assigneeNames(), row.assigneeCount(),
 					row.contractNo(), row.constructionStartDate(), row.constructionEndDate(),
-					row.latestCumulativeProgressRate(), row.status(), row.hasActionRequest(),
+					row.latestCumulativeProgressRate(), row.status(),
 					includeUncheckedMatchedFileCount ? row.uncheckedMatchedFileCount() : 0,
 					row.latestUsageStatementStatusCode()
 			);

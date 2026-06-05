@@ -2,9 +2,12 @@ package com.skala.backend.file.service;
 
 import com.skala.backend.evidence.service.EvidenceCommandService;
 import com.skala.backend.file.domain.ProjectFile;
+import com.skala.backend.evidence.dto.EvidenceRequests.LinkEvidenceFileRequest;
+import com.skala.backend.evidence.dto.EvidenceResponses.EvidenceLinkResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileListResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileUploadResponse;
+import com.skala.backend.file.dto.ProjectFileResponses.UploadAndLinkResponse;
 import com.skala.backend.file.repository.ProjectFileRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
@@ -145,6 +148,16 @@ public class ProjectFileService {
 			throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "미리보기를 지원하지 않는 파일 형식입니다.");
 		}
 		return toResource(file, true);
+	}
+
+	@Transactional
+	public UploadAndLinkResponse uploadAndLink(Long currentUserId, Long projectId, Long itemId, String evidenceTypeCode, MultipartFile multipartFile, Instant capturedAt) {
+		ProjectFileUploadResponse uploaded = upload(currentUserId, projectId, evidenceTypeCode, multipartFile, capturedAt);
+		EvidenceLinkResponse linked = evidenceCommandService.linkFile(
+				currentUserId, projectId, itemId,
+				new LinkEvidenceFileRequest(uploaded.fileId(), evidenceTypeCode)
+		);
+		return new UploadAndLinkResponse(uploaded.fileId(), linked.linkId());
 	}
 
 	@Transactional

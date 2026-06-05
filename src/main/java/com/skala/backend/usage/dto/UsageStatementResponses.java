@@ -1,5 +1,6 @@
 package com.skala.backend.usage.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -56,12 +57,19 @@ public final class UsageStatementResponses {
 	) {
 	}
 
+	@Schema(description = "세부항목 추가 결과 (classi)")
 	public record CreateItemResponse(
-			Long itemId,
-			String requestedCategoryCode,
-			String assignedCategoryCode,
-			boolean categoryChanged
+			@Schema(description = "classi가 카테고리를 변경했으면 true") boolean categoryChanged,
+			@Schema(description = "변경된 항목 목록. 변경 없으면 빈 배열.") List<CreateItemResponse.CategoryChange> changes
 	) {
+		@Schema(description = "카테고리 변경 단건")
+		public record CategoryChange(
+				@Schema(description = "항목명") String itemName,
+				@Schema(description = "변경 전 카테고리 코드") String fromCategoryCode,
+				@Schema(description = "변경 전 카테고리명") String fromCategoryName,
+				@Schema(description = "변경 후 카테고리 코드") String toCategoryCode,
+				@Schema(description = "변경 후 카테고리명") String toCategoryName
+		) {}
 	}
 
 	public record UsageStatementSummaryResponse(

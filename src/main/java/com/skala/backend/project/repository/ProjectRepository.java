@@ -63,14 +63,4 @@ public interface ProjectRepository extends JpaRepository<Project, Long>, Project
 			), 0)
 			""", nativeQuery = true)
 	BigDecimal findLatestProgressRate(@Param("projectId") Long projectId);
-
-	@Query(value = """
-			SELECT EXISTS (
-				SELECT 1
-				FROM action_requests ar
-				WHERE ar.project_id = :projectId
-					AND ar.status_code IN ('open', 'in_progress')
-			)
-			""", nativeQuery = true)
-	boolean hasOpenActionRequest(@Param("projectId") Long projectId);
 }

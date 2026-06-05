@@ -7,14 +7,19 @@ import com.skala.backend.evidence.dto.EvidenceResponses.EvidenceLinkResponse;
 import com.skala.backend.evidence.dto.EvidenceResponses.ItemEvidenceFilesResponse;
 import com.skala.backend.evidence.service.EvidenceCommandService;
 import com.skala.backend.evidence.service.EvidenceQueryService;
+import com.skala.backend.file.dto.ProjectFileResponses.UploadAndLinkResponse;
+import com.skala.backend.file.service.ProjectFileService;
 import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
 import com.skala.backend.usage.dto.UsageStatementResponses.RequirementResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -24,8 +29,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.util.List;
 
 @RestController
@@ -36,10 +44,54 @@ public class ProjectEvidenceLinkController {
 
 	private final EvidenceCommandService commandService;
 	private final EvidenceQueryService queryService;
+	private final ProjectFileService fileService;
 
-	public ProjectEvidenceLinkController(EvidenceCommandService commandService, EvidenceQueryService queryService) {
+	public ProjectEvidenceLinkController(EvidenceCommandService commandService, EvidenceQueryService queryService, ProjectFileService fileService) {
 		this.commandService = commandService;
 		this.queryService = queryService;
+		this.fileService = fileService;
+	}
+
+	@PostMapping(value = "/usage-statement-items/{itemId}/evidence-files/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	@Operation(
+			summary = "증빙 파일 업로드 후 즉시 상세항목에 연결",
+			description = """
+					파일 업로드와 세부항목 증빙 연결을 단일 요청으로 처리합니다.
+
+					**처리 순서**
+					1. 파일을 스토리지에 저장하고 `files` 테이블에 등록합니다.
+					2. 등록된 파일을 지정한 세부항목(`itemId`)에 즉시 연결합니다.
+
+					두 작업은 단일 트랜잭션으로 처리되므로 연결 실패 시 파일 등록도 롤백됩니다.
+
+					**사용내역서 상태 변환**
+					세부항목이 속한 사용내역서가 `supplement_required` 상태인 경우, 연결 성공 후 자동으로 `draft`로 복귀합니다.
+					"""
+	)
+	public ResponseEntity<ApiResponse<UploadAndLinkResponse>> uploadAndLink(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@PathVariable Long itemId,
+			@Parameter(
+					description = "업로드 파일의 증빙 유형 코드입니다.",
+					example = "receipt",
+					schema = @Schema(allowableValues = {
+							"receipt", "tax_invoice", "tax_invoice_confirm", "third_party_lookup",
+							"transaction_statement", "site_photo", "item_photo", "wearing_photo",
+							"work_photo", "appointment_report", "pay_stub", "work_log",
+							"daily_output_log", "inspection_log", "supply_ledger", "inventory_ledger",
+							"edu_confirm", "edu_attendance", "transfer_confirm", "health_checkup_result",
+							"health_checkup_contract", "tech_guidance_contract", "tech_guidance_report",
+							"tech_guidance_photo", "usage_statement", "analysis_table", "purchase_detail",
+							"other_document"
+					})
+			)
+			@RequestParam String evidenceTypeCode,
+			@RequestParam MultipartFile file,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant capturedAt
+	) {
+		UploadAndLinkResponse response = fileService.uploadAndLink(currentUser.id(), projectId, itemId, evidenceTypeCode, file, capturedAt);
+		return ResponseEntity.ok(ApiResponse.success(response, "파일 업로드 및 증빙 연결에 성공했습니다."));
 	}
 
 	@PostMapping("/usage-statement-items/{itemId}/evidence-files")

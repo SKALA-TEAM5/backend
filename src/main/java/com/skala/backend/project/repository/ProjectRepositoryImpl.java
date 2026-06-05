@@ -102,12 +102,6 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 					p.construction_end_date,
 					COALESCE(ls.cumulative_progress_rate, 0) AS latest_progress_rate,
 					p.project_status_code,
-					EXISTS (
-						SELECT 1
-						FROM service.action_requests ar
-						WHERE ar.project_id = p.id
-							AND ar.status_code IN ('open', 'in_progress')
-					) AS has_action_request,
 					COALESCE(umf.unchecked_matched_file_count, 0) AS unchecked_matched_file_count,
 					ls.status_code AS latest_usage_statement_status_code,
 					CASE p.project_status_code
@@ -175,9 +169,8 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 				toLocalDate(row[6]),
 				(BigDecimal) row[7],
 				ProjectStatusCode.from((String) row[8]),
-				(Boolean) row[9],
-				toLong(row[10]),
-				(String) row[11]
+				toLong(row[9]),
+				(String) row[10]
 		);
 	}
 

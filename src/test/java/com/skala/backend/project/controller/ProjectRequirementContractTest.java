@@ -237,7 +237,6 @@ class ProjectRequirementContractTest {
 
 		insertUsageStatement(lowProgressProjectId, "2026-05-01", 10);
 		insertUsageStatement(highProgressProjectId, "2026-05-01", 80);
-		insertOpenActionRequest(highProgressProjectId, managerId, projectUserId);
 
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
@@ -248,10 +247,8 @@ class ProjectRequirementContractTest {
 				.andExpect(jsonPath("$.data.items[0].assigneeNames[0]").value("홍길동"))
 				.andExpect(jsonPath("$.data.items[0].assigneeCount").value(2))
 				.andExpect(jsonPath("$.data.items[0].latestCumulativeProgressRate").value(80))
-				.andExpect(jsonPath("$.data.items[0].hasActionRequest").value(true))
 				.andExpect(jsonPath("$.data.items[1].id").value(lowProgressProjectId))
-				.andExpect(jsonPath("$.data.items[1].latestCumulativeProgressRate").value(10))
-				.andExpect(jsonPath("$.data.items[1].hasActionRequest").value(false));
+				.andExpect(jsonPath("$.data.items[1].latestCumulativeProgressRate").value(10));
 	}
 
 	@Test
@@ -638,14 +635,6 @@ class ProjectRequirementContractTest {
 					AND l.checked_at IS NULL
 				""", Integer.class, projectId);
 		assertThat(count).isEqualTo(expectedCount);
-	}
-
-	private void insertOpenActionRequest(int projectId, int requestedByUserId, int assigneeUserId) {
-		jdbcTemplate.update("""
-				INSERT INTO service.action_requests
-					(project_id, requested_by_user_id, assignee_user_id, title, status_code)
-				VALUES (?, ?, ?, '테스트 조치 요청', 'open')
-				""", projectId, requestedByUserId, assigneeUserId);
 	}
 
 	private Map<String, String> createUser(String roleCode) {

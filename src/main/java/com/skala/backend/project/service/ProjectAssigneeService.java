@@ -14,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class ProjectAssigneeService {
@@ -48,16 +50,17 @@ public class ProjectAssigneeService {
 		Project project = findProject(projectId);
 		List<Long> userIds = validateAssigneeIds(assigneeUserIds);
 
-		List<User> users = userRepository.findAllById(userIds);
-		if (users.size() != userIds.size()) {
+		Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
+				.collect(Collectors.toMap(User::getId, u -> u));
+		if (userMap.size() != userIds.size()) {
 			throw new ApiException(HttpStatus.NOT_FOUND, "존재하지 않는 사용자가 포함되어 있습니다.");
 		}
 
 		assignmentRepository.deleteByProjectId(projectId);
 		assignmentRepository.flush();
 
-		List<ProjectUserAssignment> assignments = users.stream()
-				.map(user -> ProjectUserAssignment.create(project, user, assignedBy))
+		List<ProjectUserAssignment> assignments = userIds.stream()
+				.map(id -> ProjectUserAssignment.create(project, userMap.get(id), assignedBy))
 				.toList();
 		assignmentRepository.saveAll(assignments);
 

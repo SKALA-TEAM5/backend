@@ -54,7 +54,6 @@ public class UsageStatementItemService {
 		this.codeLookupService = codeLookupService;
 	}
 
-	@Transactional
 	public CreateItemResponse createItem(Long currentUserId, Long projectId, Long usageStatementId, CreateItemRequest request) {
 		projectAccessService.requireWritable(currentUserId, projectId);
 
@@ -78,26 +77,14 @@ public class UsageStatementItemService {
 				request.totalAmount()
 		);
 
-		String assignedCategory = (classi != null && classi.categoryCode() != null)
-				? classi.categoryCode()
-				: request.categoryCode();
+		List<CreateItemResponse.CategoryChange> changes = classi.changes().stream()
+				.map(c -> new CreateItemResponse.CategoryChange(
+						c.itemName(), c.fromCategoryCode(), c.fromCategoryName(),
+						c.toCategoryCode(), c.toCategoryName()
+				))
+				.toList();
 
-		UsageStatementItem item = UsageStatementItem.create(
-				usageStatementId,
-				assignedCategory,
-				request.usedOn(),
-				request.itemName(),
-				request.unit(),
-				request.quantity(),
-				request.unitPrice(),
-				request.totalAmount(),
-				request.remark(),
-				request.pageNo()
-		);
-		itemRepository.save(item);
-
-		boolean categoryChanged = !request.categoryCode().equals(assignedCategory);
-		return new CreateItemResponse(item.getId(), request.categoryCode(), assignedCategory, categoryChanged);
+		return new CreateItemResponse(classi.categoryChanged(), changes);
 	}
 
 	@Transactional
