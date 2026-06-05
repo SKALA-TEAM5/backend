@@ -57,11 +57,16 @@ public final class UsageStatementResponses {
 	}
 
 	public record CreateItemResponse(
-			Long itemId,
-			String requestedCategoryCode,
-			String assignedCategoryCode,
-			boolean categoryChanged
+			boolean categoryChanged,
+			List<CreateItemResponse.CategoryChange> changes
 	) {
+		public record CategoryChange(
+				String itemName,
+				String fromCategoryCode,
+				String fromCategoryName,
+				String toCategoryCode,
+				String toCategoryName
+		) {}
 	}
 
 	public record UsageStatementSummaryResponse(
