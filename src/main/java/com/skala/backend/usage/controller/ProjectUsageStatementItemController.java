@@ -43,9 +43,14 @@ public class ProjectUsageStatementItemController {
 			summary = "세부항목 추가 (classi)",
 			description = """
 					사용자가 입력한 세부항목 데이터를 FastAPI classi agent에 전달합니다.
-					classi가 카테고리를 검증하고 DB에 적재합니다.
+					DB 적재는 FastAPI가 담당하며, Spring은 classi 결과만 반환합니다.
+
+					**응답 필드**
+					- `categoryChanged` : classi가 카테고리를 변경했으면 `true`
+					- `changes[]` : 변경된 항목 목록. 변경 없으면 빈 배열.
+					  - `itemName` / `fromCategoryCode` / `fromCategoryName` / `toCategoryCode` / `toCategoryName`
+
 					추가된 항목은 사용내역서 재조회(`GET /usage-statements/{id}`)로 확인합니다.
-					진행 상황은 `GET /agents/logs`의 `statusCode` 필드로 확인하세요.
 					"""
 	)
 	public ResponseEntity<ApiResponse<CreateItemResponse>> createItem(

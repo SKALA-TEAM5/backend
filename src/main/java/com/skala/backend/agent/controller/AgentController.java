@@ -72,9 +72,13 @@ public class AgentController {
 					사용내역서 기준 validate / legal / report 버튼의 활성화 여부를 반환합니다.
 
 					**활성화 규칙**
-					- `validate` : 항상 활성화. safety-doc 실행 중(running/pending)이면 비활성화.
-					- `legal`    : safety-doc 로그가 1건 이상 존재하고 실행 중이 아닐 때 활성화.
-					- `report`   : legal 로그가 1건 이상 존재하고 실행 중이 아닐 때 활성화.
+					- `validate` : `classi` 로그가 `status=success AND result_code=success`일 때 활성화.
+					  vision / link / safety-doc 중 하나라도 running/pending이면 비활성화.
+					- `legal`    : `safety-doc` 로그가 `status=success AND result_code IN (success, hil)`일 때 활성화.
+					  `link` / `vision` 로그가 존재하는 경우 동일 조건을 충족해야 함 (없으면 무시).
+					  legal이 running/pending이면 비활성화.
+					- `report`   : `legal` 로그가 `status=success AND result_code IN (success, hil)`일 때 활성화.
+					  report가 running/pending이면 비활성화.
 
 					`enabled=false`이면 `reason` 필드에 사유가 담깁니다.
 					"""
@@ -179,7 +183,15 @@ public class AgentController {
 	@Operation(
 			tags = {"AI 실행"},
 			summary = "법령 검증 (legal)",
-			description = "사용내역서 항목의 법령 적합성을 검증합니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환."
+			description = """
+					사용내역서 항목의 법령 적합성을 검증합니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환.
+
+					**실행 선행 조건 (미충족 시 400)**
+					- `safety-doc` 로그가 `status=success AND result_code IN (success, hil)` 이어야 함
+					- `link` 로그가 존재하는 경우 동일 조건 충족 필요
+					- `vision` 로그가 존재하는 경우 동일 조건 충족 필요
+					- legal이 이미 running/pending이면 409
+					"""
 	)
 	public ResponseEntity<ApiResponse<AgentResponses.AgentRunResult>> legal(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
@@ -194,7 +206,13 @@ public class AgentController {
 	@Operation(
 			tags = {"AI 실행"},
 			summary = "보고서 생성 (report)",
-			description = "사용내역서 기반 보고서를 생성합니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환."
+			description = """
+					사용내역서 기반 보고서를 생성합니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환.
+
+					**실행 선행 조건 (미충족 시 400)**
+					- `legal` 로그가 `status=success AND result_code IN (success, hil)` 이어야 함
+					- report가 이미 running/pending이면 409
+					"""
 	)
 	public ResponseEntity<ApiResponse<AgentResponses.AgentRunResult>> report(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
