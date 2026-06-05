@@ -1,5 +1,6 @@
 package com.skala.backend.usage.service;
 
+import com.skala.backend.agent.repository.AgentLogRepository;
 import com.skala.backend.evidence.service.EvidenceQueryService;
 import com.skala.backend.file.domain.ProjectFile;
 import com.skala.backend.file.repository.ProjectFileRepository;
@@ -41,6 +42,7 @@ public class UsageStatementService {
 	private final ProjectFileRepository fileRepository;
 	private final EvidenceQueryService evidenceQueryService;
 	private final CodeLookupService codeLookupService;
+	private final AgentLogRepository agentLogRepository;
 
 	public UsageStatementService(
 			ProjectAccessService projectAccessService,
@@ -49,7 +51,8 @@ public class UsageStatementService {
 			UsageStatementItemRepository itemRepository,
 			ProjectFileRepository fileRepository,
 			EvidenceQueryService evidenceQueryService,
-			CodeLookupService codeLookupService
+			CodeLookupService codeLookupService,
+			AgentLogRepository agentLogRepository
 	) {
 		this.projectAccessService = projectAccessService;
 		this.statementRepository = statementRepository;
@@ -58,6 +61,7 @@ public class UsageStatementService {
 		this.fileRepository = fileRepository;
 		this.evidenceQueryService = evidenceQueryService;
 		this.codeLookupService = codeLookupService;
+		this.agentLogRepository = agentLogRepository;
 	}
 
 	@Transactional(readOnly = true)
@@ -195,6 +199,7 @@ public class UsageStatementService {
 	@Transactional
 	public UsageStatementStatusResponse requestSupplement(Long currentUserId, Long projectId, Long statementId) {
 		projectAccessService.requireAdmin(currentUserId);
+		requireLegalCompleted(statementId);
 		UsageStatement statement = statementRepository.findByIdAndProjectId(statementId, projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
 		statement.requestSupplement();
@@ -204,10 +209,17 @@ public class UsageStatementService {
 	@Transactional
 	public UsageStatementStatusResponse completeReview(Long currentUserId, Long projectId, Long statementId) {
 		projectAccessService.requireAdmin(currentUserId);
+		requireLegalCompleted(statementId);
 		UsageStatement statement = statementRepository.findByIdAndProjectId(statementId, projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
 		statement.completeReview();
 		return new UsageStatementStatusResponse(statement.getId(), statement.getStatusCode());
+	}
+
+	private void requireLegalCompleted(Long statementId) {
+		if (!agentLogRepository.existsStatementLogWithSuccessOrHil(statementId, "legal")) {
+			throw new ApiException(HttpStatus.CONFLICT, "법령 검토가 완료된 후에 진행할 수 있습니다.");
+		}
 	}
 
 	private LocalDate toReportMonth(int year, int month) {
