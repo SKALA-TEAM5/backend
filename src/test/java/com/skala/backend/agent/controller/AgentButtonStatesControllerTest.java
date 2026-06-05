@@ -35,159 +35,395 @@ class AgentButtonStatesControllerTest {
     @Autowired UserRepository userRepository;
     @Autowired PasswordEncoder passwordEncoder;
 
-    // ─── GET /agents/button-states ────────────────────────────────────────
+    // ─── validate 버튼 ────────────────────────────────────────────────────
+    // 선행 조건: classi.status=success AND classi.result_code=success
+    // 비활성 조건: vision / link / safety_doc 중 하나라도 running/pending
 
     @Test
-    void 로그_없으면_validate만_활성화되고_legal_report는_비활성화된다() throws Exception {
+    void classi_로그_없으면_validate_비활성() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
+        int sid = insertStatement(projectId);
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate.enabled").value(false))
+                .andExpect(jsonPath("$.data.validate.reason").value("parse를 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void classi_result_code가_hil이면_validate_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "hil");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate.enabled").value(false))
+                .andExpect(jsonPath("$.data.validate.reason").value("parse를 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void classi_success_success이면_validate_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.validate.enabled").value(true))
-                .andExpect(jsonPath("$.data.validate.reason").isEmpty())
+                .andExpect(jsonPath("$.data.validate.reason").isEmpty());
+    }
+
+    @Test
+    void safety_doc_running이면_validate_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertRunningLog(projectId, sid, "safety-doc", "running");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate.enabled").value(false))
+                .andExpect(jsonPath("$.data.validate.reason").value("현재 실행 중입니다."));
+    }
+
+    @Test
+    void link_running이면_validate_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertRunningLog(projectId, sid, "link", "running");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate.enabled").value(false))
+                .andExpect(jsonPath("$.data.validate.reason").value("현재 실행 중입니다."));
+    }
+
+    @Test
+    void vision_pending이면_validate_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertRunningLog(projectId, sid, "vision", "pending");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate.enabled").value(false))
+                .andExpect(jsonPath("$.data.validate.reason").value("현재 실행 중입니다."));
+    }
+
+    // ─── legal 버튼 ───────────────────────────────────────────────────────
+    // 선행 조건: safety_doc success+(success|hil)
+    //           link 존재 시 → success+(success|hil) 충족 필요
+    //           vision 존재 시 → success+(success|hil) 충족 필요
+    // 비활성 조건: legal running/pending
+
+    @Test
+    void safety_doc_없으면_legal_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.legal.enabled").value(false))
-                .andExpect(jsonPath("$.data.legal.reason").value("validate를 먼저 실행해야 합니다."))
-                .andExpect(jsonPath("$.data.report.enabled").value(false))
-                .andExpect(jsonPath("$.data.report.reason").value("validate를 먼저 실행해야 합니다."));
+                .andExpect(jsonPath("$.data.legal.reason").value("validate를 먼저 실행해야 합니다."));
     }
 
     @Test
-    void safety_doc_완료되면_legal도_활성화된다() throws Exception {
+    void safety_doc_success_fail이면_legal_비활성() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertStatementLog(projectId, statementId, "safety-doc", "success");
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "fail");
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.validate.enabled").value(true))
-                .andExpect(jsonPath("$.data.legal.enabled").value(true))
-                .andExpect(jsonPath("$.data.legal.reason").isEmpty())
-                .andExpect(jsonPath("$.data.report.enabled").value(false));
+                .andExpect(jsonPath("$.data.legal.enabled").value(false))
+                .andExpect(jsonPath("$.data.legal.reason").value("validate를 먼저 실행해야 합니다."));
     }
 
     @Test
-    void safety_doc_fail이어도_legal은_활성화된다() throws Exception {
+    void safety_doc_success_hil이면_legal_활성() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertStatementLog(projectId, statementId, "safety-doc", "fail");
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "hil");
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.enabled").value(true))
+                .andExpect(jsonPath("$.data.legal.reason").isEmpty());
+    }
+
+    @Test
+    void safety_doc_success_success이면_legal_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.legal.enabled").value(true));
     }
 
     @Test
-    void legal_완료되면_report도_활성화된다() throws Exception {
+    void link_없으면_legal_활성() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertStatementLog(projectId, statementId, "safety-doc", "success");
-        insertStatementLog(projectId, statementId, "legal", "success");
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.validate.enabled").value(true))
-                .andExpect(jsonPath("$.data.legal.enabled").value(true))
+                .andExpect(jsonPath("$.data.legal.enabled").value(true));
+    }
+
+    @Test
+    void link_success_success이면_legal_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "link", "success", "success");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.enabled").value(true));
+    }
+
+    @Test
+    void link_success_hil이면_legal_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "link", "success", "hil");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.enabled").value(true));
+    }
+
+    @Test
+    void link_success_fail이면_legal_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "link", "success", "fail");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.enabled").value(false))
+                .andExpect(jsonPath("$.data.legal.reason").value("link 또는 vision 검증을 통과해야 합니다."));
+    }
+
+    @Test
+    void vision_없으면_legal_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "link", "success", "success");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.enabled").value(true));
+    }
+
+    @Test
+    void vision_success_fail이면_legal_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "vision", "success", "fail");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.enabled").value(false))
+                .andExpect(jsonPath("$.data.legal.reason").value("link 또는 vision 검증을 통과해야 합니다."));
+    }
+
+    @Test
+    void legal_running이면_legal_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertRunningLog(projectId, sid, "legal", "running");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.enabled").value(false))
+                .andExpect(jsonPath("$.data.legal.reason").value("현재 실행 중입니다."));
+    }
+
+    // ─── report 버튼 ──────────────────────────────────────────────────────
+    // 선행 조건: legal.status=success AND legal.result_code IN (success, hil)
+    // 비활성 조건: report running/pending
+
+    @Test
+    void legal_없으면_report_비활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.report.enabled").value(false))
+                .andExpect(jsonPath("$.data.report.reason").value("legal을 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void legal_success_success이면_report_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "legal", "success", "success");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.report.enabled").value(true))
                 .andExpect(jsonPath("$.data.report.reason").isEmpty());
     }
 
     @Test
-    void legal_fail이어도_report는_활성화된다() throws Exception {
+    void legal_success_hil이면_report_활성() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertStatementLog(projectId, statementId, "safety-doc", "success");
-        insertStatementLog(projectId, statementId, "legal", "fail");
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "legal", "success", "hil");
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.report.enabled").value(true));
     }
 
     @Test
-    void safety_doc_running이면_validate와_legal이_비활성화된다() throws Exception {
+    void legal_success_fail이면_report_비활성() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertStatementLog(projectId, statementId, "safety-doc", "running");
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "legal", "success", "fail");
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.validate.enabled").value(false))
-                .andExpect(jsonPath("$.data.validate.reason").value("현재 실행 중입니다."))
-                .andExpect(jsonPath("$.data.legal.enabled").value(false))
-                .andExpect(jsonPath("$.data.legal.reason").value("현재 실행 중입니다."));
+                .andExpect(jsonPath("$.data.report.enabled").value(false))
+                .andExpect(jsonPath("$.data.report.reason").value("legal을 먼저 실행해야 합니다."));
     }
 
     @Test
-    void safety_doc_pending이면_validate와_legal이_비활성화된다() throws Exception {
+    void report_running이면_report_비활성() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertStatementLog(projectId, statementId, "safety-doc", "pending");
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "legal", "success", "success");
+        insertRunningLog(projectId, sid, "report", "running");
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.validate.enabled").value(false))
-                .andExpect(jsonPath("$.data.legal.enabled").value(false));
-    }
-
-    @Test
-    void legal_running이면_legal과_report가_비활성화된다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertStatementLog(projectId, statementId, "safety-doc", "success");
-        insertStatementLog(projectId, statementId, "legal", "running");
-
-        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
-                        .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.validate.enabled").value(true))
-                .andExpect(jsonPath("$.data.legal.enabled").value(false))
-                .andExpect(jsonPath("$.data.legal.reason").value("현재 실행 중입니다."))
                 .andExpect(jsonPath("$.data.report.enabled").value(false))
                 .andExpect(jsonPath("$.data.report.reason").value("현재 실행 중입니다."));
     }
 
+    // ─── 전체 흐름 ────────────────────────────────────────────────────────
+
     @Test
-    void report_running이면_report만_비활성화된다() throws Exception {
+    void 모든_선행_조건_충족_시_세_버튼_모두_활성() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertStatementLog(projectId, statementId, "safety-doc", "success");
-        insertStatementLog(projectId, statementId, "legal", "success");
-        insertStatementLog(projectId, statementId, "report", "running");
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "link", "success", "hil");
+        insertLog(projectId, sid, "vision", "success", "success");
+        insertLog(projectId, sid, "legal", "success", "hil");
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(cookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.validate.enabled").value(true))
                 .andExpect(jsonPath("$.data.legal.enabled").value(true))
-                .andExpect(jsonPath("$.data.report.enabled").value(false))
-                .andExpect(jsonPath("$.data.report.reason").value("현재 실행 중입니다."));
+                .andExpect(jsonPath("$.data.report.enabled").value(true));
     }
+
+    // ─── 공통: 인증·권한 ──────────────────────────────────────────────────
 
     @Test
     void usageStatementId_누락_시_400을_반환한다() throws Exception {
@@ -203,10 +439,10 @@ class AgentButtonStatesControllerTest {
     void 미인증_요청은_401을_반환한다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
+        int sid = insertStatement(projectId);
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -215,11 +451,11 @@ class AgentButtonStatesControllerTest {
         Cookie adminCookie = loginCookie(createUser("admin"));
         Cookie outsiderCookie = loginCookie(createUser("user"));
         int projectId = createProject(adminCookie);
-        int statementId = insertStatement(projectId);
+        int sid = insertStatement(projectId);
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(outsiderCookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
+                        .param("usageStatementId", String.valueOf(sid)))
                 .andExpect(status().isForbidden());
     }
 
@@ -231,13 +467,12 @@ class AgentButtonStatesControllerTest {
         int userId = readUserId(user);
         int projectId = createProject(adminCookie);
         assign(adminCookie, projectId, userId);
-        int statementId = insertStatement(projectId);
+        int sid = insertStatement(projectId);
 
         mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
                         .cookie(userCookie)
-                        .param("usageStatementId", String.valueOf(statementId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.validate.enabled").value(true));
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk());
     }
 
     // ─── fixtures ─────────────────────────────────────────────────────────
@@ -317,7 +552,17 @@ class AgentButtonStatesControllerTest {
                 """, Integer.class, projectId);
     }
 
-    private void insertStatementLog(int projectId, int statementId, String agentTypeCode, String statusCode) {
+    /** status=success/fail 인 완료 로그 — result_code 필수 */
+    private void insertLog(int projectId, int statementId, String agentTypeCode, String statusCode, String resultCode) {
+        jdbcTemplate.update("""
+                INSERT INTO service.agent_logs
+                    (project_id, usage_statement_id, agent_type_code, status_code, result_code)
+                VALUES (?, ?, ?, ?, ?)
+                """, projectId, statementId, agentTypeCode, statusCode, resultCode);
+    }
+
+    /** status=running/pending 인 실행 중 로그 — result_code NULL */
+    private void insertRunningLog(int projectId, int statementId, String agentTypeCode, String statusCode) {
         jdbcTemplate.update("""
                 INSERT INTO service.agent_logs
                     (project_id, usage_statement_id, agent_type_code, status_code)
