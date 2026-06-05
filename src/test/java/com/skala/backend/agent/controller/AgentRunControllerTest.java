@@ -37,500 +37,522 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class AgentRunControllerTest {
 
-	@Autowired MockMvc mockMvc;
-	@Autowired ObjectMapper objectMapper;
-	@Autowired JdbcTemplate jdbcTemplate;
-	@Autowired UserRepository userRepository;
-	@Autowired PasswordEncoder passwordEncoder;
-
-	@MockitoBean
-	FastApiAgentClient fastApiAgentClient;
-
-	// ─── POST /agents/parse ───────────────────────────────────────────────
-	// parse는 동기 호출 — FastAPI 응답(~2s)을 기다린 뒤 usageStatementId/itemCount 반환
-
-	@Test
-	void parse_성공_시_usageStatementId와_itemCount를_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		when(fastApiAgentClient.parseUsageStatement(anyLong(), anyLong()))
-				.thenReturn(new AgentResponses.ParseResult(42L, 15));
-
-		mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data.usageStatementId").value(42))
-				.andExpect(jsonPath("$.data.itemCount").value(15));
-
-		verify(fastApiAgentClient).parseUsageStatement((long) projectId, 10L);
-	}
-
-	@Test
-	void parse_fileId_누락_시_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content("{}"))
-				.andExpect(status().isBadRequest());
-	}
-
-	@Test
-	void parse_미인증_요청은_401을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
-				.andExpect(status().isUnauthorized());
-	}
-
-	@Test
-	void parse_프로젝트_비담당_user는_403을_반환한다() throws Exception {
-		Cookie adminCookie = loginCookie(createUser("admin"));
-		Cookie outsiderCookie = loginCookie(createUser("user"));
-		int projectId = createProject(adminCookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
-						.cookie(outsiderCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
-				.andExpect(status().isForbidden());
-	}
-
-	@Test
-	void parse_FastAPI_장애_시_503을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		doThrow(new RestClientException("connection refused"))
-				.when(fastApiAgentClient).parseUsageStatement(anyLong(), anyLong());
-
-		mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
-				.andExpect(status().isServiceUnavailable());
-	}
-
-	// ─── POST /agents/validate ────────────────────────────────────────────
-	// validate는 동기 — FastAPI 완료까지 대기, 3개 agent 결과 배열 반환
-
-	@Test
-	void validate_성공_시_3개_agent_결과를_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-
-		when(fastApiAgentClient.runValidation(anyLong(), anyLong(), anyLong()))
-				.thenReturn(List.of(
-						new AgentResponses.AgentRunResult("vision",     "success", "success", "현장사진 확인 완료", null),
-						new AgentResponses.AgentRunResult("link",       "success", "hil",     "금액 불일치",       null),
-						new AgentResponses.AgentRunResult("safety-doc", "success", "success", "필수 서류 충족",     null)
-				));
-
-		mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data").isArray())
-				.andExpect(jsonPath("$.data[0].agentTypeCode").value("vision"))
-				.andExpect(jsonPath("$.data[0].statusCode").value("success"))
-				.andExpect(jsonPath("$.data[0].resultCode").value("success"))
-				.andExpect(jsonPath("$.data[1].agentTypeCode").value("link"))
-				.andExpect(jsonPath("$.data[1].resultCode").value("hil"))
-				.andExpect(jsonPath("$.data[2].agentTypeCode").value("safety-doc"));
-
-		verify(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
-	}
-
-	@Test
-	void validate_usageStatementId_누락_시_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content("{}"))
-				.andExpect(status().isBadRequest());
-	}
-
-	@Test
-	void validate_미인증_요청은_401을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", 1))))
-				.andExpect(status().isUnauthorized());
-	}
-
-	@Test
-	void validate_FastAPI_장애_시_503을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-
-		doThrow(new RestClientException("connection refused"))
-				.when(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
-
-		mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isServiceUnavailable());
-	}
-
-	// ─── POST /agents/legal ───────────────────────────────────────────────
-	// legal은 동기 — FastAPI 완료까지 대기, agent 결과 단건 반환
-
-	@Test
-	void legal_draft_상태면_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		insertStatementLog(projectId, statementId, "safety-doc", "success");
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value("제출된 사용내역서에서만 법령 검증을 실행할 수 있습니다."));
-	}
-
-	@Test
-	void legal_supplement_required_상태면_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		submitStatement(statementId);
-		updateStatementStatus(statementId, "supplement_required");
-		insertStatementLog(projectId, statementId, "safety-doc", "success");
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value("제출된 사용내역서에서만 법령 검증을 실행할 수 있습니다."));
-	}
-
-	@Test
-	void legal_성공_시_agent_결과를_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		submitStatement(statementId);
-		insertStatementLog(projectId, statementId, "safety-doc", "success");
-
-		when(fastApiAgentClient.runLegal(anyLong(), anyLong(), anyLong()))
-				.thenReturn(new AgentResponses.AgentRunResult("legal", "success", "hil", "한도 초과 항목 발견", null));
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data.agentTypeCode").value("legal"))
-				.andExpect(jsonPath("$.data.statusCode").value("success"))
-				.andExpect(jsonPath("$.data.resultCode").value("hil"))
-				.andExpect(jsonPath("$.data.reason").value("한도 초과 항목 발견"));
-
-		verify(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
-	}
-
-	@Test
-	void legal_validate_전적_없으면_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		submitStatement(statementId);
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value("validate를 먼저 실행해야 합니다."));
-	}
-
-	@Test
-	void legal_validate_fail이어도_legal_실행_가능하다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		submitStatement(statementId);
-		insertStatementLog(projectId, statementId, "safety-doc", "fail");
-
-		when(fastApiAgentClient.runLegal(anyLong(), anyLong(), anyLong()))
-				.thenReturn(new AgentResponses.AgentRunResult("legal", "success", "success", null, null));
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isOk());
-	}
-
-	@Test
-	void legal_실행_중이면_409를_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		submitStatement(statementId);
-		insertStatementLog(projectId, statementId, "safety-doc", "success");
-		insertStatementLog(projectId, statementId, "legal", "running");
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.message").value("현재 실행 중입니다."));
-	}
-
-	@Test
-	void legal_usageStatementId_누락_시_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content("{}"))
-				.andExpect(status().isBadRequest());
-	}
-
-	@Test
-	void legal_미인증_요청은_401을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", 1))))
-				.andExpect(status().isUnauthorized());
-	}
-
-	@Test
-	void legal_FastAPI_장애_시_503을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		submitStatement(statementId);
-		insertStatementLog(projectId, statementId, "safety-doc", "success");
-
-		doThrow(new RestClientException("connection refused"))
-				.when(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
-
-		mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isServiceUnavailable());
-	}
-
-	// ─── POST /agents/report ──────────────────────────────────────────────
-	// report는 동기 — FastAPI 완료까지 대기, agent 결과 단건 반환
-
-	@Test
-	void report_성공_시_agent_결과를_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		insertStatementLog(projectId, statementId, "legal", "success");
-
-		when(fastApiAgentClient.runReport(anyLong(), anyLong(), anyLong()))
-				.thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", "보고서 생성 완료",
-						Map.of("summary", "4월 안전관리비 사용내역 요약")));
-
-		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.success").value(true))
-				.andExpect(jsonPath("$.data.agentTypeCode").value("report"))
-				.andExpect(jsonPath("$.data.statusCode").value("success"))
-				.andExpect(jsonPath("$.data.resultCode").value("success"))
-				.andExpect(jsonPath("$.data.reason").value("보고서 생성 완료"))
-				.andExpect(jsonPath("$.data.reportDraft.summary").value("4월 안전관리비 사용내역 요약"));
-
-		verify(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
-	}
-
-	@Test
-	void report_legal_전적_없으면_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-
-		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value("legal을 먼저 실행해야 합니다."));
-	}
-
-	@Test
-	void report_legal_fail이어도_report_실행_가능하다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		insertStatementLog(projectId, statementId, "legal", "fail");
-
-		when(fastApiAgentClient.runReport(anyLong(), anyLong(), anyLong()))
-				.thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", null, null));
-
-		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isOk());
-	}
-
-	@Test
-	void report_실행_중이면_409를_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		insertStatementLog(projectId, statementId, "legal", "success");
-		insertStatementLog(projectId, statementId, "report", "running");
-
-		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.message").value("현재 실행 중입니다."));
-	}
-
-	@Test
-	void report_usageStatementId_누락_시_400을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content("{}"))
-				.andExpect(status().isBadRequest());
-	}
-
-	@Test
-	void report_미인증_요청은_401을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-
-		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", 1))))
-				.andExpect(status().isUnauthorized());
-	}
-
-	@Test
-	void report_FastAPI_장애_시_503을_반환한다() throws Exception {
-		Cookie cookie = loginCookie(createUser("admin"));
-		int projectId = createProject(cookie);
-		int statementId = insertStatement(projectId);
-		insertStatementLog(projectId, statementId, "legal", "success");
-
-		doThrow(new RestClientException("connection refused"))
-				.when(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
-
-		mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-				.andExpect(status().isServiceUnavailable());
-	}
-
-	// ─── fixtures ─────────────────────────────────────────────────────────
-
-	private Map<String, String> createUser(String roleCode) {
-		Map<String, String> credentials = Map.of(
-				"employeeNo", "EMP-" + UUID.randomUUID(),
-				"realName", "홍길동",
-				"password", "P@ssw0rd123!",
-				"roleCode", roleCode
-		);
-		userRepository.saveAndFlush(User.create(
-				credentials.get("employeeNo"),
-				credentials.get("realName"),
-				passwordEncoder.encode(credentials.get("password")),
-				RoleCode.from(roleCode)
-		));
-		return credentials;
-	}
-
-	private Cookie loginCookie(Map<String, String> credentials) throws Exception {
-		MvcResult result = mockMvc.perform(post("/auth/login")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of(
-								"employeeNo", credentials.get("employeeNo"),
-								"password", credentials.get("password")
-						))))
-				.andExpect(status().isOk())
-				.andReturn();
-		return result.getResponse().getCookie("access_token");
-	}
-
-	private int createProject(Cookie cookie) throws Exception {
-		MvcResult result = mockMvc.perform(post("/projects")
-						.cookie(cookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(Map.of(
-								"contractNo", "CN-" + UUID.randomUUID(),
-								"constructionCompany", "스칼라건설",
-								"projectName", "테스트 프로젝트-" + UUID.randomUUID(),
-								"siteLocation", "서울시 강남구",
-								"contractAmount", 100_000_000,
-								"constructionStartDate", "2026-01-01",
-								"constructionEndDate", "2026-12-31",
-								"appropriatedAmount", 10_000_000
-						))))
-				.andExpect(status().isCreated())
-				.andReturn();
-		return objectMapper.readTree(result.getResponse().getContentAsString())
-				.path("data").path("project").path("id").asInt();
-	}
-
-	private int insertStatement(int projectId) {
-		return jdbcTemplate.queryForObject("""
-				INSERT INTO service.usage_statements
-					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate)
-				VALUES (?, '2026-05-01', 1, '2026-05-01', 30)
-				RETURNING id
-				""", Integer.class, projectId);
-	}
-
-	private void submitStatement(int statementId) {
-		jdbcTemplate.update("UPDATE service.usage_statements SET status_code = 'upload_completed' WHERE id = ?", statementId);
-	}
-
-	private void updateStatementStatus(int statementId, String statusCode) {
-		jdbcTemplate.update("UPDATE service.usage_statements SET status_code = ? WHERE id = ?", statusCode, statementId);
-	}
-
-	private void insertStatementLog(int projectId, int statementId, String agentTypeCode, String statusCode) {
-		jdbcTemplate.update("""
-				INSERT INTO service.agent_logs
-					(project_id, usage_statement_id, agent_type_code, status_code)
-				VALUES (?, ?, ?, ?)
-				""", projectId, statementId, agentTypeCode, statusCode);
-	}
+    @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
+    @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired UserRepository userRepository;
+    @Autowired PasswordEncoder passwordEncoder;
+
+    @MockitoBean
+    FastApiAgentClient fastApiAgentClient;
+
+    // ─── POST /agents/parse ───────────────────────────────────────────────
+
+    @Test
+    void parse_성공_시_usageStatementId와_itemCount를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        when(fastApiAgentClient.parseUsageStatement(anyLong(), anyLong()))
+                .thenReturn(new AgentResponses.ParseResult(42L, 15));
+
+        mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.usageStatementId").value(42))
+                .andExpect(jsonPath("$.data.itemCount").value(15));
+
+        verify(fastApiAgentClient).parseUsageStatement((long) projectId, 10L);
+    }
+
+    @Test
+    void parse_fileId_누락_시_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void parse_미인증_요청은_401을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void parse_프로젝트_비담당_user는_403을_반환한다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        Cookie outsiderCookie = loginCookie(createUser("user"));
+        int projectId = createProject(adminCookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
+                        .cookie(outsiderCookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void parse_FastAPI_장애_시_503을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        doThrow(new RestClientException("connection refused"))
+                .when(fastApiAgentClient).parseUsageStatement(anyLong(), anyLong());
+
+        mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    // ─── POST /agents/validate ────────────────────────────────────────────
+
+    @Test
+    void validate_성공_시_3개_agent_결과를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+
+        when(fastApiAgentClient.runValidation(anyLong(), anyLong(), anyLong()))
+                .thenReturn(List.of(
+                        new AgentResponses.AgentRunResult("vision",     "success", "success", "현장사진 확인 완료", null),
+                        new AgentResponses.AgentRunResult("link",       "success", "hil",     "금액 불일치",       null),
+                        new AgentResponses.AgentRunResult("safety-doc", "success", "success", "필수 서류 충족",     null)
+                ));
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data[0].agentTypeCode").value("vision"))
+                .andExpect(jsonPath("$.data[0].statusCode").value("success"))
+                .andExpect(jsonPath("$.data[0].resultCode").value("success"))
+                .andExpect(jsonPath("$.data[1].agentTypeCode").value("link"))
+                .andExpect(jsonPath("$.data[1].resultCode").value("hil"))
+                .andExpect(jsonPath("$.data[2].agentTypeCode").value("safety-doc"));
+
+        verify(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
+    }
+
+    @Test
+    void validate_usageStatementId_누락_시_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void validate_미인증_요청은_401을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", 1))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validate_FastAPI_장애_시_503을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+
+        doThrow(new RestClientException("connection refused"))
+                .when(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    // ─── POST /agents/legal ───────────────────────────────────────────────
+    // 선행 조건: safety_doc success+(success|hil)
+    //           link 존재 시 → success+(success|hil) 충족 필요
+    //           vision 존재 시 → success+(success|hil) 충족 필요
+
+    @Test
+    void legal_성공_시_agent_결과를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "success");
+
+        when(fastApiAgentClient.runLegal(anyLong(), anyLong(), anyLong()))
+                .thenReturn(new AgentResponses.AgentRunResult("legal", "success", "hil", "한도 초과 항목 발견", null));
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.agentTypeCode").value("legal"))
+                .andExpect(jsonPath("$.data.resultCode").value("hil"))
+                .andExpect(jsonPath("$.data.reason").value("한도 초과 항목 발견"));
+
+        verify(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
+    }
+
+    @Test
+    void legal_safety_doc_hil이면_실행_가능하다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "hil");
+
+        when(fastApiAgentClient.runLegal(anyLong(), anyLong(), anyLong()))
+                .thenReturn(new AgentResponses.AgentRunResult("legal", "success", "success", null, null));
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void legal_safety_doc_없으면_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("validate를 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void legal_safety_doc_result_fail이면_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "fail");
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("validate를 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void legal_link_존재하고_result_fail이면_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "success");
+        insertLog(projectId, statementId, "link", "success", "fail");
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("link 검증을 통과해야 합니다."));
+    }
+
+    @Test
+    void legal_vision_존재하고_result_fail이면_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "success");
+        insertLog(projectId, statementId, "vision", "success", "fail");
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("vision 검증을 통과해야 합니다."));
+    }
+
+    @Test
+    void legal_실행_중이면_409를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "success");
+        insertRunningLog(projectId, statementId, "legal", "running");
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("현재 실행 중입니다."));
+    }
+
+    @Test
+    void legal_usageStatementId_누락_시_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void legal_미인증_요청은_401을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", 1))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void legal_FastAPI_장애_시_503을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "success");
+
+        doThrow(new RestClientException("connection refused"))
+                .when(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    // ─── POST /agents/report ──────────────────────────────────────────────
+    // 선행 조건: legal.status=success AND legal.result_code IN (success, hil)
+
+    @Test
+    void report_성공_시_agent_결과를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "legal", "success", "success");
+
+        when(fastApiAgentClient.runReport(anyLong(), anyLong(), anyLong()))
+                .thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", "보고서 생성 완료",
+                        Map.of("summary", "4월 안전관리비 사용내역 요약")));
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.agentTypeCode").value("report"))
+                .andExpect(jsonPath("$.data.resultCode").value("success"))
+                .andExpect(jsonPath("$.data.reportDraft.summary").value("4월 안전관리비 사용내역 요약"));
+
+        verify(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
+    }
+
+    @Test
+    void report_legal_hil이면_실행_가능하다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "legal", "success", "hil");
+
+        when(fastApiAgentClient.runReport(anyLong(), anyLong(), anyLong()))
+                .thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", null, null));
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void report_legal_없으면_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("legal을 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void report_legal_result_fail이면_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "legal", "success", "fail");
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("legal을 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void report_실행_중이면_409를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "legal", "success", "success");
+        insertRunningLog(projectId, statementId, "report", "running");
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("현재 실행 중입니다."));
+    }
+
+    @Test
+    void report_usageStatementId_누락_시_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void report_미인증_요청은_401을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", 1))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void report_FastAPI_장애_시_503을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "legal", "success", "success");
+
+        doThrow(new RestClientException("connection refused"))
+                .when(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    // ─── fixtures ─────────────────────────────────────────────────────────
+
+    private Map<String, String> createUser(String roleCode) {
+        Map<String, String> credentials = Map.of(
+                "employeeNo", "EMP-" + UUID.randomUUID(),
+                "realName", "홍길동",
+                "password", "P@ssw0rd123!",
+                "roleCode", roleCode
+        );
+        userRepository.saveAndFlush(User.create(
+                credentials.get("employeeNo"),
+                credentials.get("realName"),
+                passwordEncoder.encode(credentials.get("password")),
+                RoleCode.from(roleCode)
+        ));
+        return credentials;
+    }
+
+    private Cookie loginCookie(Map<String, String> credentials) throws Exception {
+        MvcResult result = mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "employeeNo", credentials.get("employeeNo"),
+                                "password", credentials.get("password")
+                        ))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return result.getResponse().getCookie("access_token");
+    }
+
+    private int createProject(Cookie cookie) throws Exception {
+        MvcResult result = mockMvc.perform(post("/projects")
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "contractNo", "CN-" + UUID.randomUUID(),
+                                "constructionCompany", "스칼라건설",
+                                "projectName", "테스트 프로젝트-" + UUID.randomUUID(),
+                                "siteLocation", "서울시 강남구",
+                                "contractAmount", 100_000_000,
+                                "constructionStartDate", "2026-01-01",
+                                "constructionEndDate", "2026-12-31",
+                                "appropriatedAmount", 10_000_000
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("project").path("id").asInt();
+    }
+
+    private int insertStatement(int projectId) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO service.usage_statements
+                    (project_id, report_month, revision_no, document_written_date, cumulative_progress_rate)
+                VALUES (?, '2026-05-01', 1, '2026-05-01', 30)
+                RETURNING id
+                """, Integer.class, projectId);
+    }
+
+    /** status=success/fail 인 완료 로그 — result_code 필수 */
+    private void insertLog(int projectId, int statementId, String agentTypeCode, String statusCode, String resultCode) {
+        jdbcTemplate.update("""
+                INSERT INTO service.agent_logs
+                    (project_id, usage_statement_id, agent_type_code, status_code, result_code)
+                VALUES (?, ?, ?, ?, ?)
+                """, projectId, statementId, agentTypeCode, statusCode, resultCode);
+    }
+
+    /** status=running/pending 인 실행 중 로그 — result_code NULL */
+    private void insertRunningLog(int projectId, int statementId, String agentTypeCode, String statusCode) {
+        jdbcTemplate.update("""
+                INSERT INTO service.agent_logs
+                    (project_id, usage_statement_id, agent_type_code, status_code)
+                VALUES (?, ?, ?, ?)
+                """, projectId, statementId, agentTypeCode, statusCode);
+    }
 }
