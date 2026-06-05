@@ -36,4 +36,7 @@ public final class ProjectFileResponses {
 			String detail
 	) {
 	}
+
+	public record UploadAndLinkResponse(Long fileId, Long linkId) {
+	}
 }

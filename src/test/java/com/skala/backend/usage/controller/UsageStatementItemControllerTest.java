@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -63,7 +64,7 @@ class UsageStatementItemControllerTest {
 	@BeforeEach
 	void stubClassifyItem() {
 		lenient().when(fastApiAgentClient.classifyItem(anyLong(), anyLong(), anyString(), anyString(), any(), any(), any(), any(), any()))
-				.thenReturn(new FastApiAgentClient.ClassifyResult(99L, "CAT_01"));
+				.thenReturn(new FastApiAgentClient.ClassifyResult(false, List.of()));
 	}
 
 	// ─── R-12: 세부항목 수동 추가 ───────────────────────────────────────
@@ -83,10 +84,9 @@ class UsageStatementItemControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(defaultItemRequest())))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.itemId").isNumber())
-				.andExpect(jsonPath("$.data.requestedCategoryCode").value("CAT_01"))
-				.andExpect(jsonPath("$.data.assignedCategoryCode").value("CAT_01"))
-				.andExpect(jsonPath("$.data.categoryChanged").value(false));
+				.andExpect(jsonPath("$.data.categoryChanged").value(false))
+				.andExpect(jsonPath("$.data.changes").isArray())
+				.andExpect(jsonPath("$.data.changes").isEmpty());
 
 		verify(fastApiAgentClient).classifyItem(anyLong(), anyLong(), anyString(), anyString(), any(), any(), any(), any(), any());
 	}
@@ -98,16 +98,20 @@ class UsageStatementItemControllerTest {
 		int statementId = insertUsageStatement(projectId);
 
 		lenient().when(fastApiAgentClient.classifyItem(anyLong(), anyLong(), anyString(), anyString(), any(), any(), any(), any(), any()))
-				.thenReturn(new FastApiAgentClient.ClassifyResult(99L, "CAT_02"));
+				.thenReturn(new FastApiAgentClient.ClassifyResult(true, List.of(
+						new FastApiAgentClient.ClassifyResult.CategoryChangeEntry(
+								"안전모 구입", "CAT_01", "안전관리자 임금 및 직원", "CAT_02", "안전시설비")
+				)));
 
 		mockMvc.perform(post("/projects/{pid}/usage-statements/{sid}/items", projectId, statementId)
 						.cookie(managerCookie)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(defaultItemRequest())))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.requestedCategoryCode").value("CAT_01"))
-				.andExpect(jsonPath("$.data.assignedCategoryCode").value("CAT_02"))
-				.andExpect(jsonPath("$.data.categoryChanged").value(true));
+				.andExpect(jsonPath("$.data.categoryChanged").value(true))
+				.andExpect(jsonPath("$.data.changes[0].itemName").value("안전모 구입"))
+				.andExpect(jsonPath("$.data.changes[0].fromCategoryCode").value("CAT_01"))
+				.andExpect(jsonPath("$.data.changes[0].toCategoryCode").value("CAT_02"));
 	}
 
 	@Test
@@ -121,7 +125,7 @@ class UsageStatementItemControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(defaultItemRequest())))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.itemId").isNumber());
+				.andExpect(jsonPath("$.data.categoryChanged").value(false));
 	}
 
 	@Test

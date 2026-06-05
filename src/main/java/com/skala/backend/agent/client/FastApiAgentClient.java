@@ -19,9 +19,17 @@ import java.util.Map;
 public class FastApiAgentClient {
 
 	public record ClassifyResult(
-			@JsonProperty("item_id") Long itemId,
-			@JsonProperty("category_code") String categoryCode
-	) {}
+			boolean categoryChanged,
+			List<CategoryChangeEntry> changes
+	) {
+		public record CategoryChangeEntry(
+				String itemName,
+				String fromCategoryCode,
+				String fromCategoryName,
+				String toCategoryCode,
+				String toCategoryName
+		) {}
+	}
 
 	private final RestClient restClient;
 
@@ -183,39 +191,23 @@ public class FastApiAgentClient {
 	}
 
 	private ClassifyResult extractClassifyResult(Map<String, Object> raw) {
-		@SuppressWarnings("unchecked")
-		Map<String, Object> result = (Map<String, Object>) raw.get("result");
-		if (result == null) return null;
+		if (raw == null) return new ClassifyResult(false, List.of());
 
 		@SuppressWarnings("unchecked")
-		Map<String, Object> payload = (Map<String, Object>) result.get("payload");
-		if (payload == null) return null;
+		List<Map<String, Object>> changes = (List<Map<String, Object>>) raw.get("changes");
+		if (changes == null || changes.isEmpty()) return new ClassifyResult(false, List.of());
 
-		// 카테고리가 변경된 항목: changes[0]
-		@SuppressWarnings("unchecked")
-		List<Map<String, Object>> changes = (List<Map<String, Object>>) payload.get("changes");
-		if (changes != null && !changes.isEmpty()) {
-			Map<String, Object> change = changes.get(0);
-			@SuppressWarnings("unchecked")
-			Map<String, Object> after = (Map<String, Object>) change.get("after");
-			return new ClassifyResult(
-					toLong(change.get("item_id")),
-					after != null ? (String) after.get("category_code") : null
-			);
-		}
+		List<ClassifyResult.CategoryChangeEntry> entries = changes.stream()
+				.map(c -> new ClassifyResult.CategoryChangeEntry(
+						(String) c.get("item_name"),
+						(String) c.get("from_category_code"),
+						(String) c.get("from_category_name"),
+						(String) c.get("to_category_code"),
+						(String) c.get("to_category_name")
+				))
+				.toList();
 
-		// 변경 없이 유지된 항목: results[0]
-		@SuppressWarnings("unchecked")
-		List<Map<String, Object>> results = (List<Map<String, Object>>) payload.get("results");
-		if (results != null && !results.isEmpty()) {
-			Map<String, Object> first = results.get(0);
-			return new ClassifyResult(
-					toLong(first.get("item_id")),
-					(String) first.get("final_category_code")
-			);
-		}
-
-		return null;
+		return new ClassifyResult(true, entries);
 	}
 
 	private AgentResponses.AgentRunResult toAgentRunResult(String agentType, Map<String, Object> agentResult) {
