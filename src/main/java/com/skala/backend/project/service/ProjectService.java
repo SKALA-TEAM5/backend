@@ -57,6 +57,7 @@ public class ProjectService {
 			ProjectStatusCode status,
 			LocalDate periodFrom,
 			LocalDate periodTo,
+			String usageStatementStatus,
 			String sort,
 			Integer page,
 			Integer size
@@ -82,6 +83,7 @@ public class ProjectService {
 				periodFrom,
 				periodTo,
 				visibleUserId,
+				normalize(usageStatementStatus),
 				projectSort,
 				pageNumber,
 				pageSize

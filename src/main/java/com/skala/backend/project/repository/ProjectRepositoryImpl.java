@@ -35,6 +35,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 			LocalDate periodFrom,
 			LocalDate periodTo,
 			Long visibleUserId,
+			String usageStatementStatus,
 			ProjectSort sort,
 			int page,
 			int size
@@ -60,16 +61,29 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 						WHERE pua_visible.project_id = p.id
 							AND pua_visible.user_id = :visibleUserId
 					))
+					AND (CAST(:usageStatementStatus AS text) IS NULL OR EXISTS (
+						SELECT 1
+						FROM service.usage_statements us_f
+						WHERE us_f.project_id = p.id
+							AND us_f.status_code = :usageStatementStatus
+					))
 				""";
 
 		String selectSql = """
 				WITH latest_statement AS (
 					SELECT DISTINCT ON (us.project_id)
 						us.project_id,
+						us.id AS statement_id,
 						us.cumulative_progress_rate,
 						us.status_code
 					FROM service.usage_statements us
 					ORDER BY us.project_id, us.report_month DESC, us.revision_no DESC
+				),
+				statement_usage AS (
+					SELECT uss.usage_statement_id,
+					       COALESCE(SUM(uss.cumulative_amount), 0) AS total_spent
+					FROM service.usage_statement_summaries uss
+					GROUP BY uss.usage_statement_id
 				),
 				unchecked_matched_files AS (
 					SELECT
@@ -108,9 +122,18 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 						WHEN 'active' THEN 1
 						WHEN 'suspended' THEN 2
 						ELSE 3
-					END AS status_rank
+					END AS status_rank,
+					CASE WHEN p.appropriated_amount > 0
+					     THEN ROUND(COALESCE(su.total_spent, 0) / p.appropriated_amount * 100, 2)
+					     ELSE 0 END AS usage_rate,
+					EXISTS (
+						SELECT 1 FROM service.usage_statements us_nc
+						WHERE us_nc.project_id = p.id
+						  AND us_nc.status_code IN ('upload_completed', 'supplement_required')
+					) AS need_check
 				FROM service.projects p
 				LEFT JOIN latest_statement ls ON ls.project_id = p.id
+				LEFT JOIN statement_usage su ON su.usage_statement_id = ls.statement_id
 				LEFT JOIN unchecked_matched_files umf ON umf.project_id = p.id
 				""" + whereClause + "\nORDER BY " + sort.orderByClause();
 
@@ -121,8 +144,8 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 
 		Query selectQuery = entityManager.createNativeQuery(selectSql);
 		Query countQuery = entityManager.createNativeQuery(countSql);
-		bindParameters(selectQuery, keywordPattern, projectNamePattern, contractNoPattern, assigneeUserId, status, periodFrom, periodTo, visibleUserId);
-		bindParameters(countQuery, keywordPattern, projectNamePattern, contractNoPattern, assigneeUserId, status, periodFrom, periodTo, visibleUserId);
+		bindParameters(selectQuery, keywordPattern, projectNamePattern, contractNoPattern, assigneeUserId, status, periodFrom, periodTo, visibleUserId, usageStatementStatus);
+		bindParameters(countQuery, keywordPattern, projectNamePattern, contractNoPattern, assigneeUserId, status, periodFrom, periodTo, visibleUserId, usageStatementStatus);
 
 		selectQuery.setFirstResult((page - 1) * size);
 		selectQuery.setMaxResults(size);
@@ -146,7 +169,8 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 			ProjectStatusCode status,
 			LocalDate periodFrom,
 			LocalDate periodTo,
-			Long visibleUserId
+			Long visibleUserId,
+			String usageStatementStatus
 	) {
 		query.setParameter("keywordPattern", keywordPattern);
 		query.setParameter("projectNamePattern", projectNamePattern);
@@ -156,6 +180,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 		query.setParameter("periodFrom", periodFrom);
 		query.setParameter("periodTo", periodTo);
 		query.setParameter("visibleUserId", visibleUserId);
+		query.setParameter("usageStatementStatus", usageStatementStatus);
 	}
 
 	private ProjectCardRow toRow(Object[] row) {
@@ -170,7 +195,10 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 				(BigDecimal) row[7],
 				ProjectStatusCode.from((String) row[8]),
 				toLong(row[9]),
-				(String) row[10]
+				(String) row[10],
+				// row[11] = status_rank (ORDER BY 전용)
+				(BigDecimal) row[12],
+				Boolean.TRUE.equals(row[13])
 		);
 	}
 
