@@ -91,14 +91,15 @@ class UsageStatementStatusControllerTest {
 	}
 
 	@Test
-	void supplement_required_상태에서_제출하면_409를_반환한다() throws Exception {
+	void supplement_required_상태에서_제출하면_upload_completed로_전환된다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId, "supplement_required");
 
 		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/submit", projectId, statementId)
 						.cookie(adminCookie))
-				.andExpect(status().isConflict());
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("upload_completed"));
 	}
 
 	@Test
@@ -338,6 +339,44 @@ class UsageStatementStatusControllerTest {
 				.andExpect(jsonPath("$.data.statusCode").value("supplement_required"));
 
 		// supplement_required → review_completed
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/complete-review", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("review_completed"));
+	}
+
+	@Test
+	void 보완요청_후_재제출하여_최종승인까지_전체_플로우가_정상_동작한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		Map<String, String> user = createUser("user");
+		Cookie userCookie = loginCookie(user);
+		int userId = readUserId(user);
+		int projectId = createProject(adminCookie);
+		assign(adminCookie, projectId, userId);
+		int statementId = insertStatement(projectId, "draft");
+
+		// draft → upload_completed
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/submit", projectId, statementId)
+						.cookie(userCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("upload_completed"));
+
+		// 법령 에이전트 완료
+		insertLog(projectId, statementId, "legal", "success", "hil");
+
+		// upload_completed → supplement_required
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/request-supplement", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("supplement_required"));
+
+		// supplement_required → upload_completed (재제출)
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/submit", projectId, statementId)
+						.cookie(userCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("upload_completed"));
+
+		// upload_completed → review_completed
 		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/complete-review", projectId, statementId)
 						.cookie(adminCookie))
 				.andExpect(status().isOk())

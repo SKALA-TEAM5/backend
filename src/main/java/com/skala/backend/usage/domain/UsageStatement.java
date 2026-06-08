@@ -54,8 +54,8 @@ public class UsageStatement {
 	}
 
 	public void submit() {
-		if (status != UsageStatementStatus.DRAFT) {
-			throw new ApiException(HttpStatus.CONFLICT, "작성 중인 사용내역서만 제출할 수 있습니다.");
+		if (status != UsageStatementStatus.DRAFT && status != UsageStatementStatus.SUPPLEMENT_REQUIRED) {
+			throw new ApiException(HttpStatus.CONFLICT, "작성 중이거나 보완 요청된 사용내역서만 제출할 수 있습니다.");
 		}
 		this.status = UsageStatementStatus.UPLOAD_COMPLETED;
 	}
