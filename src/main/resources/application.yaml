@@ -37,3 +37,16 @@ app:
   fastapi:
     base-url: ${APP_FASTAPI_BASE_URL:http://localhost:8001}
     timeout-seconds: ${APP_FASTAPI_TIMEOUT_SECONDS:60}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: team5-backend
