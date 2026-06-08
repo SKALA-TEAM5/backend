@@ -13,6 +13,7 @@ public interface ProjectRepositoryCustom {
 			String projectNamePattern,
 			String contractNoPattern,
 			Long assigneeUserId,
+			String assigneeNamePattern,
 			ProjectStatusCode status,
 			LocalDate periodFrom,
 			LocalDate periodTo,

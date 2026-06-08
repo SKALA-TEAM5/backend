@@ -11,16 +11,14 @@ public class AdminDashboardResponses {
 
     @Schema(name = "AdminAiUsageTotal")
     public record AiUsageTotal(
-            long totalInputTokens,
-            long totalOutputTokens,
+            long totalTokens,
             long callCount,
             BigDecimal totalCostUsd) {}
 
     @Schema(name = "AdminAiUsageByAgent")
     public record AiUsageByAgent(
             String agentTypeCode,
-            long inputTokens,
-            long outputTokens,
+            long totalTokens,
             long callCount,
             BigDecimal costUsd) {}
 
@@ -29,8 +27,7 @@ public class AdminDashboardResponses {
             Long userId,
             String userName,
             String roleCode,
-            long inputTokens,
-            long outputTokens,
+            long totalTokens,
             long callCount,
             BigDecimal costUsd) {}
 
@@ -39,8 +36,7 @@ public class AdminDashboardResponses {
             Long projectId,
             String projectName,
             String type,
-            long inputTokens,
-            long outputTokens,
+            long totalTokens,
             long callCount,
             BigDecimal costUsd) {}
 
@@ -50,23 +46,10 @@ public class AdminDashboardResponses {
             List<AiUsageByUser> topUsers,
             List<AiUsageByProject> topProjects) {}
 
-    public record SupplementAssignee(Long userId, String userName, int supplementCount) {}
+    public record SupplementAssignee(Long userId, String userName, String roleCode, int supplementCount) {}
 
     public record DashboardResponse(
             DashboardSummary summary,
-            AiUsageSummary aiUsage,
             List<SupplementAssignee> supplementAssignees) {}
 
-    public record ProjectListItem(
-            Long id,
-            String projectName,
-            String contractNo,
-            String statusCode,
-            String constructionStartDate,
-            String constructionEndDate,
-            BigDecimal progressRate,
-            BigDecimal usageRate,
-            String assignees) {}
-
-    public record ProjectListResponse(long totalCount, List<ProjectListItem> items) {}
 }
