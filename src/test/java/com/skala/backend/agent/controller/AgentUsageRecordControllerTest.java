@@ -16,6 +16,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.junit.jupiter.api.BeforeEach;
+
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +38,11 @@ class AgentUsageRecordControllerTest {
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired UserRepository userRepository;
     @Autowired PasswordEncoder passwordEncoder;
+
+    @BeforeEach
+    void setUp() {
+        jdbcTemplate.update("DELETE FROM service.agent_usage_records");
+    }
 
     // ─── GET /usage-records/by-user ───────────────────────────────────────
 
