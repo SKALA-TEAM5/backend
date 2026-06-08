@@ -177,6 +177,117 @@ class AdminDashboardControllerTest {
                 .andExpect(jsonPath("$.data.aiUsage.topProjects[0].type").value("project"));
     }
 
+    @Test
+    void ai_사용량에_input_output_토큰이_분리되어_반환된다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        Map<String, String> userCreds = createUser("user");
+        int userId = readUserId(userCreds);
+        int projectId = createProject(adminCookie);
+        insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
+
+        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.aiUsage.total.totalInputTokens").isNumber())
+                .andExpect(jsonPath("$.data.aiUsage.total.totalOutputTokens").isNumber());
+    }
+
+    @Test
+    void supplement_assignees에_roleCode가_포함된다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        Map<String, String> user = createUser("user");
+        int userId = readUserId(user);
+        int projectId = createProject(adminCookie);
+        assign(adminCookie, projectId, userId);
+        insertStatementCurrentMonth(projectId, "supplement_required");
+
+        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.supplementAssignees[0].roleCode").isString());
+    }
+
+    @Test
+    void 과거_upload_completed_사용내역서도_검토필요에_포함된다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        int before = getDashboardReviewNeeded(adminCookie);
+
+        int projectId = createProject(adminCookie);
+        // 과거 월(2026-05) upload_completed 삽입
+        insertStatement(projectId, "upload_completed");
+
+        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.reviewNeededProjects").value(before + 1));
+    }
+
+    @Test
+    void review_completed_사용내역서는_검토필요에_포함되지_않는다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        int before = getDashboardReviewNeeded(adminCookie);
+
+        int projectId = createProject(adminCookie);
+        insertStatement(projectId, "review_completed");
+
+        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.reviewNeededProjects").value(before));
+    }
+
+    // ─── GET /admin/dashboard/ai-usage ───────────────────────────────────
+
+    @Test
+    void admin은_ai_사용량을_조회할_수_있다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+
+        mockMvc.perform(get("/admin/dashboard/ai-usage").cookie(adminCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total.totalInputTokens").isNumber())
+                .andExpect(jsonPath("$.data.total.totalOutputTokens").isNumber())
+                .andExpect(jsonPath("$.data.total.callCount").isNumber())
+                .andExpect(jsonPath("$.data.byAgent").isArray())
+                .andExpect(jsonPath("$.data.topUsers").isArray())
+                .andExpect(jsonPath("$.data.topProjects").isArray());
+    }
+
+    @Test
+    void user는_ai_사용량에_접근할_수_없다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        Map<String, String> user = createUser("user");
+        Cookie userCookie = loginCookie(user);
+        int userId = readUserId(user);
+        int projectId = createProject(adminCookie);
+        assign(adminCookie, projectId, userId);
+
+        mockMvc.perform(get("/admin/dashboard/ai-usage").cookie(userCookie))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void ai_사용량_year_month_필터가_동작한다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        Map<String, String> userCreds = createUser("user");
+        int userId = readUserId(userCreds);
+        int projectId = createProject(adminCookie);
+        insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
+
+        mockMvc.perform(get("/admin/dashboard/ai-usage")
+                        .cookie(adminCookie)
+                        .param("year", "2026")
+                        .param("month", "6"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").exists());
+    }
+
+    @Test
+    void ai_사용량_year만_전달하면_연도_전체_집계한다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+
+        mockMvc.perform(get("/admin/dashboard/ai-usage")
+                        .cookie(adminCookie)
+                        .param("year", "2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total.callCount").isNumber());
+    }
+
     // ─── GET /admin/dashboard/projects ───────────────────────────────────
 
     @Test

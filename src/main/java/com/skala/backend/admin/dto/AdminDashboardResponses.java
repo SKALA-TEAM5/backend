@@ -50,7 +50,7 @@ public class AdminDashboardResponses {
             List<AiUsageByUser> topUsers,
             List<AiUsageByProject> topProjects) {}
 
-    public record SupplementAssignee(Long userId, String userName, int supplementCount) {}
+    public record SupplementAssignee(Long userId, String userName, String roleCode, int supplementCount) {}
 
     public record DashboardResponse(
             DashboardSummary summary,

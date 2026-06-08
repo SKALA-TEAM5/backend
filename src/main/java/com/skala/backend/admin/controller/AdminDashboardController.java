@@ -1,5 +1,6 @@
 package com.skala.backend.admin.controller;
 
+import com.skala.backend.admin.dto.AdminDashboardResponses.AiUsageSummary;
 import com.skala.backend.admin.dto.AdminDashboardResponses.DashboardResponse;
 import com.skala.backend.admin.dto.AdminDashboardResponses.ProjectListResponse;
 import com.skala.backend.admin.service.AdminDashboardService;
@@ -37,6 +38,24 @@ public class AdminDashboardController {
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser) {
         return ResponseEntity.ok(ApiResponse.success(
                 service.getDashboard(currentUser.id()), "대시보드 조회에 성공했습니다."));
+    }
+
+    @GetMapping("/ai-usage")
+    @Operation(
+            summary = "AI 사용금액 집계",
+            description = """
+                    전체 토큰·호출 수 합계와 에이전트별, 사용자별 TOP5, 프로젝트별 TOP5를 반환합니다.
+
+                    `year`/`month` 파라미터로 특정 월 필터 가능. `year`만 전달하면 해당 연도 전체.
+                    둘 다 생략하면 전체 기간 집계.
+                    """)
+    public ResponseEntity<ApiResponse<AiUsageSummary>> getAiUsage(
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+            @Parameter(description = "연도", example = "2026") @RequestParam(required = false) Integer year,
+            @Parameter(description = "월 (1-12)", example = "6") @RequestParam(required = false) Integer month) {
+        return ResponseEntity.ok(ApiResponse.success(
+                service.getAiUsage(currentUser.id(), year, month),
+                "AI 사용량 조회에 성공했습니다."));
     }
 
     @GetMapping("/projects")
