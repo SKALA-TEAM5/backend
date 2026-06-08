@@ -184,8 +184,7 @@ class AdminDashboardControllerTest {
 
         mockMvc.perform(get("/dashboard/ai-usage").cookie(adminCookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total.totalInputTokens").isNumber())
-                .andExpect(jsonPath("$.data.total.totalOutputTokens").isNumber());
+                .andExpect(jsonPath("$.data.total.totalTokens").isNumber());
     }
 
     @Test
@@ -237,8 +236,7 @@ class AdminDashboardControllerTest {
 
         mockMvc.perform(get("/dashboard/ai-usage").cookie(adminCookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total.totalInputTokens").isNumber())
-                .andExpect(jsonPath("$.data.total.totalOutputTokens").isNumber())
+                .andExpect(jsonPath("$.data.total.totalTokens").isNumber())
                 .andExpect(jsonPath("$.data.total.callCount").isNumber())
                 .andExpect(jsonPath("$.data.byAgent").isArray())
                 .andExpect(jsonPath("$.data.topUsers").isArray())

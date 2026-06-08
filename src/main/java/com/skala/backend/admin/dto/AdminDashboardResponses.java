@@ -11,16 +11,14 @@ public class AdminDashboardResponses {
 
     @Schema(name = "AdminAiUsageTotal")
     public record AiUsageTotal(
-            long totalInputTokens,
-            long totalOutputTokens,
+            long totalTokens,
             long callCount,
             BigDecimal totalCostUsd) {}
 
     @Schema(name = "AdminAiUsageByAgent")
     public record AiUsageByAgent(
             String agentTypeCode,
-            long inputTokens,
-            long outputTokens,
+            long totalTokens,
             long callCount,
             BigDecimal costUsd) {}
 
@@ -29,8 +27,7 @@ public class AdminDashboardResponses {
             Long userId,
             String userName,
             String roleCode,
-            long inputTokens,
-            long outputTokens,
+            long totalTokens,
             long callCount,
             BigDecimal costUsd) {}
 
@@ -39,8 +36,7 @@ public class AdminDashboardResponses {
             Long projectId,
             String projectName,
             String type,
-            long inputTokens,
-            long outputTokens,
+            long totalTokens,
             long callCount,
             BigDecimal costUsd) {}
 

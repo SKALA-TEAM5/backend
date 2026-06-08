@@ -75,50 +75,50 @@ public class AdminDashboardService {
 
         List<Object> p = new ArrayList<>(baseParams);
         AiUsageTotal total = jdbc.queryForObject(
-                "SELECT COALESCE(SUM(input_tokens),0) AS ti, COALESCE(SUM(output_tokens),0) AS to_, COUNT(*) AS cc, COALESCE(SUM(cost_usd),0) AS tc"
+                "SELECT COALESCE(SUM(input_tokens) + SUM(output_tokens),0) AS total_tokens, COUNT(*) AS cc, COALESCE(SUM(cost_usd),0) AS tc"
                 + " FROM service.agent_usage_records r" + where,
                 (rs, row) -> new AiUsageTotal(
-                        rs.getLong("ti"), rs.getLong("to_"),
+                        rs.getLong("total_tokens"),
                         rs.getLong("cc"), rs.getBigDecimal("tc")),
                 p.toArray());
 
         List<Object> p2 = new ArrayList<>(baseParams);
         List<AiUsageByAgent> byAgent = jdbc.query(
                 "SELECT agent_type_code,"
-                + " COALESCE(SUM(input_tokens),0) AS input_tokens, COALESCE(SUM(output_tokens),0) AS output_tokens,"
+                + " COALESCE(SUM(input_tokens) + SUM(output_tokens),0) AS total_tokens,"
                 + " COUNT(*) AS call_count, COALESCE(SUM(cost_usd),0) AS cost_usd"
                 + " FROM service.agent_usage_records r" + where
-                + " GROUP BY agent_type_code ORDER BY COALESCE(SUM(cost_usd),0) DESC",
+                + " GROUP BY agent_type_code ORDER BY total_tokens DESC",
                 p2.toArray(),
                 (rs, row) -> new AiUsageByAgent(
                         rs.getString("agent_type_code"),
-                        rs.getLong("input_tokens"), rs.getLong("output_tokens"),
+                        rs.getLong("total_tokens"),
                         rs.getLong("call_count"), rs.getBigDecimal("cost_usd")));
 
         List<Object> p3 = new ArrayList<>(baseParams);
         List<AiUsageByUser> topUsers = jdbc.query(
                 "SELECT u.id AS user_id, u.real_name AS user_name, u.role_code,"
-                + " COALESCE(SUM(r.input_tokens),0) AS input_tokens, COALESCE(SUM(r.output_tokens),0) AS output_tokens,"
+                + " COALESCE(SUM(r.input_tokens) + SUM(r.output_tokens),0) AS total_tokens,"
                 + " COUNT(*) AS call_count, COALESCE(SUM(r.cost_usd),0) AS cost_usd"
                 + " FROM service.agent_usage_records r JOIN service.users u ON u.id = r.user_id" + where
-                + " GROUP BY u.id, u.real_name, u.role_code ORDER BY COALESCE(SUM(r.cost_usd),0) DESC LIMIT 8",
+                + " GROUP BY u.id, u.real_name, u.role_code ORDER BY total_tokens DESC LIMIT 8",
                 p3.toArray(),
                 (rs, row) -> new AiUsageByUser(
                         rs.getLong("user_id"), rs.getString("user_name"), rs.getString("role_code"),
-                        rs.getLong("input_tokens"), rs.getLong("output_tokens"),
+                        rs.getLong("total_tokens"),
                         rs.getLong("call_count"), rs.getBigDecimal("cost_usd")));
 
         List<Object> p4 = new ArrayList<>(baseParams);
         List<AiUsageByProject> topProjects = jdbc.query(
                 "SELECT p.id AS project_id, p.project_name,"
-                + " COALESCE(SUM(r.input_tokens),0) AS input_tokens, COALESCE(SUM(r.output_tokens),0) AS output_tokens,"
+                + " COALESCE(SUM(r.input_tokens) + SUM(r.output_tokens),0) AS total_tokens,"
                 + " COUNT(*) AS call_count, COALESCE(SUM(r.cost_usd),0) AS cost_usd"
                 + " FROM service.agent_usage_records r JOIN service.projects p ON p.id = r.project_id" + where
-                + " GROUP BY p.id, p.project_name ORDER BY COALESCE(SUM(r.cost_usd),0) DESC LIMIT 8",
+                + " GROUP BY p.id, p.project_name ORDER BY total_tokens DESC LIMIT 8",
                 p4.toArray(),
                 (rs, row) -> new AiUsageByProject(
                         rs.getLong("project_id"), rs.getString("project_name"), "project",
-                        rs.getLong("input_tokens"), rs.getLong("output_tokens"),
+                        rs.getLong("total_tokens"),
                         rs.getLong("call_count"), rs.getBigDecimal("cost_usd")));
 
         return new AiUsageSummary(total, byAgent, topUsers, topProjects);
