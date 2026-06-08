@@ -32,7 +32,14 @@ public class AdminDashboardController {
     @GetMapping
     @Operation(
             summary = "대시보드 요약 조회",
-            description = "전체/검토필요 프로젝트 건수, AI 사용금액 통계, 담당자별 보완 현황을 반환합니다.")
+            description = """
+                    전체/검토필요 프로젝트 건수와 이번 달 담당자별 보완 현황(TOP3)을 반환합니다.
+
+                    - `summary.reviewNeededProjects`: 과거 이력 포함, `upload_completed` 사용내역서가 하나라도 있는 프로젝트 수
+                    - `supplementAssignees[].roleCode`: 담당자 역할 코드 포함
+                    - AI 사용량 조회는 `GET /dashboard/ai-usage` 사용
+                    - 프로젝트 목록 조회는 `GET /projects` 사용
+                    """)
     public ResponseEntity<ApiResponse<DashboardResponse>> getDashboard(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser) {
         return ResponseEntity.ok(ApiResponse.success(

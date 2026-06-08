@@ -29,7 +29,7 @@ public class AdminDashboardService {
     @Transactional(readOnly = true)
     public DashboardResponse getDashboard(Long currentUserId) {
         projectAccessService.requireAdmin(currentUserId);
-        return new DashboardResponse(querySummary(), queryAiUsage(null, null), querySupplementAssignees());
+        return new DashboardResponse(querySummary(), querySupplementAssignees());
     }
 
     @Transactional(readOnly = true)

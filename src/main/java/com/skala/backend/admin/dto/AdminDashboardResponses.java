@@ -54,7 +54,6 @@ public class AdminDashboardResponses {
 
     public record DashboardResponse(
             DashboardSummary summary,
-            AiUsageSummary aiUsage,
             List<SupplementAssignee> supplementAssignees) {}
 
 }

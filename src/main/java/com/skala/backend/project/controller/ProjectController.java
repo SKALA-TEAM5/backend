@@ -47,7 +47,7 @@ public class ProjectController {
 
 	@GetMapping
 	@Operation(
-			tags = {"프로젝트", "Dashboard"},
+			tags = {"프로젝트", "관리자 대시보드"},
 			summary = "프로젝트 목록 조회",
 			description = """
 					프로젝트 카드 목록을 조회합니다.
@@ -55,6 +55,7 @@ public class ProjectController {
 					- user: 기본값과 허용값이 `scope=assigned`이며, 본인이 담당자로 배정된 프로젝트만 조회합니다.
 					- system_admin: 프로젝트 업무 API를 사용할 수 없습니다.
 					`assigneeUserId`는 admin의 특정 담당자 필터용이며, `scope=assigned`는 현재 로그인 사용자 기준 필터입니다.
+					담당자 이름 검색은 `assigneeName` 파라미터를 사용합니다. 정렬은 `usage_rate_asc/desc` 포함.
 					"""
 	)
 	public ResponseEntity<ApiResponse<ProjectResponses.ListResponse>> listProjects(

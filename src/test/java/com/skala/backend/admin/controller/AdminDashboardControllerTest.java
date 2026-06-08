@@ -46,11 +46,8 @@ class AdminDashboardControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary.totalProjects").isNumber())
                 .andExpect(jsonPath("$.data.summary.reviewNeededProjects").isNumber())
-                .andExpect(jsonPath("$.data.aiUsage.total.callCount").isNumber())
-                .andExpect(jsonPath("$.data.aiUsage.byAgent").isArray())
-                .andExpect(jsonPath("$.data.aiUsage.topUsers").isArray())
-                .andExpect(jsonPath("$.data.aiUsage.topProjects").isArray())
-                .andExpect(jsonPath("$.data.supplementAssignees").isArray());
+                .andExpect(jsonPath("$.data.supplementAssignees").isArray())
+                .andExpect(jsonPath("$.data.aiUsage").doesNotExist());
     }
 
     @Test
@@ -143,12 +140,12 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
 
-        mockMvc.perform(get("/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(adminCookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.aiUsage.total.callCount").value(greaterThanOrEqualTo(1)))
-                .andExpect(jsonPath("$.data.aiUsage.topUsers", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$.data.aiUsage.topProjects", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$.data.aiUsage.byAgent", hasSize(greaterThanOrEqualTo(1))));
+                .andExpect(jsonPath("$.data.total.callCount").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.topUsers", hasSize(greaterThanOrEqualTo(1))))
+                .andExpect(jsonPath("$.data.topProjects", hasSize(greaterThanOrEqualTo(1))))
+                .andExpect(jsonPath("$.data.byAgent", hasSize(greaterThanOrEqualTo(1))));
     }
 
     @Test
@@ -159,9 +156,9 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
 
-        mockMvc.perform(get("/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(adminCookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.aiUsage.topUsers[0].roleCode").isString());
+                .andExpect(jsonPath("$.data.topUsers[0].roleCode").isString());
     }
 
     @Test
@@ -172,9 +169,9 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "legal", 500L, 300L, new java.math.BigDecimal("0.0001"));
 
-        mockMvc.perform(get("/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(adminCookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.aiUsage.topProjects[0].type").value("project"));
+                .andExpect(jsonPath("$.data.topProjects[0].type").value("project"));
     }
 
     @Test
@@ -185,10 +182,10 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
 
-        mockMvc.perform(get("/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(adminCookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.aiUsage.total.totalInputTokens").isNumber())
-                .andExpect(jsonPath("$.data.aiUsage.total.totalOutputTokens").isNumber());
+                .andExpect(jsonPath("$.data.total.totalInputTokens").isNumber())
+                .andExpect(jsonPath("$.data.total.totalOutputTokens").isNumber());
     }
 
     @Test
