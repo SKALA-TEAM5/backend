@@ -14,23 +14,9 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @Service
 public class AdminDashboardService {
-
-    private static final Map<String, String> SORT_COLUMN_MAP = Map.of(
-            "projectName",  "p.project_name",
-            "contractNo",   "p.contract_no",
-            "progressRate", "progress_rate",
-            "usageRate",    "usage_rate",
-            "startDate",    "p.construction_start_date",
-            "endDate",      "p.construction_end_date",
-            "assignees",    "assignees"
-    );
-    private static final Set<String> VALID_SORT_DIRS = Set.of("asc", "desc");
-    private static final int MAX_PAGE_SIZE = 50;
 
     private final JdbcTemplate jdbc;
     private final ProjectAccessService projectAccessService;
@@ -50,108 +36,6 @@ public class AdminDashboardService {
     public AiUsageSummary getAiUsage(Long currentUserId, Integer year, Integer month) {
         projectAccessService.requireAdmin(currentUserId);
         return queryAiUsage(year, month);
-    }
-
-    @Transactional(readOnly = true)
-    public ProjectListResponse getProjectList(
-            Long currentUserId,
-            String keyword,
-            String assigneeName,
-            String statusCode,
-            String sortBy,
-            String sortDir,
-            int page,
-            int size) {
-        projectAccessService.requireAdmin(currentUserId);
-
-        String sortColumn = SORT_COLUMN_MAP.getOrDefault(sortBy, "p.project_name");
-        String direction   = VALID_SORT_DIRS.contains(sortDir != null ? sortDir.toLowerCase() : "") ? sortDir.toLowerCase() : "asc";
-        int    clampedSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-        int    offset      = (Math.max(page, 1) - 1) * clampedSize;
-
-        List<Object> params = new ArrayList<>();
-        StringBuilder where = new StringBuilder("WHERE 1=1");
-
-        if (keyword != null && !keyword.isBlank()) {
-            where.append(" AND (p.project_name ILIKE ? OR p.contract_no ILIKE ?)");
-            String like = "%" + keyword.trim() + "%";
-            params.add(like);
-            params.add(like);
-        }
-        if (assigneeName != null && !assigneeName.isBlank()) {
-            where.append(
-                    " AND EXISTS ("
-                    + " SELECT 1 FROM service.project_user_assignments a2"
-                    + " JOIN service.users u2 ON u2.id = a2.user_id"
-                    + " WHERE a2.project_id = p.id AND u2.real_name ILIKE ?"
-                    + ")");
-            params.add("%" + assigneeName.trim() + "%");
-        }
-        if (statusCode != null && !statusCode.isBlank()) {
-            where.append(" AND p.project_status_code = ?");
-            params.add(statusCode.trim());
-        }
-
-        List<Object> countParams = new ArrayList<>(params);
-        Long totalCount = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM service.projects p " + where,
-                Long.class, countParams.toArray());
-
-        if (totalCount == null || totalCount == 0) {
-            return new ProjectListResponse(0, List.of());
-        }
-
-        String sql = """
-                SELECT
-                    p.id,
-                    p.project_name,
-                    p.contract_no,
-                    p.project_status_code,
-                    p.construction_start_date::text,
-                    p.construction_end_date::text,
-                    COALESCE(STRING_AGG(DISTINCT u.real_name, ', ' ORDER BY u.real_name), '') AS assignees,
-                    COALESCE(latest.progress_rate, 0)                                          AS progress_rate,
-                    CASE WHEN p.appropriated_amount > 0
-                         THEN ROUND(COALESCE(latest.cumulative_total, 0) * 100.0 / p.appropriated_amount, 2)
-                         ELSE 0 END                                                            AS usage_rate
-                FROM service.projects p
-                LEFT JOIN service.project_user_assignments pua ON pua.project_id = p.id
-                LEFT JOIN service.users u ON u.id = pua.user_id
-                LEFT JOIN LATERAL (
-                    SELECT
-                        us.cumulative_progress_rate                  AS progress_rate,
-                        COALESCE(SUM(uss.cumulative_amount), 0)      AS cumulative_total
-                    FROM service.usage_statements us
-                    LEFT JOIN service.usage_statement_summaries uss ON uss.usage_statement_id = us.id
-                    WHERE us.project_id = p.id
-                    GROUP BY us.id, us.cumulative_progress_rate
-                    ORDER BY us.report_month DESC
-                    LIMIT 1
-                ) latest ON true
-                """
-                + "\n" + where + "\n"
-                + "GROUP BY p.id, p.project_name, p.contract_no, p.project_status_code,"
-                + " p.construction_start_date, p.construction_end_date, p.appropriated_amount,"
-                + " latest.progress_rate, latest.cumulative_total\n"
-                + "ORDER BY " + sortColumn + " " + direction
-                + "\nLIMIT ? OFFSET ?";
-
-        params.add(clampedSize);
-        params.add(offset);
-
-        List<ProjectListItem> items = jdbc.query(sql, (rs, row) -> new ProjectListItem(
-                rs.getLong("id"),
-                rs.getString("project_name"),
-                rs.getString("contract_no"),
-                rs.getString("project_status_code"),
-                rs.getString("construction_start_date"),
-                rs.getString("construction_end_date"),
-                rs.getBigDecimal("progress_rate"),
-                rs.getBigDecimal("usage_rate"),
-                rs.getString("assignees")
-        ), params.toArray());
-
-        return new ProjectListResponse(totalCount, items);
     }
 
     private DashboardSummary querySummary() {

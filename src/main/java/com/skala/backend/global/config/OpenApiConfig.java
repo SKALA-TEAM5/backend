@@ -74,9 +74,8 @@ public class OpenApiConfig {
 			"/usage-records/by-agent",
 			"/usage-records/by-month",
 			"/usage-records/by-date",
-			"/admin/dashboard",
-			"/admin/dashboard/ai-usage",
-			"/admin/dashboard/projects",
+			"/dashboard",
+			"/dashboard/ai-usage",
 			"/categories"
 	);
 

@@ -74,6 +74,8 @@ public class ProjectController {
 			@RequestParam(required = false) String contractNo,
 			@Parameter(description = "담당자 사용자 ID입니다.", example = "3")
 			@RequestParam(required = false) Long assigneeUserId,
+			@Parameter(description = "담당자 이름 검색어입니다. 부분 일치로 필터링됩니다.", example = "홍길동")
+			@RequestParam(required = false) String assigneeName,
 			@Parameter(
 					description = "프로젝트 상태입니다.",
 					example = "active",
@@ -99,6 +101,8 @@ public class ProjectController {
 							"project_name_desc",
 							"progress_rate_desc",
 							"progress_rate_asc",
+							"usage_rate_asc",
+							"usage_rate_desc",
 							"start_date_asc",
 							"start_date_desc",
 							"end_date_asc",
@@ -118,6 +122,7 @@ public class ProjectController {
 				projectName,
 				contractNo,
 				assigneeUserId,
+				assigneeName,
 				status,
 				periodFrom,
 				periodTo,

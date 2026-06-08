@@ -2,7 +2,6 @@ package com.skala.backend.admin.controller;
 
 import com.skala.backend.admin.dto.AdminDashboardResponses.AiUsageSummary;
 import com.skala.backend.admin.dto.AdminDashboardResponses.DashboardResponse;
-import com.skala.backend.admin.dto.AdminDashboardResponses.ProjectListResponse;
 import com.skala.backend.admin.service.AdminDashboardService;
 import com.skala.backend.auth.security.AuthenticatedUser;
 import com.skala.backend.global.config.OpenApiConfig;
@@ -19,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/admin/dashboard")
+@RequestMapping("/dashboard")
 @Tag(name = "관리자 대시보드", description = "admin 전용 통계 및 현황 조회 API")
 @SecurityRequirement(name = OpenApiConfig.COOKIE_AUTH)
 public class AdminDashboardController {
@@ -44,7 +43,7 @@ public class AdminDashboardController {
     @Operation(
             summary = "AI 사용금액 집계",
             description = """
-                    전체 토큰·호출 수 합계와 에이전트별, 사용자별 TOP5, 프로젝트별 TOP5를 반환합니다.
+                    전체 토큰·호출 수 합계와 에이전트별, 사용자별 TOP8, 프로젝트별 TOP8을 반환합니다.
 
                     `year`/`month` 파라미터로 특정 월 필터 가능. `year`만 전달하면 해당 연도 전체.
                     둘 다 생략하면 전체 기간 집계.
@@ -56,28 +55,5 @@ public class AdminDashboardController {
         return ResponseEntity.ok(ApiResponse.success(
                 service.getAiUsage(currentUser.id(), year, month),
                 "AI 사용량 조회에 성공했습니다."));
-    }
-
-    @GetMapping("/projects")
-    @Operation(
-            summary = "프로젝트 현황 리스트 조회",
-            description = """
-                    이름/계약번호/담당자/상태로 검색하고 각 컬럼으로 정렬할 수 있습니다.
-
-                    **sortBy**: projectName, contractNo, progressRate, usageRate, startDate, endDate, assignees
-                    **sortDir**: asc, desc
-                    """)
-    public ResponseEntity<ApiResponse<ProjectListResponse>> getProjects(
-            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String assigneeName,
-            @RequestParam(required = false) String statusCode,
-            @RequestParam(defaultValue = "projectName") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(ApiResponse.success(
-                service.getProjectList(currentUser.id(), keyword, assigneeName, statusCode, sortBy, sortDir, page, size),
-                "프로젝트 목록 조회에 성공했습니다."));
     }
 }

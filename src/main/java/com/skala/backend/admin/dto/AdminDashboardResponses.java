@@ -57,16 +57,4 @@ public class AdminDashboardResponses {
             AiUsageSummary aiUsage,
             List<SupplementAssignee> supplementAssignees) {}
 
-    public record ProjectListItem(
-            Long id,
-            String projectName,
-            String contractNo,
-            String statusCode,
-            String constructionStartDate,
-            String constructionEndDate,
-            BigDecimal progressRate,
-            BigDecimal usageRate,
-            String assignees) {}
-
-    public record ProjectListResponse(long totalCount, List<ProjectListItem> items) {}
 }

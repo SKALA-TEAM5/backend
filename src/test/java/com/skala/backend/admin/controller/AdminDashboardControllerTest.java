@@ -36,13 +36,13 @@ class AdminDashboardControllerTest {
     @Autowired UserRepository userRepository;
     @Autowired PasswordEncoder passwordEncoder;
 
-    // ─── GET /admin/dashboard ─────────────────────────────────────────────
+    // ─── GET /dashboard ─────────────────────────────────────────────
 
     @Test
     void admin은_대시보드를_조회할_수_있다() throws Exception {
         Cookie adminCookie = loginCookie(createUser("admin"));
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary.totalProjects").isNumber())
                 .andExpect(jsonPath("$.data.summary.reviewNeededProjects").isNumber())
@@ -62,7 +62,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         assign(adminCookie, projectId, userId);
 
-        mockMvc.perform(get("/admin/dashboard").cookie(userCookie))
+        mockMvc.perform(get("/dashboard").cookie(userCookie))
                 .andExpect(status().isForbidden());
     }
 
@@ -70,13 +70,13 @@ class AdminDashboardControllerTest {
     void system_admin은_대시보드에_접근할_수_없다() throws Exception {
         Cookie saCookie = loginCookie(createUser("system_admin"));
 
-        mockMvc.perform(get("/admin/dashboard").cookie(saCookie))
+        mockMvc.perform(get("/dashboard").cookie(saCookie))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void 인증없이_대시보드_접근하면_401을_반환한다() throws Exception {
-        mockMvc.perform(get("/admin/dashboard"))
+        mockMvc.perform(get("/dashboard"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -88,7 +88,7 @@ class AdminDashboardControllerTest {
         createProject(adminCookie);
         createProject(adminCookie);
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary.totalProjects").value(before + 2));
     }
@@ -101,7 +101,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertStatement(projectId, "upload_completed");
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary.reviewNeededProjects").value(before + 1));
     }
@@ -114,7 +114,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertStatement(projectId, "draft");
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary.reviewNeededProjects").value(before));
     }
@@ -129,7 +129,7 @@ class AdminDashboardControllerTest {
         assign(adminCookie, projectId, userId);
         insertStatementCurrentMonth(projectId, "supplement_required");
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.supplementAssignees", hasSize(greaterThanOrEqualTo(1))))
                 .andExpect(jsonPath("$.data.supplementAssignees[0].supplementCount").value(greaterThanOrEqualTo(1)));
@@ -143,7 +143,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.aiUsage.total.callCount").value(greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.data.aiUsage.topUsers", hasSize(greaterThanOrEqualTo(1))))
@@ -159,7 +159,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.aiUsage.topUsers[0].roleCode").isString());
     }
@@ -172,7 +172,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "legal", 500L, 300L, new java.math.BigDecimal("0.0001"));
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.aiUsage.topProjects[0].type").value("project"));
     }
@@ -185,7 +185,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.aiUsage.total.totalInputTokens").isNumber())
                 .andExpect(jsonPath("$.data.aiUsage.total.totalOutputTokens").isNumber());
@@ -200,7 +200,7 @@ class AdminDashboardControllerTest {
         assign(adminCookie, projectId, userId);
         insertStatementCurrentMonth(projectId, "supplement_required");
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.supplementAssignees[0].roleCode").isString());
     }
@@ -214,7 +214,7 @@ class AdminDashboardControllerTest {
         // 과거 월(2026-05) upload_completed 삽입
         insertStatement(projectId, "upload_completed");
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary.reviewNeededProjects").value(before + 1));
     }
@@ -227,18 +227,18 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertStatement(projectId, "review_completed");
 
-        mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary.reviewNeededProjects").value(before));
     }
 
-    // ─── GET /admin/dashboard/ai-usage ───────────────────────────────────
+    // ─── GET /dashboard/ai-usage ───────────────────────────────────
 
     @Test
     void admin은_ai_사용량을_조회할_수_있다() throws Exception {
         Cookie adminCookie = loginCookie(createUser("admin"));
 
-        mockMvc.perform(get("/admin/dashboard/ai-usage").cookie(adminCookie))
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total.totalInputTokens").isNumber())
                 .andExpect(jsonPath("$.data.total.totalOutputTokens").isNumber())
@@ -257,7 +257,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         assign(adminCookie, projectId, userId);
 
-        mockMvc.perform(get("/admin/dashboard/ai-usage").cookie(userCookie))
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(userCookie))
                 .andExpect(status().isForbidden());
     }
 
@@ -269,7 +269,7 @@ class AdminDashboardControllerTest {
         int projectId = createProject(adminCookie);
         insertUsageRecord(userId, projectId, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
 
-        mockMvc.perform(get("/admin/dashboard/ai-usage")
+        mockMvc.perform(get("/dashboard/ai-usage")
                         .cookie(adminCookie)
                         .param("year", "2026")
                         .param("month", "6"))
@@ -281,158 +281,11 @@ class AdminDashboardControllerTest {
     void ai_사용량_year만_전달하면_연도_전체_집계한다() throws Exception {
         Cookie adminCookie = loginCookie(createUser("admin"));
 
-        mockMvc.perform(get("/admin/dashboard/ai-usage")
+        mockMvc.perform(get("/dashboard/ai-usage")
                         .cookie(adminCookie)
                         .param("year", "2026"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total.callCount").isNumber());
-    }
-
-    // ─── GET /admin/dashboard/projects ───────────────────────────────────
-
-    @Test
-    void admin은_프로젝트_목록을_조회할_수_있다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        createProject(adminCookie);
-
-        mockMvc.perform(get("/admin/dashboard/projects").cookie(adminCookie))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalCount").value(greaterThanOrEqualTo(1)))
-                .andExpect(jsonPath("$.data.items").isArray())
-                .andExpect(jsonPath("$.data.items[0].id").isNumber())
-                .andExpect(jsonPath("$.data.items[0].progressRate").isNumber())
-                .andExpect(jsonPath("$.data.items[0].usageRate").isNumber());
-    }
-
-    @Test
-    void user는_프로젝트_목록에_접근할_수_없다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        Map<String, String> user = createUser("user");
-        Cookie userCookie = loginCookie(user);
-        int userId = readUserId(user);
-        int projectId = createProject(adminCookie);
-        assign(adminCookie, projectId, userId);
-
-        mockMvc.perform(get("/admin/dashboard/projects").cookie(userCookie))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void keyword로_프로젝트_이름_검색이_가능하다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        String uniqueName = "검색테스트-" + UUID.randomUUID();
-        createProject(adminCookie, uniqueName);
-
-        mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie)
-                        .param("keyword", uniqueName))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalCount").value(1))
-                .andExpect(jsonPath("$.data.items[0].projectName").value(uniqueName));
-    }
-
-    @Test
-    void 존재하지_않는_keyword는_빈_목록을_반환한다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-
-        mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie)
-                        .param("keyword", "절대없는프로젝트이름XYZ123"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalCount").value(0))
-                .andExpect(jsonPath("$.data.items").isEmpty());
-    }
-
-    @Test
-    void statusCode로_프로젝트_상태_필터링이_가능하다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        createProject(adminCookie);
-
-        mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie)
-                        .param("statusCode", "active"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[*].statusCode", everyItem(equalTo("active"))));
-    }
-
-    @Test
-    void assigneeName으로_담당자_필터링이_가능하다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        Map<String, String> user = createUser("user");
-        Cookie userCookie = loginCookie(user);
-        int userId = readUserId(user);
-        int projectId = createProject(adminCookie);
-        assign(adminCookie, projectId, userId);
-        String userName = userCookie.getValue(); // not the name, let's get it another way
-
-        // 조회해서 담당자 이름 가져오기
-        MvcResult result = mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie))
-                .andReturn();
-        String assigneesJson = objectMapper.readTree(result.getResponse().getContentAsString())
-                .path("data").path("items").toString();
-
-        // 담당자 이름으로 필터 → 홍길동 (createUser의 realName)
-        mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie)
-                        .param("assigneeName", "홍길동"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalCount").value(greaterThanOrEqualTo(1)));
-    }
-
-    @Test
-    void startDate_오름차순_정렬이_동작한다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        createProject(adminCookie);
-        createProject(adminCookie);
-
-        mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie)
-                        .param("sortBy", "startDate")
-                        .param("sortDir", "asc"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items").isArray());
-    }
-
-    @Test
-    void 잘못된_sortBy는_기본값으로_처리된다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        createProject(adminCookie);
-
-        mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie)
-                        .param("sortBy", "invalid_column"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items").isArray());
-    }
-
-    @Test
-    void 페이징이_동작한다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        createProject(adminCookie);
-        createProject(adminCookie);
-        createProject(adminCookie);
-
-        mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie)
-                        .param("page", "1")
-                        .param("size", "2"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items", hasSize(lessThanOrEqualTo(2))));
-    }
-
-    @Test
-    void 프로젝트_목록에_담당자_정보가_포함된다() throws Exception {
-        Cookie adminCookie = loginCookie(createUser("admin"));
-        Map<String, String> user = createUser("user");
-        int userId = readUserId(user);
-        int projectId = createProject(adminCookie);
-        assign(adminCookie, projectId, userId);
-
-        mockMvc.perform(get("/admin/dashboard/projects")
-                        .cookie(adminCookie)
-                        .param("keyword", "테스트"))
-                .andExpect(status().isOk());
     }
 
     // ─── fixtures ─────────────────────────────────────────────────────────
@@ -535,14 +388,14 @@ class AdminDashboardControllerTest {
     }
 
     private int getDashboardTotalProjects(Cookie adminCookie) throws Exception {
-        MvcResult result = mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        MvcResult result = mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("summary").path("totalProjects").asInt();
     }
 
     private int getDashboardReviewNeeded(Cookie adminCookie) throws Exception {
-        MvcResult result = mockMvc.perform(get("/admin/dashboard").cookie(adminCookie))
+        MvcResult result = mockMvc.perform(get("/dashboard").cookie(adminCookie))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("summary").path("reviewNeededProjects").asInt();
