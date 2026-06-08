@@ -1,7 +1,8 @@
 package com.skala.backend.dashboard.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.List;
 
 public final class DashboardResponses {
@@ -13,29 +14,14 @@ public final class DashboardResponses {
             long reviewRequiredCount
     ) {}
 
-    public record ProjectRow(
-            Long projectId,
-            String projectName,
-            String contractNo,
-            String statusCode,
-            LocalDate startDate,
-            LocalDate endDate,
-            BigDecimal progressRate,
-            BigDecimal usageRate,
-            List<String> managers
-    ) {}
-
-    public record ProjectList(
-            long total,
-            List<ProjectRow> items
-    ) {}
-
+    @Schema(name = "DashboardAiUsageTotal")
     public record AiUsageTotal(
             long totalTokens,
             long totalCalls,
             BigDecimal totalCostUsd
     ) {}
 
+    @Schema(name = "DashboardAiUsageByUser")
     public record AiUsageByUser(
             Long userId,
             String userName,
@@ -45,6 +31,7 @@ public final class DashboardResponses {
             long callCount
     ) {}
 
+    @Schema(name = "DashboardAiUsageByProject")
     public record AiUsageByProject(
             Long projectId,
             String projectName,

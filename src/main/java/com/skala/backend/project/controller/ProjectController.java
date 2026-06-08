@@ -47,6 +47,7 @@ public class ProjectController {
 
 	@GetMapping
 	@Operation(
+			tags = {"프로젝트", "Dashboard"},
 			summary = "프로젝트 목록 조회",
 			description = """
 					프로젝트 카드 목록을 조회합니다.
@@ -84,6 +85,12 @@ public class ProjectController {
 			@Parameter(description = "공사 시작일 검색 종료값입니다.", example = "2026-12-31")
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodTo,
 			@Parameter(
+					description = "사용내역서 상태 필터입니다. 해당 상태의 사용내역서가 하나라도 있는 프로젝트만 반환합니다.",
+					example = "upload_completed",
+					schema = @Schema(allowableValues = {"draft", "upload_completed", "supplement_required", "review_completed"})
+			)
+			@RequestParam(required = false) String usageStatementStatus,
+			@Parameter(
 					description = "정렬 기준입니다.",
 					example = "default",
 					schema = @Schema(allowableValues = {
@@ -114,6 +121,7 @@ public class ProjectController {
 				status,
 				periodFrom,
 				periodTo,
+				usageStatementStatus,
 				sort,
 				page,
 				size

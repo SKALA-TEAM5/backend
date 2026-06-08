@@ -1,5 +1,7 @@
 package com.skala.backend.admin.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -7,12 +9,14 @@ public class AdminDashboardResponses {
 
     public record DashboardSummary(int totalProjects, int reviewNeededProjects) {}
 
+    @Schema(name = "AdminAiUsageTotal")
     public record AiUsageTotal(
             long totalInputTokens,
             long totalOutputTokens,
             long callCount,
             BigDecimal totalCostUsd) {}
 
+    @Schema(name = "AdminAiUsageByAgent")
     public record AiUsageByAgent(
             String agentTypeCode,
             long inputTokens,
@@ -20,6 +24,7 @@ public class AdminDashboardResponses {
             long callCount,
             BigDecimal costUsd) {}
 
+    @Schema(name = "AdminAiUsageByUser")
     public record AiUsageByUser(
             Long userId,
             String userName,
@@ -29,6 +34,7 @@ public class AdminDashboardResponses {
             long callCount,
             BigDecimal costUsd) {}
 
+    @Schema(name = "AdminAiUsageByProject")
     public record AiUsageByProject(
             Long projectId,
             String projectName,

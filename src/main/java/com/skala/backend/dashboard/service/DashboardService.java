@@ -30,20 +30,6 @@ public class DashboardService {
     }
 
     @Transactional(readOnly = true)
-    public DashboardResponses.ProjectList getProjects(
-            Long currentUserId,
-            String keyword, String statusCode, Long managerId,
-            LocalDate periodFrom, LocalDate periodTo,
-            String sortCol, String sortDir,
-            int page, int size
-    ) {
-        projectAccessService.requireAdmin(currentUserId);
-        int safeSize = Math.min(size, 50);
-        return repository.getProjects(keyword, statusCode, managerId, periodFrom, periodTo,
-                sortCol, sortDir, page, safeSize);
-    }
-
-    @Transactional(readOnly = true)
     public DashboardResponses.AiUsage getAiUsage(Long currentUserId, Integer year, Integer month) {
         projectAccessService.requireAdmin(currentUserId);
 

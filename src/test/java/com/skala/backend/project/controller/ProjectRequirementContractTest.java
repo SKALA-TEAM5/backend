@@ -247,8 +247,94 @@ class ProjectRequirementContractTest {
 				.andExpect(jsonPath("$.data.items[0].assigneeNames[0]").value("홍길동"))
 				.andExpect(jsonPath("$.data.items[0].assigneeCount").value(2))
 				.andExpect(jsonPath("$.data.items[0].latestCumulativeProgressRate").value(80))
+				.andExpect(jsonPath("$.data.items[0].usageRate").value(0))
+				.andExpect(jsonPath("$.data.items[0].needCheck").value(false))
 				.andExpect(jsonPath("$.data.items[1].id").value(lowProgressProjectId))
-				.andExpect(jsonPath("$.data.items[1].latestCumulativeProgressRate").value(10));
+				.andExpect(jsonPath("$.data.items[1].latestCumulativeProgressRate").value(10))
+				.andExpect(jsonPath("$.data.items[1].usageRate").value(0))
+				.andExpect(jsonPath("$.data.items[1].needCheck").value(false));
+	}
+
+	@Test
+	void usageRate는_누적지출_대비_책정예산_비율이다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String prefix = "usageRate-" + UUID.randomUUID();
+		int projectId = createProject(managerCookie, prefix);
+		// appropriatedAmount = 10,000,000, 누적지출 3,000,000 + 2,000,000 = 5,000,000 → 50.00%
+		int statementId = insertUsageStatementWithStatus(projectId, "2026-05-01", "upload_completed");
+		insertUsageSummary(statementId, "CAT_01", 3_000_000);
+		insertUsageSummary(statementId, "CAT_02", 2_000_000);
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("projectName", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items[0].usageRate").value(50.00));
+	}
+
+	@Test
+	void needCheck는_최신이_아닌_전체_사용내역서_기준이다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String prefix = "needcheck-all-" + UUID.randomUUID();
+		// 최신은 review_completed이지만 이전 달에 upload_completed가 존재 → needCheck = true
+		int projectId = createProject(managerCookie, prefix);
+		insertUsageStatementWithStatus(projectId, "2026-04-01", "upload_completed");
+		insertUsageStatementWithStatus(projectId, "2026-05-01", "review_completed");
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("projectName", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items[0].needCheck").value(true));
+	}
+
+	@Test
+	void needCheck는_draft와_review_completed만_있으면_false이다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String prefix = "needcheck-false-" + UUID.randomUUID();
+		int projectId = createProject(managerCookie, prefix);
+		insertUsageStatementWithStatus(projectId, "2026-04-01", "draft");
+		insertUsageStatementWithStatus(projectId, "2026-05-01", "review_completed");
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("projectName", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items[0].needCheck").value(false));
+	}
+
+	@Test
+	void usageStatementStatus_필터가_동작한다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String prefix = "us-filter-" + UUID.randomUUID();
+		int p1 = createProject(managerCookie, prefix + "-upload");
+		insertUsageStatementWithStatus(p1, "2026-05-01", "upload_completed");
+		int p2 = createProject(managerCookie, prefix + "-supplement");
+		insertUsageStatementWithStatus(p2, "2026-05-01", "supplement_required");
+		int p3 = createProject(managerCookie, prefix + "-draft");
+		insertUsageStatementWithStatus(p3, "2026-05-01", "draft");
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("projectName", prefix)
+						.param("usageStatementStatus", "upload_completed"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(p1));
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("projectName", prefix)
+						.param("usageStatementStatus", "supplement_required"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(p2));
+
+		mockMvc.perform(get("/projects")
+						.cookie(managerCookie)
+						.param("projectName", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(3)));
 	}
 
 	@Test
@@ -588,6 +674,23 @@ class ProjectRequirementContractTest {
 					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate)
 				VALUES (?, ?::date, ?, ?::date, ?)
 				""", projectId, reportMonth, revisionNo, reportMonth, progressRate);
+	}
+
+	private int insertUsageStatementWithStatus(int projectId, String reportMonth, String statusCode) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.usage_statements
+					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate, status_code)
+				VALUES (?, ?::date, 1, ?::date, 0, ?)
+				RETURNING id
+				""", Integer.class, projectId, reportMonth, reportMonth, statusCode);
+	}
+
+	private void insertUsageSummary(int statementId, String categoryCode, long cumulativeAmount) {
+		jdbcTemplate.update("""
+				INSERT INTO service.usage_statement_summaries
+					(usage_statement_id, category_code, previous_amount, current_amount, cumulative_amount)
+				VALUES (?, ?, 0, ?, ?)
+				""", statementId, categoryCode, cumulativeAmount, cumulativeAmount);
 	}
 
 	private int insertUsageStatementId(int projectId, String reportMonth, int revisionNo, int progressRate) {

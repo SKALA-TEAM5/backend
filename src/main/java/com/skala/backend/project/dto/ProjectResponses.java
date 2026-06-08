@@ -43,7 +43,7 @@ public final class ProjectResponses {
 			@Schema(description = "프로젝트 담당자 목록") List<AssigneeResponse> assignees
 	) {}
 
-	@Schema(description = "프로젝트 목록 카드 정보")
+	@Schema(name = "ProjectCardResponse", description = "프로젝트 목록 카드 정보")
 	public record CardResponse(
 			@Schema(description = "프로젝트 ID", example = "1") Long id,
 			@Schema(description = "프로젝트명", example = "스마트 안전관리 시스템 구축") String projectName,
@@ -52,23 +52,25 @@ public final class ProjectResponses {
 			@Schema(description = "계약번호", example = "CN-2026-001") String contractNo,
 			@Schema(description = "공사 시작일", example = "2026-01-01") LocalDate constructionStartDate,
 			@Schema(description = "공사 종료일", example = "2026-12-31") LocalDate constructionEndDate,
-			@Schema(description = "최근 누적 공정률", example = "35.5") BigDecimal latestCumulativeProgressRate,
+			@Schema(description = "최근 누적 공정률 (%)", example = "35.50") BigDecimal latestCumulativeProgressRate,
+			@Schema(description = "안전관리비 사용률 (누적 지출 / 책정 예산 × 100, %)", example = "22.30") BigDecimal usageRate,
 			@Schema(description = "프로젝트 상태", example = "active") ProjectStatusCode status,
 			@Schema(description = "관리자가 아직 확인하지 않은 매칭 파일 수", example = "3") long uncheckedMatchedFileCount,
-			@Schema(description = "최신 사용내역서 상태", example = "upload_completed") String latestUsageStatementStatusCode
+			@Schema(description = "최신 사용내역서 상태", example = "upload_completed") String latestUsageStatementStatusCode,
+			@Schema(description = "검토 필요 여부 (소속 사용내역서 중 upload_completed 또는 supplement_required 상태가 하나라도 있으면 true)", example = "true") boolean needCheck
 	) {
 		public static CardResponse from(ProjectCardRow row, boolean includeUncheckedMatchedFileCount) {
 			return new CardResponse(
 					row.id(), row.projectName(), row.assigneeNames(), row.assigneeCount(),
 					row.contractNo(), row.constructionStartDate(), row.constructionEndDate(),
-					row.latestCumulativeProgressRate(), row.status(),
+					row.latestCumulativeProgressRate(), row.usageRate(), row.status(),
 					includeUncheckedMatchedFileCount ? row.uncheckedMatchedFileCount() : 0,
-					row.latestUsageStatementStatusCode()
+					row.latestUsageStatementStatusCode(), row.needCheck()
 			);
 		}
 	}
 
-	@Schema(description = "프로젝트 목록 응답 데이터")
+	@Schema(name = "ProjectListResponse", description = "프로젝트 목록 응답 데이터")
 	public record ListResponse(
 			@Schema(description = "현재 페이지 번호", example = "1") int page,
 			@Schema(description = "페이지당 항목 수", example = "10") int size,
@@ -77,7 +79,7 @@ public final class ProjectResponses {
 			@Schema(description = "프로젝트 카드 목록") List<CardResponse> items
 	) {}
 
-	@Schema(description = "프로젝트 상세 정보")
+	@Schema(name = "ProjectDetailResponse", description = "프로젝트 상세 정보")
 	public record DetailResponse(
 			@Schema(description = "프로젝트 ID", example = "1") Long id,
 			@Schema(description = "계약번호", example = "CN-2026-001") String contractNo,

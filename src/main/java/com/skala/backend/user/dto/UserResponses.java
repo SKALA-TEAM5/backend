@@ -28,12 +28,12 @@ public final class UserResponses {
 		}
 	}
 
-	@Schema(description = "사용자 상세 응답 데이터")
+	@Schema(name = "UserDetailResponse", description = "사용자 상세 응답 데이터")
 	public record DetailResponse(
 			@Schema(description = "사용자 프로필") ProfileResponse user
 	) {}
 
-	@Schema(description = "사용자 목록 응답 데이터")
+	@Schema(name = "UserListResponse", description = "사용자 목록 응답 데이터")
 	public record ListResponse(
 			@Schema(description = "사용자 목록") List<ProfileResponse> items
 	) {}

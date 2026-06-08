@@ -17,6 +17,7 @@ public interface ProjectRepositoryCustom {
 			LocalDate periodFrom,
 			LocalDate periodTo,
 			Long visibleUserId,
+			String usageStatementStatus,
 			ProjectSort sort,
 			int page,
 			int size

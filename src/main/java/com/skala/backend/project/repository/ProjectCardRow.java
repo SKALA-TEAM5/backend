@@ -17,6 +17,8 @@ public record ProjectCardRow(
 		BigDecimal latestCumulativeProgressRate,
 		ProjectStatusCode status,
 		long uncheckedMatchedFileCount,
-		String latestUsageStatementStatusCode
+		String latestUsageStatementStatusCode,
+		BigDecimal usageRate,
+		boolean needCheck
 ) {
 }
