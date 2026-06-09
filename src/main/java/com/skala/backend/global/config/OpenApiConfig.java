@@ -35,6 +35,7 @@ public class OpenApiConfig {
 			"Agent",
 			"AI 실행",
 			"AI 사용량",
+			"관리자 대시보드",
 			"공통 코드"
 	);
 
@@ -73,6 +74,8 @@ public class OpenApiConfig {
 			"/usage-records/by-agent",
 			"/usage-records/by-month",
 			"/usage-records/by-date",
+			"/dashboard",
+			"/dashboard/ai-usage",
 			"/categories"
 	);
 
@@ -97,6 +100,7 @@ public class OpenApiConfig {
 						new Tag().name("Agent").description("agent_logs 조회 API"),
 						new Tag().name("AI 실행").description("FastAPI Orchestrator 호출 API — 비동기 실행, 결과는 GET /agents/logs로 확인"),
 						new Tag().name("AI 사용량").description("에이전트 토큰 사용량 집계 조회 API — 사용자/프로젝트/에이전트/일별 breakdown"),
+						new Tag().name("관리자 대시보드").description("admin 전용 통계 및 현황 조회 API"),
 						new Tag().name("공통 코드").description("카테고리 등 공통 코드 조회 API")
 				))
 				.components(new Components()

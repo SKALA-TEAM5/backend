@@ -31,6 +31,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 			String projectNamePattern,
 			String contractNoPattern,
 			Long assigneeUserId,
+			String assigneeNamePattern,
 			ProjectStatusCode status,
 			LocalDate periodFrom,
 			LocalDate periodTo,
@@ -54,6 +55,13 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 						FROM service.project_user_assignments pua_filter
 						WHERE pua_filter.project_id = p.id
 							AND pua_filter.user_id = :assigneeUserId
+					))
+					AND (CAST(:assigneeNamePattern AS text) IS NULL OR EXISTS (
+						SELECT 1
+						FROM service.project_user_assignments pua_name
+						JOIN service.users u_name ON u_name.id = pua_name.user_id
+						WHERE pua_name.project_id = p.id
+							AND LOWER(u_name.real_name) LIKE :assigneeNamePattern
 					))
 					AND (CAST(:visibleUserId AS bigint) IS NULL OR EXISTS (
 						SELECT 1
@@ -144,8 +152,8 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 
 		Query selectQuery = entityManager.createNativeQuery(selectSql);
 		Query countQuery = entityManager.createNativeQuery(countSql);
-		bindParameters(selectQuery, keywordPattern, projectNamePattern, contractNoPattern, assigneeUserId, status, periodFrom, periodTo, visibleUserId, usageStatementStatus);
-		bindParameters(countQuery, keywordPattern, projectNamePattern, contractNoPattern, assigneeUserId, status, periodFrom, periodTo, visibleUserId, usageStatementStatus);
+		bindParameters(selectQuery, keywordPattern, projectNamePattern, contractNoPattern, assigneeUserId, assigneeNamePattern, status, periodFrom, periodTo, visibleUserId, usageStatementStatus);
+		bindParameters(countQuery, keywordPattern, projectNamePattern, contractNoPattern, assigneeUserId, assigneeNamePattern, status, periodFrom, periodTo, visibleUserId, usageStatementStatus);
 
 		selectQuery.setFirstResult((page - 1) * size);
 		selectQuery.setMaxResults(size);
@@ -166,6 +174,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 			String projectNamePattern,
 			String contractNoPattern,
 			Long assigneeUserId,
+			String assigneeNamePattern,
 			ProjectStatusCode status,
 			LocalDate periodFrom,
 			LocalDate periodTo,
@@ -176,6 +185,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 		query.setParameter("projectNamePattern", projectNamePattern);
 		query.setParameter("contractNoPattern", contractNoPattern);
 		query.setParameter("assigneeUserId", assigneeUserId);
+		query.setParameter("assigneeNamePattern", assigneeNamePattern);
 		query.setParameter("status", status == null ? null : status.getValue());
 		query.setParameter("periodFrom", periodFrom);
 		query.setParameter("periodTo", periodTo);

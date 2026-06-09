@@ -35,12 +35,10 @@ public class FastApiAgentClient {
 
 	public FastApiAgentClient(
 			RestClient.Builder builder,
-			@Value("${app.fastapi.base-url:http://localhost:8001}") String baseUrl,
-			@Value("${app.fastapi.timeout-seconds:60}") int timeoutSeconds
+			@Value("${app.fastapi.base-url:http://localhost:8001}") String baseUrl
 	) {
 		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
 		factory.setConnectTimeout(Duration.ofSeconds(10));
-		factory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
 
 		this.restClient = builder
 				.baseUrl(baseUrl)

@@ -20,7 +20,9 @@ public enum ProjectSort {
 	START_DATE_ASC("start_date_asc", "p.construction_start_date ASC, p.id DESC"),
 	START_DATE_DESC("start_date_desc", "p.construction_start_date DESC, p.id DESC"),
 	END_DATE_ASC("end_date_asc", "p.construction_end_date ASC, p.id DESC"),
-	END_DATE_DESC("end_date_desc", "p.construction_end_date DESC, p.id DESC");
+	END_DATE_DESC("end_date_desc", "p.construction_end_date DESC, p.id DESC"),
+	USAGE_RATE_ASC("usage_rate_asc", "usage_rate ASC, p.id DESC"),
+	USAGE_RATE_DESC("usage_rate_desc", "usage_rate DESC, p.id DESC");
 
 	private final String value;
 	private final String orderByClause;
