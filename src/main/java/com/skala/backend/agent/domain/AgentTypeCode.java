@@ -11,7 +11,8 @@ public enum AgentTypeCode {
     LINK("link"),
     VISION("vision"),
     LEGAL("legal"),
-    REPORT("report");
+    REPORT("report"),
+    ORCHESTRATOR("orchestrator");
 
     private final String code;
 
