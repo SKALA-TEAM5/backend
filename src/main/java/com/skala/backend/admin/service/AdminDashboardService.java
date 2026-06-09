@@ -49,7 +49,7 @@ public class AdminDashboardService {
                 WHERE EXISTS (
                     SELECT 1 FROM service.usage_statements us
                     WHERE us.project_id = p.id
-                      AND us.status_code = 'upload_completed'
+                      AND us.status_code IN ('upload_completed', 'supplement_required')
                 )
                 """, Integer.class);
 
