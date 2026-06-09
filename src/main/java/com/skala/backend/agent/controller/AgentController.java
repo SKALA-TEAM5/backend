@@ -223,6 +223,22 @@ public class AgentController {
 		return ResponseEntity.ok(ApiResponse.success(result, "보고서 생성이 완료되었습니다."));
 	}
 
+	@GetMapping("/legal")
+	@Operation(
+			tags = {"AI 실행"},
+			summary = "법령 검증 상세 조회",
+			description = "agent_logs에 저장된 최신 법령 검증 데이터(details JSONB)를 반환합니다. 로그가 없으면 404를 반환합니다."
+	)
+	public ResponseEntity<ApiResponse<AgentResponses.LegalDetailResponse>> getLegalDetail(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@Parameter(description = "사용내역서 ID", required = true)
+			@RequestParam Long usageStatementId
+	) {
+		AgentResponses.LegalDetailResponse result = agentLogService.getLegalDetail(currentUser.id(), projectId, usageStatementId);
+		return ResponseEntity.ok(ApiResponse.success(result, "법령 검증 조회에 성공했습니다."));
+	}
+
 	@GetMapping("/report")
 	@Operation(
 			tags = {"AI 실행"},

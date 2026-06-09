@@ -291,6 +291,75 @@ class AgentLogControllerTest {
 				.andExpect(status().isForbidden());
 	}
 
+	// ─── GET /agents/legal ───────────────────────────────────────────────
+
+	@Test
+	void 법령검증_로그가_있으면_details와_resultCode를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertLegalLog(projectId, statementId, "success", "hil", "한도 초과 항목 발견");
+
+		mockMvc.perform(get("/projects/{pid}/agents/legal", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.agentTypeCode").value("legal"))
+				.andExpect(jsonPath("$.data.statusCode").value("success"))
+				.andExpect(jsonPath("$.data.resultCode").value("hil"))
+				.andExpect(jsonPath("$.data.reason").value("한도 초과 항목 발견"))
+				.andExpect(jsonPath("$.data.details").isNotEmpty())
+				.andExpect(jsonPath("$.data.createdAt").exists());
+	}
+
+	@Test
+	void 법령검증_로그가_없으면_404를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+
+		mockMvc.perform(get("/projects/{pid}/agents/legal", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void 법령검증_조회_시_usageStatementId_누락하면_400을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+
+		mockMvc.perform(get("/projects/{pid}/agents/legal", projectId)
+						.cookie(adminCookie))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 쿠키_없이_법령검증을_조회하면_401을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+
+		mockMvc.perform(get("/projects/{pid}/agents/legal", projectId)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void 비담당자_user는_법령검증을_조회할_수_없다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		Cookie outsiderCookie = loginCookie(createUser("user"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertLegalLog(projectId, statementId, "success", "success", null);
+
+		mockMvc.perform(get("/projects/{pid}/agents/legal", projectId)
+						.cookie(outsiderCookie)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isForbidden());
+	}
+
 	// ─── fixtures ─────────────────────────────────────────────────────────
 
 	private Map<String, String> createUser(String roleCode) {
@@ -404,6 +473,14 @@ class AgentLogControllerTest {
 					(project_id, usage_statement_id, agent_type_code, status_code)
 				VALUES (?, ?, ?, 'fail')
 				""", projectId, statementId, agentTypeCode);
+	}
+
+	private void insertLegalLog(int projectId, int statementId, String statusCode, String resultCode, String reason) {
+		jdbcTemplate.update("""
+				INSERT INTO service.agent_logs
+					(project_id, usage_statement_id, agent_type_code, status_code, result_code, reason, details)
+				VALUES (?, ?, 'legal', ?, ?, ?, '{"payload": {"issues": []}}'::jsonb)
+				""", projectId, statementId, statusCode, resultCode, reason);
 	}
 
 	private void insertReportLog(int projectId, int statementId, String statusCode, String createdAt) {
