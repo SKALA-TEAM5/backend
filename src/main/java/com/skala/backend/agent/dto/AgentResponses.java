@@ -52,6 +52,23 @@ public final class AgentResponses {
 			                              @Schema(description = "보고서 초안 (report agent 전용, 나머지는 null)") Map<String, Object> reportDraft
 	) {}
 
+	@Schema(description = "법령 검증 상세 조회 응답 (agent_logs.details 포함)")
+	public record LegalDetailResponse(
+			@Schema(description = "에이전트 유형", example = "legal") String agentTypeCode,
+			@Schema(description = "실행 상태", example = "success") String statusCode,
+			@Schema(description = "판단 결과", example = "hil") String resultCode,
+			@Schema(description = "프론트 표시용 사유") String reason,
+			@Schema(description = "법령 검증 내용 (JSON)") String details,
+			@Schema(description = "생성일시") Instant createdAt
+	) {
+		public static LegalDetailResponse from(AgentLog log) {
+			return new LegalDetailResponse(
+					log.getAgentTypeCode(), log.getStatusCode(), log.getResultCode(),
+					log.getReason(), log.getDetails(), log.getCreatedAt()
+			);
+		}
+	}
+
 	@Schema(description = "보고서 상세 조회 응답 (agent_logs.details 포함)")
 	public record ReportDetailResponse(
 			@Schema(description = "에이전트 유형", example = "report") String agentTypeCode,
