@@ -54,6 +54,16 @@ public class AgentLogService {
     }
 
     @Transactional(readOnly = true)
+    public AgentResponses.LegalDetailResponse getLegalDetail(Long currentUserId, Long projectId, Long usageStatementId) {
+        projectAccessService.requireReadable(currentUserId, projectId);
+        AgentLog log = agentLogRepository
+                .findTopByProjectIdAndUsageStatementIdAndAgentTypeCodeOrderByCreatedAtDesc(
+                        projectId, usageStatementId, AgentTypeCode.LEGAL)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "법령 검증 데이터가 없습니다."));
+        return AgentResponses.LegalDetailResponse.from(log);
+    }
+
+    @Transactional(readOnly = true)
     public AgentResponses.ReportDetailResponse getReportDetail(Long currentUserId, Long projectId, Long usageStatementId) {
         projectAccessService.requireReadable(currentUserId, projectId);
         AgentLog log = agentLogRepository

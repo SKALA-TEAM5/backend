@@ -100,6 +100,26 @@ class ProjectFileDetailControllerTest {
     }
 
     @Test
+    void 목록_조회_시_detail의_JSON_내용이_DB_저장값과_정확히_일치한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int userId = readUserId(createUser("admin"));
+        insertFile(userId, projectId, "{\"exif\":{\"lat\":37.5,\"lon\":127.0}}");
+
+        MvcResult result = mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(cookie))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String detailStr = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("items").get(0).path("detail").asText();
+        Map<?, ?> actual = objectMapper.readValue(detailStr, Map.class);
+        Map<?, ?> exif = (Map<?, ?>) actual.get("exif");
+
+        org.assertj.core.api.Assertions.assertThat(exif.get("lat")).isEqualTo(37.5);
+        org.assertj.core.api.Assertions.assertThat(exif.get("lon")).isEqualTo(127.0);
+    }
+
+    @Test
     void detail_있는_파일과_없는_파일이_혼재하면_각각_정확히_반환된다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
