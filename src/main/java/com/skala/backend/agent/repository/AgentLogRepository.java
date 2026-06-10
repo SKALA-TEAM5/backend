@@ -4,8 +4,10 @@ import com.skala.backend.agent.domain.AgentLog;
 import com.skala.backend.agent.domain.AgentLogStatus;
 import com.skala.backend.agent.domain.AgentTypeCode;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -120,5 +122,38 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
     List<AgentWarningRow> findWarnings(
             @Param("projectId") Long projectId,
             @Param("usageStatementId") Long usageStatementId
+    );
+
+    @Query(nativeQuery = true, value = """
+            SELECT EXISTS(
+                SELECT 1 FROM service.agent_logs
+                WHERE usage_statement_id = :statementId
+                  AND agent_type_code    = :agentTypeCode
+                  AND status_code        IN ('running', 'pending')
+                  AND usage_statement_item_id IS NULL
+                  AND COALESCE(updated_at, created_at) >= NOW() - (:thresholdSeconds * INTERVAL '1 second')
+            )
+            """)
+    boolean existsActiveNonStaleLog(
+            @Param("statementId")       Long   usageStatementId,
+            @Param("agentTypeCode")     String agentTypeCode,
+            @Param("thresholdSeconds")  int    thresholdSeconds
+    );
+
+    @Transactional
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            INSERT INTO service.agent_logs
+                (project_id, usage_statement_id, agent_type_code, status_code, created_at, updated_at)
+            VALUES
+                (:projectId, :statementId, :agentTypeCode, 'fail', NOW(), NOW())
+            ON CONFLICT (usage_statement_id, agent_type_code)
+            WHERE usage_statement_item_id IS NULL
+            DO UPDATE SET status_code = 'fail'
+            """)
+    void upsertStatementLogFail(
+            @Param("projectId")     Long   projectId,
+            @Param("statementId")   Long   usageStatementId,
+            @Param("agentTypeCode") String agentTypeCode
     );
 }

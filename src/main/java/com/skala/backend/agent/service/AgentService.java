@@ -1,17 +1,16 @@
 package com.skala.backend.agent.service;
 
 import com.skala.backend.agent.client.FastApiAgentClient;
-import com.skala.backend.agent.domain.AgentLogStatus;
 import com.skala.backend.agent.domain.AgentTypeCode;
 import com.skala.backend.agent.dto.AgentRequests;
 import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.agent.repository.AgentLogRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.ProjectAccessService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 
 @Service
 public class AgentService {
@@ -19,12 +18,23 @@ public class AgentService {
 	private final FastApiAgentClient fastApiAgentClient;
 	private final ProjectAccessService projectAccessService;
 	private final AgentLogRepository agentLogRepository;
+	private final AgentAsyncService agentAsyncService;
+	private final int validateStaleSeconds;
+	private final int legalStaleSeconds;
+	private final int reportStaleSeconds;
 
 	public AgentService(FastApiAgentClient fastApiAgentClient, ProjectAccessService projectAccessService,
-			AgentLogRepository agentLogRepository) {
+			AgentLogRepository agentLogRepository, AgentAsyncService agentAsyncService,
+			@Value("${app.fastapi.stale-threshold.validate-seconds:900}") int validateStaleSeconds,
+			@Value("${app.fastapi.stale-threshold.legal-seconds:900}")    int legalStaleSeconds,
+			@Value("${app.fastapi.stale-threshold.report-seconds:900}")   int reportStaleSeconds) {
 		this.fastApiAgentClient = fastApiAgentClient;
 		this.projectAccessService = projectAccessService;
 		this.agentLogRepository = agentLogRepository;
+		this.agentAsyncService = agentAsyncService;
+		this.validateStaleSeconds = validateStaleSeconds;
+		this.legalStaleSeconds = legalStaleSeconds;
+		this.reportStaleSeconds = reportStaleSeconds;
 	}
 
 	public AgentResponses.ParseResult parse(Long currentUserId, Long projectId, AgentRequests.ParseRequest request) {
@@ -32,12 +42,21 @@ public class AgentService {
 		return fastApiAgentClient.parseUsageStatement(projectId, request.fileId());
 	}
 
-	public List<AgentResponses.AgentRunResult> validate(Long currentUserId, Long projectId, AgentRequests.ValidateRequest request) {
+	public void validate(Long currentUserId, Long projectId, AgentRequests.ValidateRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
-		return fastApiAgentClient.runValidation(projectId, request.usageStatementId(), currentUserId);
+		Long sid = request.usageStatementId();
+		if (!agentLogRepository.existsStatementLogWithExactResultCode(sid, AgentTypeCode.CLASSI.getCode(), "success")) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "parse를 먼저 실행해야 합니다.");
+		}
+		if (agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.SAFETY_DOC.getCode(), validateStaleSeconds)
+				|| agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.LINK.getCode(), validateStaleSeconds)
+				|| agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.VISION.getCode(), validateStaleSeconds)) {
+			throw new ApiException(HttpStatus.CONFLICT, "현재 실행 중입니다.");
+		}
+		agentAsyncService.fireValidate(projectId, sid, currentUserId);
 	}
 
-	public AgentResponses.AgentRunResult legal(Long currentUserId, Long projectId, AgentRequests.LegalRequest request) {
+	public void legal(Long currentUserId, Long projectId, AgentRequests.LegalRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		Long sid = request.usageStatementId();
 		if (!agentLogRepository.existsStatementLogWithSuccessOrHil(sid, AgentTypeCode.SAFETY_DOC.getCode())) {
@@ -51,39 +70,36 @@ public class AgentService {
 				&& !agentLogRepository.existsStatementLogWithSuccessOrHil(sid, AgentTypeCode.VISION.getCode())) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "vision 검증을 통과해야 합니다.");
 		}
-		if (agentLogRepository.existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(
-				sid, AgentTypeCode.LEGAL, List.of(AgentLogStatus.RUNNING, AgentLogStatus.PENDING))) {
+		if (agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.LEGAL.getCode(), legalStaleSeconds)) {
 			throw new ApiException(HttpStatus.CONFLICT, "현재 실행 중입니다.");
 		}
-		return fastApiAgentClient.runLegal(projectId, sid, currentUserId);
+		agentAsyncService.fireLegal(projectId, sid, currentUserId);
 	}
 
-	public AgentResponses.AgentRunResult report(Long currentUserId, Long projectId, AgentRequests.ReportRequest request) {
+	public void report(Long currentUserId, Long projectId, AgentRequests.ReportRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		Long sid = request.usageStatementId();
 		if (!agentLogRepository.existsStatementLogWithSuccessOrHil(sid, AgentTypeCode.LEGAL.getCode())) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "legal을 먼저 실행해야 합니다.");
 		}
-		if (agentLogRepository.existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(
-				sid, AgentTypeCode.REPORT, List.of(AgentLogStatus.RUNNING, AgentLogStatus.PENDING))) {
+		if (agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.REPORT.getCode(), reportStaleSeconds)) {
 			throw new ApiException(HttpStatus.CONFLICT, "현재 실행 중입니다.");
 		}
-		return fastApiAgentClient.runReport(projectId, sid, currentUserId);
+		agentAsyncService.fireReport(projectId, sid, currentUserId);
 	}
 
 	public AgentResponses.ButtonStatesResponse getButtonStates(Long currentUserId, Long projectId, Long usageStatementId) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 
-		List<AgentLogStatus> running = List.of(AgentLogStatus.RUNNING, AgentLogStatus.PENDING);
 		Long sid = usageStatementId;
 
 		// validate
 		boolean classiPassed = agentLogRepository.existsStatementLogWithExactResultCode(
 				sid, AgentTypeCode.CLASSI.getCode(), "success");
 		boolean validateRunning =
-				agentLogRepository.existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(sid, AgentTypeCode.SAFETY_DOC, running)
-				|| agentLogRepository.existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(sid, AgentTypeCode.LINK, running)
-				|| agentLogRepository.existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(sid, AgentTypeCode.VISION, running);
+				agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.SAFETY_DOC.getCode(), validateStaleSeconds)
+				|| agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.LINK.getCode(), validateStaleSeconds)
+				|| agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.VISION.getCode(), validateStaleSeconds);
 
 		AgentResponses.ButtonState validateState;
 		if (validateRunning) {
@@ -95,8 +111,8 @@ public class AgentService {
 		}
 
 		// legal
-		boolean legalRunning = agentLogRepository
-				.existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(sid, AgentTypeCode.LEGAL, running);
+		boolean legalRunning =
+				agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.LEGAL.getCode(), legalStaleSeconds);
 		boolean safetyDocPassed = agentLogRepository.existsStatementLogWithSuccessOrHil(sid, AgentTypeCode.SAFETY_DOC.getCode());
 		boolean linkExists = agentLogRepository.existsByUsageStatementIdAndAgentTypeCodeAndUsageStatementItemIdIsNull(sid, AgentTypeCode.LINK);
 		boolean linkPassed = !linkExists || agentLogRepository.existsStatementLogWithSuccessOrHil(sid, AgentTypeCode.LINK.getCode());
@@ -115,8 +131,8 @@ public class AgentService {
 		}
 
 		// report
-		boolean reportRunning = agentLogRepository
-				.existsByUsageStatementIdAndAgentTypeCodeAndStatusInAndUsageStatementItemIdIsNull(sid, AgentTypeCode.REPORT, running);
+		boolean reportRunning =
+				agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.REPORT.getCode(), reportStaleSeconds);
 		boolean legalPassed = agentLogRepository.existsStatementLogWithSuccessOrHil(sid, AgentTypeCode.LEGAL.getCode());
 
 		AgentResponses.ButtonState reportState;

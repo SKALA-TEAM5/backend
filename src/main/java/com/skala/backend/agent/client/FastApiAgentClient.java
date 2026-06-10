@@ -39,6 +39,7 @@ public class FastApiAgentClient {
 	) {
 		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
 		factory.setConnectTimeout(Duration.ofSeconds(10));
+		factory.setReadTimeout(Duration.ofMinutes(15));
 
 		this.restClient = builder
 				.baseUrl(baseUrl)
