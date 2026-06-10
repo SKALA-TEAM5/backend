@@ -59,7 +59,8 @@ public class SecurityConfig {
 								"/swagger-ui/**",
 								"/swagger-ui.html",
 								"/actuator/health/**",
-								"/actuator/prometheus"
+								"/actuator/prometheus",
+								"/error"
 						).permitAll()
 						.anyRequest().authenticated())
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

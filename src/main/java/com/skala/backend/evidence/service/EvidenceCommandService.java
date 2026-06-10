@@ -14,6 +14,7 @@ import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
 import com.skala.backend.usage.domain.UsageStatement;
 import com.skala.backend.usage.domain.UsageStatementItem;
+import com.skala.backend.usage.repository.UsageStatementItemRepository;
 import com.skala.backend.usage.repository.UsageStatementRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,7 @@ public class EvidenceCommandService {
 	private final ProjectFileRepository fileRepository;
 	private final CodeLookupService codeLookupService;
 	private final UsageStatementRepository usageStatementRepository;
+	private final UsageStatementItemRepository usageStatementItemRepository;
 
 	public EvidenceCommandService(
 			ProjectAccessService projectAccessService,
@@ -43,7 +45,8 @@ public class EvidenceCommandService {
 			EvidenceRequirementRepository requirementRepository,
 			ProjectFileRepository fileRepository,
 			CodeLookupService codeLookupService,
-			UsageStatementRepository usageStatementRepository
+			UsageStatementRepository usageStatementRepository,
+			UsageStatementItemRepository usageStatementItemRepository
 	) {
 		this.projectAccessService = projectAccessService;
 		this.evidenceQueryService = evidenceQueryService;
@@ -52,6 +55,7 @@ public class EvidenceCommandService {
 		this.fileRepository = fileRepository;
 		this.codeLookupService = codeLookupService;
 		this.usageStatementRepository = usageStatementRepository;
+		this.usageStatementItemRepository = usageStatementItemRepository;
 	}
 
 	@Transactional
@@ -73,7 +77,7 @@ public class EvidenceCommandService {
 					request.evidenceTypeCode()
 			));
 			recalculateRequirements(item.getId());
-			revertToDraftIfSupplementRequired(item.getUsageStatementId());
+			revertToDraftIfNeeded(item.getUsageStatementId());
 			return new EvidenceLinkResponse(link.getId());
 		} catch (DataIntegrityViolationException exception) {
 			throw new ApiException(HttpStatus.CONFLICT, "이미 연결된 파일입니다.");
@@ -97,7 +101,7 @@ public class EvidenceCommandService {
 		link.moveTo(targetItem.getId(), request.evidenceTypeCode());
 		recalculateRequirements(previousItemId);
 		recalculateRequirements(targetItem.getId());
-		revertToDraftIfSupplementRequired(targetItem.getUsageStatementId());
+		revertToDraftIfNeeded(targetItem.getUsageStatementId());
 		return new EvidenceLinkResponse(link.getId());
 	}
 
@@ -111,7 +115,7 @@ public class EvidenceCommandService {
 		linkRepository.delete(link);
 		linkRepository.flush();
 		recalculateRequirements(itemId);
-		revertToDraftIfSupplementRequired(item.getUsageStatementId());
+		revertToDraftIfNeeded(item.getUsageStatementId());
 	}
 
 	@Transactional
@@ -122,6 +126,10 @@ public class EvidenceCommandService {
 		linkRepository.flush();
 		if (!itemIds.isEmpty()) {
 			recalculateRequirementsForItems(itemIds);
+			Set<Long> statementIds = usageStatementItemRepository.findAllById(itemIds).stream()
+					.map(item -> item.getUsageStatementId())
+					.collect(Collectors.toSet());
+			statementIds.forEach(this::revertToDraftIfNeeded);
 		}
 	}
 
@@ -160,7 +168,7 @@ public class EvidenceCommandService {
 		}
 	}
 
-	private void revertToDraftIfSupplementRequired(Long usageStatementId) {
+	private void revertToDraftIfNeeded(Long usageStatementId) {
 		usageStatementRepository.findById(usageStatementId)
 				.ifPresent(UsageStatement::revertToDraft);
 	}

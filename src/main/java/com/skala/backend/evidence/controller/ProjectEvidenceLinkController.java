@@ -140,7 +140,10 @@ public class ProjectEvidenceLinkController {
 		return ResponseEntity.ok(ApiResponse.success(response, "상세항목 증빙 파일 조회에 성공했습니다."));
 	}
 
-	@GetMapping("/usage-statement-items/{itemId}/evidence-requirements")
+	@GetMapping({
+			"/usage-statement-items/{itemId}/evidence-requirements",
+			"/usage-statements/{usageStatementId}/line-items/{itemId}/evidence-requirements"
+	})
 	@Operation(
 			tags = {"에이전트 경고"},
 			summary = "상세항목 서류 충족 현황 조회",
