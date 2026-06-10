@@ -61,12 +61,12 @@ public class ChatbotController {
 										emitter.send(line);
 									} catch (IOException e) {
 										log.warn("[ChatbotController] 전송 실패 (클라이언트 연결 끊김): {}", e.getMessage());
-										emitter.completeWithError(e);
+										emitter.complete();
 									}
 								},
 								error -> {
 									log.error("[ChatbotController] FastAPI 스트리밍 오류: {}", error.getMessage());
-									emitter.completeWithError(error);
+									emitter.complete();
 								},
 								emitter::complete
 						)
