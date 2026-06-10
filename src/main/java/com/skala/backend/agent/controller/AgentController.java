@@ -168,15 +168,15 @@ public class AgentController {
 	@Operation(
 			tags = {"AI 실행"},
 			summary = "유효성 검증 (link + vision + safety-doc)",
-			description = "증빙 파일의 유효성을 검증합니다. link, vision, safety-doc agent가 동시에 실행됩니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환."
+			description = "증빙 파일의 유효성을 검증합니다. link, vision, safety-doc agent가 비동기로 실행됩니다. 202 즉시 반환 — 진행 상태는 button-states 폴링으로 확인하세요."
 	)
-	public ResponseEntity<ApiResponse<List<AgentResponses.AgentRunResult>>> validate(
+	public ResponseEntity<ApiResponse<Void>> validate(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@Valid @RequestBody AgentRequests.ValidateRequest request
 	) {
-		List<AgentResponses.AgentRunResult> result = agentService.validate(currentUser.id(), projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(result, "유효성 검증이 완료되었습니다."));
+		agentService.validate(currentUser.id(), projectId, request);
+		return ResponseEntity.accepted().body(ApiResponse.success(null, "유효성 검증이 시작되었습니다."));
 	}
 
 	@PostMapping("/legal")
@@ -184,22 +184,22 @@ public class AgentController {
 			tags = {"AI 실행"},
 			summary = "법령 검증 (legal)",
 			description = """
-					사용내역서 항목의 법령 적합성을 검증합니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환.
+					사용내역서 항목의 법령 적합성을 검증합니다. 202 즉시 반환 — 진행 상태는 button-states 폴링으로 확인하세요.
 
 					**실행 선행 조건 (미충족 시 400)**
 					- `safety-doc` 로그가 `status=success AND result_code IN (success, hil)` 이어야 함
 					- `link` 로그가 존재하는 경우 동일 조건 충족 필요
 					- `vision` 로그가 존재하는 경우 동일 조건 충족 필요
-					- legal이 이미 running/pending이면 409
+					- legal이 실행 중(3분 이내)이면 409
 					"""
 	)
-	public ResponseEntity<ApiResponse<AgentResponses.AgentRunResult>> legal(
+	public ResponseEntity<ApiResponse<Void>> legal(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@Valid @RequestBody AgentRequests.LegalRequest request
 	) {
-		AgentResponses.AgentRunResult result = agentService.legal(currentUser.id(), projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(result, "법령 검증이 완료되었습니다."));
+		agentService.legal(currentUser.id(), projectId, request);
+		return ResponseEntity.accepted().body(ApiResponse.success(null, "법령 검증이 시작되었습니다."));
 	}
 
 	@PostMapping("/report")
@@ -207,20 +207,20 @@ public class AgentController {
 			tags = {"AI 실행"},
 			summary = "보고서 생성 (report)",
 			description = """
-					사용내역서 기반 보고서를 생성합니다. 동기 호출 — 완료까지 최대 60s 대기 후 결과 반환.
+					사용내역서 기반 보고서를 생성합니다. 202 즉시 반환 — 진행 상태는 button-states 폴링으로 확인하세요.
 
 					**실행 선행 조건 (미충족 시 400)**
 					- `legal` 로그가 `status=success AND result_code IN (success, hil)` 이어야 함
-					- report가 이미 running/pending이면 409
+					- report가 실행 중(3분 이내)이면 409
 					"""
 	)
-	public ResponseEntity<ApiResponse<AgentResponses.AgentRunResult>> report(
+	public ResponseEntity<ApiResponse<Void>> report(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@Valid @RequestBody AgentRequests.ReportRequest request
 	) {
-		AgentResponses.AgentRunResult result = agentService.report(currentUser.id(), projectId, request);
-		return ResponseEntity.ok(ApiResponse.success(result, "보고서 생성이 완료되었습니다."));
+		agentService.report(currentUser.id(), projectId, request);
+		return ResponseEntity.accepted().body(ApiResponse.success(null, "보고서 생성이 시작되었습니다."));
 	}
 
 	@GetMapping("/legal")

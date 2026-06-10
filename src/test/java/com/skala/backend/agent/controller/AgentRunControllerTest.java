@@ -20,7 +20,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -120,35 +119,83 @@ class AgentRunControllerTest {
     }
 
     // ─── POST /agents/validate ────────────────────────────────────────────
+    // 비동기 전환 후 202 즉시 반환. 진행 상태는 button-states 폴링으로 확인.
+    // 선행 조건 없음. 비활성 조건: safety-doc / link / vision 중 하나라도 running/pending (stale 제외).
 
     @Test
-    void validate_성공_시_3개_agent_결과를_반환한다() throws Exception {
+    void validate_202를_반환한다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
         int statementId = insertStatement(projectId);
-
-        when(fastApiAgentClient.runValidation(anyLong(), anyLong(), anyLong()))
-                .thenReturn(List.of(
-                        new AgentResponses.AgentRunResult("vision",     "success", "success", "현장사진 확인 완료", null),
-                        new AgentResponses.AgentRunResult("link",       "success", "hil",     "금액 불일치",       null),
-                        new AgentResponses.AgentRunResult("safety-doc", "success", "success", "필수 서류 충족",     null)
-                ));
+        insertLog(projectId, statementId, "classi", "success", "success");
 
         mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
                         .cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-                .andExpect(status().isOk())
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].agentTypeCode").value("vision"))
-                .andExpect(jsonPath("$.data[0].statusCode").value("success"))
-                .andExpect(jsonPath("$.data[0].resultCode").value("success"))
-                .andExpect(jsonPath("$.data[1].agentTypeCode").value("link"))
-                .andExpect(jsonPath("$.data[1].resultCode").value("hil"))
-                .andExpect(jsonPath("$.data[2].agentTypeCode").value("safety-doc"));
+                .andExpect(jsonPath("$.message").value("유효성 검증이 시작되었습니다."));
+    }
 
-        verify(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
+    @Test
+    void validate_classi_없으면_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("parse를 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void validate_classi_result_code가_hil이면_400을_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "classi", "success", "hil");
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("parse를 먼저 실행해야 합니다."));
+    }
+
+    @Test
+    void validate_실행_중이면_409를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "classi", "success", "success");
+        insertRunningLog(projectId, statementId, "safety-doc", "running");
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("현재 실행 중입니다."));
+    }
+
+    @Test
+    void validate_stale_running이면_202를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "classi", "success", "success");
+        insertStaleRunningLog(projectId, statementId, "safety-doc", "running");
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isAccepted());
     }
 
     @Test
@@ -174,47 +221,25 @@ class AgentRunControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    void validate_FastAPI_장애_시_503을_반환한다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-
-        doThrow(new RestClientException("connection refused"))
-                .when(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
-
-        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
-                        .cookie(cookie)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-                .andExpect(status().isServiceUnavailable());
-    }
-
     // ─── POST /agents/legal ───────────────────────────────────────────────
-    // 선행 조건: safety_doc success+(success|hil)
-    //           link 존재 시 → success+(success|hil) 충족 필요
-    //           vision 존재 시 → success+(success|hil) 충족 필요
+    // 비동기 전환 후 202 즉시 반환.
+    // 선행 조건: safety_doc success+(success|hil), link/vision 존재 시 동일 조건.
+    // 비활성 조건: legal running/pending (stale 제외).
 
     @Test
-    void legal_성공_시_agent_결과를_반환한다() throws Exception {
+    void legal_202를_반환한다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
         int statementId = insertStatement(projectId);
         insertLog(projectId, statementId, "safety-doc", "success", "success");
 
-        when(fastApiAgentClient.runLegal(anyLong(), anyLong(), anyLong()))
-                .thenReturn(new AgentResponses.AgentRunResult("legal", "success", "hil", "한도 초과 항목 발견", null));
-
         mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
                         .cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.agentTypeCode").value("legal"))
-                .andExpect(jsonPath("$.data.resultCode").value("hil"))
-                .andExpect(jsonPath("$.data.reason").value("한도 초과 항목 발견"));
-
-        verify(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("법령 검증이 시작되었습니다."));
     }
 
     @Test
@@ -224,14 +249,11 @@ class AgentRunControllerTest {
         int statementId = insertStatement(projectId);
         insertLog(projectId, statementId, "safety-doc", "success", "hil");
 
-        when(fastApiAgentClient.runLegal(anyLong(), anyLong(), anyLong()))
-                .thenReturn(new AgentResponses.AgentRunResult("legal", "success", "success", null, null));
-
         mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
                         .cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-                .andExpect(status().isOk());
+                .andExpect(status().isAccepted());
     }
 
     @Test
@@ -312,6 +334,21 @@ class AgentRunControllerTest {
     }
 
     @Test
+    void legal_stale_running이면_202를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "success");
+        insertStaleRunningLog(projectId, statementId, "legal", "running");
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isAccepted());
+    }
+
+    @Test
     void legal_usageStatementId_누락_시_400을_반환한다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
@@ -334,47 +371,25 @@ class AgentRunControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    void legal_FastAPI_장애_시_503을_반환한다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertLog(projectId, statementId, "safety-doc", "success", "success");
-
-        doThrow(new RestClientException("connection refused"))
-                .when(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
-
-        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
-                        .cookie(cookie)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-                .andExpect(status().isServiceUnavailable());
-    }
-
     // ─── POST /agents/report ──────────────────────────────────────────────
-    // 선행 조건: legal.status=success AND legal.result_code IN (success, hil)
+    // 비동기 전환 후 202 즉시 반환.
+    // 선행 조건: legal.status=success AND legal.result_code IN (success, hil).
+    // 비활성 조건: report running/pending (stale 제외).
 
     @Test
-    void report_성공_시_agent_결과를_반환한다() throws Exception {
+    void report_202를_반환한다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
         int statementId = insertStatement(projectId);
         insertLog(projectId, statementId, "legal", "success", "success");
 
-        when(fastApiAgentClient.runReport(anyLong(), anyLong(), anyLong()))
-                .thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", "보고서 생성 완료",
-                        Map.of("summary", "4월 안전관리비 사용내역 요약")));
-
         mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
                         .cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.agentTypeCode").value("report"))
-                .andExpect(jsonPath("$.data.resultCode").value("success"))
-                .andExpect(jsonPath("$.data.reportDraft.summary").value("4월 안전관리비 사용내역 요약"));
-
-        verify(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("보고서 생성이 시작되었습니다."));
     }
 
     @Test
@@ -384,14 +399,11 @@ class AgentRunControllerTest {
         int statementId = insertStatement(projectId);
         insertLog(projectId, statementId, "legal", "success", "hil");
 
-        when(fastApiAgentClient.runReport(anyLong(), anyLong(), anyLong()))
-                .thenReturn(new AgentResponses.AgentRunResult("report", "success", "success", null, null));
-
         mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
                         .cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-                .andExpect(status().isOk());
+                .andExpect(status().isAccepted());
     }
 
     @Test
@@ -440,6 +452,21 @@ class AgentRunControllerTest {
     }
 
     @Test
+    void report_stale_running이면_202를_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "legal", "success", "success");
+        insertStaleRunningLog(projectId, statementId, "report", "running");
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isAccepted());
+    }
+
+    @Test
     void report_usageStatementId_누락_시_400을_반환한다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
@@ -460,23 +487,6 @@ class AgentRunControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("usageStatementId", 1))))
                 .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void report_FastAPI_장애_시_503을_반환한다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int statementId = insertStatement(projectId);
-        insertLog(projectId, statementId, "legal", "success", "success");
-
-        doThrow(new RestClientException("connection refused"))
-                .when(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
-
-        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
-                        .cookie(cookie)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
-                .andExpect(status().isServiceUnavailable());
     }
 
     // ─── fixtures ─────────────────────────────────────────────────────────
@@ -547,12 +557,21 @@ class AgentRunControllerTest {
                 """, projectId, statementId, agentTypeCode, statusCode, resultCode);
     }
 
-    /** status=running/pending 인 실행 중 로그 — result_code NULL */
+    /** 최근 생성된 running/pending 로그 — stale 임계값(15분) 이내이므로 409 유발 */
     private void insertRunningLog(int projectId, int statementId, String agentTypeCode, String statusCode) {
         jdbcTemplate.update("""
                 INSERT INTO service.agent_logs
                     (project_id, usage_statement_id, agent_type_code, status_code)
                 VALUES (?, ?, ?, ?)
+                """, projectId, statementId, agentTypeCode, statusCode);
+    }
+
+    /** stale running/pending 로그 — updated_at을 16분 전으로 설정해 stale 임계값 초과 → 재실행 허용 */
+    private void insertStaleRunningLog(int projectId, int statementId, String agentTypeCode, String statusCode) {
+        jdbcTemplate.update("""
+                INSERT INTO service.agent_logs
+                    (project_id, usage_statement_id, agent_type_code, status_code, created_at, updated_at)
+                VALUES (?, ?, ?, ?, NOW() - INTERVAL '16 minutes', NOW() - INTERVAL '16 minutes')
                 """, projectId, statementId, agentTypeCode, statusCode);
     }
 }
