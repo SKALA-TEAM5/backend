@@ -36,6 +36,10 @@ app:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
   fastapi:
     base-url: ${APP_FASTAPI_BASE_URL:http://localhost:8001}
+    stale-threshold:
+      validate-seconds: ${APP_FASTAPI_STALE_THRESHOLD_VALIDATE_SECONDS:900}
+      legal-seconds: ${APP_FASTAPI_STALE_THRESHOLD_LEGAL_SECONDS:900}
+      report-seconds: ${APP_FASTAPI_STALE_THRESHOLD_REPORT_SECONDS:900}
 
 management:
   endpoints:

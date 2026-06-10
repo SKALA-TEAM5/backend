@@ -401,6 +401,57 @@ class AgentButtonStatesControllerTest {
                 .andExpect(jsonPath("$.data.report.reason").value("현재 실행 중입니다."));
     }
 
+    // ─── stale running — 버튼 활성 ───────────────────────────────────────
+    // stale 로그(15분 초과)는 실행 중으로 간주하지 않음 → 버튼 활성화
+
+    @Test
+    void validate_stale_running이면_validate_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertStaleRunningLog(projectId, sid, "safety-doc", "running");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate.enabled").value(true));
+    }
+
+    @Test
+    void legal_stale_running이면_legal_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertStaleRunningLog(projectId, sid, "legal", "running");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legal.enabled").value(true));
+    }
+
+    @Test
+    void report_stale_running이면_report_활성() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int sid = insertStatement(projectId);
+        insertLog(projectId, sid, "classi", "success", "success");
+        insertLog(projectId, sid, "safety-doc", "success", "success");
+        insertLog(projectId, sid, "legal", "success", "success");
+        insertStaleRunningLog(projectId, sid, "report", "running");
+
+        mockMvc.perform(get("/projects/{pid}/agents/button-states", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(sid)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.report.enabled").value(true));
+    }
+
     // ─── 전체 흐름 ────────────────────────────────────────────────────────
 
     @Test
@@ -567,6 +618,15 @@ class AgentButtonStatesControllerTest {
                 INSERT INTO service.agent_logs
                     (project_id, usage_statement_id, agent_type_code, status_code)
                 VALUES (?, ?, ?, ?)
+                """, projectId, statementId, agentTypeCode, statusCode);
+    }
+
+    /** stale running/pending 로그 — updated_at을 16분 전으로 설정해 stale 임계값(15분) 초과 → 실행 중으로 간주 안 함 */
+    private void insertStaleRunningLog(int projectId, int statementId, String agentTypeCode, String statusCode) {
+        jdbcTemplate.update("""
+                INSERT INTO service.agent_logs
+                    (project_id, usage_statement_id, agent_type_code, status_code, created_at, updated_at)
+                VALUES (?, ?, ?, ?, NOW() - INTERVAL '16 minutes', NOW() - INTERVAL '16 minutes')
                 """, projectId, statementId, agentTypeCode, statusCode);
     }
 }
