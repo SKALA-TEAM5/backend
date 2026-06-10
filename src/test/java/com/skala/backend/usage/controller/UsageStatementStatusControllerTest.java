@@ -164,7 +164,7 @@ class UsageStatementStatusControllerTest {
 	}
 
 	@Test
-	void 법령_에이전트_fail_결과에서_보완_요청하면_409를_반환한다() throws Exception {
+	void 법령_에이전트_fail_결과에서도_보완_요청을_할_수_있다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId, "upload_completed");
@@ -172,7 +172,8 @@ class UsageStatementStatusControllerTest {
 
 		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/request-supplement", projectId, statementId)
 						.cookie(adminCookie))
-				.andExpect(status().isConflict());
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("supplement_required"));
 	}
 
 	@Test
@@ -375,6 +376,47 @@ class UsageStatementStatusControllerTest {
 						.cookie(userCookie))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.statusCode").value("upload_completed"));
+
+		// upload_completed → review_completed
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/complete-review", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("review_completed"));
+	}
+
+	@Test
+	void 법령_부적정_후_보완요청_재제출_재법령_승인_전체_플로우가_정상_동작한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		Map<String, String> user = createUser("user");
+		Cookie userCookie = loginCookie(user);
+		int userId = readUserId(user);
+		int projectId = createProject(adminCookie);
+		assign(adminCookie, projectId, userId);
+		int statementId = insertStatement(projectId, "draft");
+
+		// draft → upload_completed
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/submit", projectId, statementId)
+						.cookie(userCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("upload_completed"));
+
+		// 법령 부적정(fail) 결과
+		insertLog(projectId, statementId, "legal", "success", "fail");
+
+		// upload_completed → supplement_required (fail 결과에서도 보완 요청 가능)
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/request-supplement", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("supplement_required"));
+
+		// supplement_required → upload_completed (재제출)
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/submit", projectId, statementId)
+						.cookie(userCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.statusCode").value("upload_completed"));
+
+		// 법령 재실행 → 적정(success)
+		insertLog(projectId, statementId, "legal", "success", "success");
 
 		// upload_completed → review_completed
 		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/complete-review", projectId, statementId)

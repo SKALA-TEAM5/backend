@@ -61,6 +61,20 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
             @Param("agentTypeCode") String agentTypeCode
     );
 
+    @Query(nativeQuery = true, value = """
+            SELECT EXISTS(
+                SELECT 1 FROM service.agent_logs
+                WHERE usage_statement_id = :statementId
+                  AND agent_type_code    = :agentTypeCode
+                  AND status_code        = 'success'
+                  AND usage_statement_item_id IS NULL
+            )
+            """)
+    boolean existsStatementLogWithAnyResult(
+            @Param("statementId")   Long   usageStatementId,
+            @Param("agentTypeCode") String agentTypeCode
+    );
+
     interface AgentTodoRow {
         String getAgentTypeCode();
         String getStatusCode();

@@ -199,7 +199,7 @@ public class UsageStatementService {
 	@Transactional
 	public UsageStatementStatusResponse requestSupplement(Long currentUserId, Long projectId, Long statementId) {
 		projectAccessService.requireAdmin(currentUserId);
-		requireLegalCompleted(statementId);
+		requireLegalRan(statementId);
 		UsageStatement statement = statementRepository.findByIdAndProjectId(statementId, projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
 		statement.requestSupplement();
@@ -214,6 +214,12 @@ public class UsageStatementService {
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
 		statement.completeReview();
 		return new UsageStatementStatusResponse(statement.getId(), statement.getStatusCode());
+	}
+
+	private void requireLegalRan(Long statementId) {
+		if (!agentLogRepository.existsStatementLogWithAnyResult(statementId, "legal")) {
+			throw new ApiException(HttpStatus.CONFLICT, "법령 검토가 완료된 후에 진행할 수 있습니다.");
+		}
 	}
 
 	private void requireLegalCompleted(Long statementId) {
