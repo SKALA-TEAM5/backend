@@ -68,3 +68,25 @@ JOIN projects p ON p.contract_no = 'LOAD-CN-' || LPAD(n::text, 3, '0')
 WHERE NOT EXISTS (
     SELECT 1 FROM usage_statements s WHERE s.project_id = p.id
 );
+
+-- ── 세부항목 (사용내역서당 5개, POST /items는 FastAPI를 호출하므로 사전 생성) ──
+INSERT INTO usage_statement_items (usage_statement_id, category_code, used_on, item_name, unit, quantity, unit_price, total_amount, page_no)
+SELECT
+    s.id,
+    'CAT_0' || (((n - 1) % 9) + 1),
+    '2026-05-15',
+    '부하테스트 항목 ' || n,
+    '개',
+    1,
+    10000,
+    10000,
+    n
+FROM usage_statements s
+JOIN projects p ON p.id = s.project_id
+CROSS JOIN generate_series(1, 5) n
+WHERE p.contract_no LIKE 'LOAD-CN-%'
+AND NOT EXISTS (
+    SELECT 1 FROM usage_statement_items i
+    WHERE i.usage_statement_id = s.id
+    AND i.item_name = '부하테스트 항목 ' || n
+);

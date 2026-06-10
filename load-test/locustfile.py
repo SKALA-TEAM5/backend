@@ -248,7 +248,7 @@ class UserScenario(HttpUser):
     def on_start(self):
         self.project_id = None
         self.statement_id = None
-        self.created_item_ids = []
+        self.item_ids = []           # seed로 생성된 항목 ID (POST /items는 FastAPI 호출이므로 제외)
         self.uploaded_file_ids = []  # 업로드됐지만 아직 연결 안 된 파일 ID
         self.link_ids = []           # {"linkId": int, "itemId": int}
 
@@ -278,6 +278,15 @@ class UserScenario(HttpUser):
             if stmt_items:
                 self.statement_id = stmt_items[0]["id"]
 
+        if self.project_id and self.statement_id:
+            detail = self.client.get(
+                f"/projects/{self.project_id}/usage-statements/{self.statement_id}",
+                name="[setup] statement detail"
+            )
+            if detail.status_code == 200:
+                seed_items = detail.json().get("data", {}).get("statement", {}).get("items", [])
+                self.item_ids = [i["itemId"] for i in seed_items]
+
     # ── 내 프로필 ────────────────────────────────────────────────
 
     @task(1)
@@ -295,34 +304,13 @@ class UserScenario(HttpUser):
             name="GET /usage-statements/:id"
         )
 
-    # ── 항목 CRUD ────────────────────────────────────────────────
-
-    @task(4)
-    def create_item(self):
-        if not self.project_id or not self.statement_id:
-            return
-        resp = self.client.post(
-            f"/projects/{self.project_id}/usage-statements/{self.statement_id}/items",
-            json={
-                "categoryCode": random.choice(CATEGORY_CODES),
-                "usedOn": "2026-05-15",
-                "itemName": f"부하테스트 항목-{uuid.uuid4().hex[:6]}",
-                "unit": "개",
-                "quantity": 1,
-                "unitPrice": 10000,
-                "totalAmount": 10000,
-                "pageNo": random.randint(1, 50)
-            },
-            name="POST /items"
-        )
-        if resp.status_code == 201:
-            self.created_item_ids.append(resp.json()["data"]["itemId"])
+    # ── 항목 수정 (POST /items는 FastAPI classifyItem 호출로 제외, 항목은 seed 데이터 사용) ──
 
     @task(3)
     def update_item(self):
-        if not self.created_item_ids or not self.project_id or not self.statement_id:
+        if not self.item_ids or not self.project_id or not self.statement_id:
             return
-        item_id = random.choice(self.created_item_ids)
+        item_id = random.choice(self.item_ids)
         self.client.patch(
             f"/projects/{self.project_id}/usage-statements/{self.statement_id}/items/{item_id}",
             json={
@@ -339,23 +327,13 @@ class UserScenario(HttpUser):
 
     @task(1)
     def change_item_category(self):
-        if not self.created_item_ids or not self.project_id or not self.statement_id:
+        if not self.item_ids or not self.project_id or not self.statement_id:
             return
-        item_id = random.choice(self.created_item_ids)
+        item_id = random.choice(self.item_ids)
         self.client.patch(
             f"/projects/{self.project_id}/usage-statements/{self.statement_id}/items/{item_id}/category",
             json={"categoryCode": random.choice(CATEGORY_CODES)},
             name="PATCH /items/:id/category"
-        )
-
-    @task(1)
-    def delete_item(self):
-        if not self.created_item_ids or not self.project_id or not self.statement_id:
-            return
-        item_id = self.created_item_ids.pop()
-        self.client.delete(
-            f"/projects/{self.project_id}/usage-statements/{self.statement_id}/items/{item_id}",
-            name="DELETE /items/:id"
         )
 
     # ── 파일 CRUD ────────────────────────────────────────────────
@@ -393,10 +371,10 @@ class UserScenario(HttpUser):
 
     @task(2)
     def link_evidence_file(self):
-        if not self.uploaded_file_ids or not self.created_item_ids or not self.project_id:
+        if not self.uploaded_file_ids or not self.item_ids or not self.project_id:
             return
         file_id = random.choice(self.uploaded_file_ids)
-        item_id = random.choice(self.created_item_ids)
+        item_id = random.choice(self.item_ids)
         resp = self.client.post(
             f"/projects/{self.project_id}/usage-statement-items/{item_id}/evidence-files",
             json={
@@ -413,9 +391,9 @@ class UserScenario(HttpUser):
 
     @task(2)
     def get_item_evidence_files(self):
-        if not self.created_item_ids or not self.project_id:
+        if not self.item_ids or not self.project_id:
             return
-        item_id = random.choice(self.created_item_ids)
+        item_id = random.choice(self.item_ids)
         self.client.get(
             f"/projects/{self.project_id}/usage-statement-items/{item_id}/evidence-files",
             name="GET /items/:id/evidence-files"
@@ -423,9 +401,9 @@ class UserScenario(HttpUser):
 
     @task(2)
     def get_evidence_requirements(self):
-        if not self.created_item_ids or not self.project_id:
+        if not self.item_ids or not self.project_id:
             return
-        item_id = random.choice(self.created_item_ids)
+        item_id = random.choice(self.item_ids)
         self.client.get(
             f"/projects/{self.project_id}/usage-statement-items/{item_id}/evidence-requirements",
             name="GET /items/:id/evidence-requirements"
@@ -435,7 +413,7 @@ class UserScenario(HttpUser):
     def move_evidence_link(self):
         if not self.link_ids or not self.project_id:
             return
-        other_items = [i for i in self.created_item_ids]
+        other_items = [i for i in self.item_ids]
         if len(other_items) < 2:
             return
         link = random.choice(self.link_ids)
