@@ -25,7 +25,7 @@ public class ChatbotClient {
 	}
 
 	/**
-	 * FastAPI /api/v1/chat 에 SSE 요청을 보내고 응답을 Flux<String>으로 반환한다.
+	 * FastAPI /chat 에 SSE 요청을 보내고 응답을 Flux<String>으로 반환한다.
 	 *
 	 * FastAPI가 보내는 SSE 포맷("data: {...}\n\n")을 한 줄씩 수신한다.
 	 */
@@ -35,7 +35,7 @@ public class ChatbotClient {
 		body.put("session_id", request.sessionId());
 
 		return webClient.post()
-			.uri("/api/v1/chat")
+			.uri("/chat")
 			.contentType(MediaType.APPLICATION_JSON)
 			.bodyValue(body)
 			.retrieve()
