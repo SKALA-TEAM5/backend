@@ -227,11 +227,11 @@ class AgentLogControllerTest {
 	// ─── GET /agents/report ──────────────────────────────────────────────
 
 	@Test
-	void 보고서_로그가_있으면_details를_포함한_상세를_반환한다() throws Exception {
+	void 보고서_로그가_있으면_details와_resultCode와_reason을_반환한다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId);
-		insertReportLog(projectId, statementId, "success", "2026-05-01T00:00:00Z");
+		insertReportLog(projectId, statementId, "success", "success", "보고서 생성 완료", "2026-05-01T00:00:00Z");
 
 		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
 						.cookie(adminCookie)
@@ -240,8 +240,25 @@ class AgentLogControllerTest {
 				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.agentTypeCode").value("report"))
 				.andExpect(jsonPath("$.data.statusCode").value("success"))
+				.andExpect(jsonPath("$.data.resultCode").value("success"))
+				.andExpect(jsonPath("$.data.reason").value("보고서 생성 완료"))
 				.andExpect(jsonPath("$.data.details").isNotEmpty())
 				.andExpect(jsonPath("$.data.createdAt").exists());
+	}
+
+	@Test
+	void 보고서_resultCode가_hil이고_reason이_null이어도_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertReportLog(projectId, statementId, "success", "hil", null, "2026-05-01T00:00:00Z");
+
+		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.resultCode").value("hil"))
+				.andExpect(jsonPath("$.data.reason").doesNotExist());
 	}
 
 	@Test
@@ -283,7 +300,7 @@ class AgentLogControllerTest {
 		Cookie outsiderCookie = loginCookie(createUser("user"));
 		int projectId = createProject(adminCookie);
 		int statementId = insertStatement(projectId);
-		insertReportLog(projectId, statementId, "success", "2026-05-01T00:00:00Z");
+		insertReportLog(projectId, statementId, "success", "success", null, "2026-05-01T00:00:00Z");
 
 		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
 						.cookie(outsiderCookie)
@@ -483,11 +500,11 @@ class AgentLogControllerTest {
 				""", projectId, statementId, statusCode, resultCode, reason);
 	}
 
-	private void insertReportLog(int projectId, int statementId, String statusCode, String createdAt) {
+	private void insertReportLog(int projectId, int statementId, String statusCode, String resultCode, String reason, String createdAt) {
 		jdbcTemplate.update("""
 				INSERT INTO service.agent_logs
-					(project_id, usage_statement_id, agent_type_code, status_code, details, created_at)
-				VALUES (?, ?, 'report', ?, '{"summary": "보고서 생성 완료"}'::jsonb, ?::timestamptz)
-				""", projectId, statementId, statusCode, createdAt);
+					(project_id, usage_statement_id, agent_type_code, status_code, result_code, reason, details, created_at)
+				VALUES (?, ?, 'report', ?, ?, ?, '{"summary": "보고서 생성 완료"}'::jsonb, ?::timestamptz)
+				""", projectId, statementId, statusCode, resultCode, reason, createdAt);
 	}
 }

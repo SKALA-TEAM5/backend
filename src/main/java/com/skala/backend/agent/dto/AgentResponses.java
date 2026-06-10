@@ -73,12 +73,15 @@ public final class AgentResponses {
 	public record ReportDetailResponse(
 			@Schema(description = "에이전트 유형", example = "report") String agentTypeCode,
 			@Schema(description = "실행 상태", example = "success") String statusCode,
+			@Schema(description = "판단 결과", example = "success") String resultCode,
+			@Schema(description = "프론트 표시용 사유") String reason,
 			@Schema(description = "보고서 내용 (JSON)") String details,
 			@Schema(description = "생성일시") Instant createdAt
 	) {
 		public static ReportDetailResponse from(AgentLog log) {
 			return new ReportDetailResponse(
-					log.getAgentTypeCode(), log.getStatusCode(), log.getDetails(), log.getCreatedAt()
+					log.getAgentTypeCode(), log.getStatusCode(), log.getResultCode(),
+					log.getReason(), log.getDetails(), log.getCreatedAt()
 			);
 		}
 	}
