@@ -43,6 +43,12 @@ def dummy_file():
     return io.BytesIO(b"load test file " + uuid.uuid4().bytes)
 
 
+def apply_auth_cookies(client, resp):
+    """requests/localhost 쿠키 저장 버그 대응 — Set-Cookie를 세션에 직접 주입."""
+    for cookie in resp.cookies:
+        client.cookies.set(cookie.name, cookie.value, domain="localhost", path="/")
+
+
 # ── Admin 시나리오 ────────────────────────────────────────────────
 class AdminScenario(HttpUser):
     """
@@ -59,6 +65,7 @@ class AdminScenario(HttpUser):
         resp = self.client.post("/auth/login", json=random.choice(ADMIN_POOL), name="[setup] login")
         if resp.status_code != 200:
             return
+        apply_auth_cookies(self.client, resp)
 
         projects = self.client.get("/projects", name="[setup] projects")
         if projects.status_code != 200:
@@ -255,6 +262,7 @@ class UserScenario(HttpUser):
         resp = self.client.post("/auth/login", json=random.choice(USER_POOL), name="[setup] login")
         if resp.status_code != 200:
             return
+        apply_auth_cookies(self.client, resp)
 
         # 공통 코드 (세션 시작 시 1회)
         self.client.get("/categories", name="[setup] categories")
