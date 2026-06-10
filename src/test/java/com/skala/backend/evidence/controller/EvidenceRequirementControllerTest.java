@@ -151,6 +151,52 @@ class EvidenceRequirementControllerTest {
                 .andExpect(jsonPath("$.data", hasSize(1)));
     }
 
+    // ─── 프론트엔드 호환 경로 (/usage-statements/{sid}/line-items/{iid}/evidence-requirements) ──
+
+    @Test
+    void 프론트엔드_호환_경로로_요건을_조회할_수_있다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        int projectId = createProject(adminCookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+        insertRequirement(itemId, "receipt", true, true);
+
+        mockMvc.perform(get("/projects/{pid}/usage-statements/{sid}/line-items/{iid}/evidence-requirements",
+                        projectId, statementId, itemId)
+                        .cookie(adminCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].evidenceTypeCode").value("receipt"));
+    }
+
+    @Test
+    void 프론트엔드_호환_경로도_인증이_필요하다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        int projectId = createProject(adminCookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+
+        mockMvc.perform(get("/projects/{pid}/usage-statements/{sid}/line-items/{iid}/evidence-requirements",
+                        projectId, statementId, itemId))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 프론트엔드_호환_경로에서도_비활성_요건은_제외된다() throws Exception {
+        Cookie adminCookie = loginCookie(createUser("admin"));
+        int projectId = createProject(adminCookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+        insertRequirement(itemId, "receipt", true, true);
+        insertRequirement(itemId, "pay_stub", false, false);
+
+        mockMvc.perform(get("/projects/{pid}/usage-statements/{sid}/line-items/{iid}/evidence-requirements",
+                        projectId, statementId, itemId)
+                        .cookie(adminCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)));
+    }
+
     // ─── fixtures ─────────────────────────────────────────────────────────
 
     private Map<String, String> createUser(String roleCode) {
