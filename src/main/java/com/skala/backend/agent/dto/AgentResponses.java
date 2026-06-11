@@ -89,6 +89,11 @@ public final class AgentResponses {
 	@Schema(description = "TODO 항목 단건")
 	public record TodoItem(
 			@Schema(description = "세부항목 ID (항목 단위가 아닌 경우 null)") Long usageStatementItemId,
+			@Schema(description = "카테고리 코드", example = "CAT_03") String categoryCode,
+			@Schema(description = "카테고리명", example = "안전시설비") String categoryName,
+			@Schema(description = "세부항목명", example = "터널 환기덕트 안전시설 설치") String usageStatementItemName,
+			@Schema(description = "조치 대상 증빙명 또는 요약 (reason의 구조화 버전)", example = "세금계산서") String title,
+			@Schema(description = "필요 증빙 유형 코드 목록 (safety-doc 전용, 없으면 빈 배열)") List<String> evidenceTypeCodes,
 			@Schema(description = "조치 사유") String reason
 	) {}
 

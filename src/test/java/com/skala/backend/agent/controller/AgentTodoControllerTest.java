@@ -278,6 +278,123 @@ class AgentTodoControllerTest {
                 .andExpect(jsonPath("$.data.legal.agentTypeCode").value("legal"));
     }
 
+    // ─── 위치 컨텍스트 필드 파싱 ──────────────────────────────────────────────
+
+    @Test
+    void safety_doc_todos에_위치_컨텍스트가_포함되면_응답에_그대로_반환된다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+
+        String todosJson = "[{" +
+                "\"usage_statement_item_id\":" + itemId + "," +
+                "\"category_code\":\"CAT_03\"," +
+                "\"category_name\":\"안전시설비\"," +
+                "\"usage_statement_item_name\":\"터널 환기덕트 안전시설 설치\"," +
+                "\"title\":\"세금계산서\"," +
+                "\"evidence_type_codes\":[\"tax_invoice\"]," +
+                "\"reason\":\"터널 환기덕트 필수 증빙 누락: 세금계산서\"" +
+                "}]";
+        insertTodoLog(projectId, statementId, "safety-doc", "success", "hil",
+                "필수 증빙 누락 항목 1건", todosJson);
+
+        mockMvc.perform(get("/projects/{pid}/agents/todos", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(statementId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate[0].items[0].usageStatementItemId").value(itemId))
+                .andExpect(jsonPath("$.data.validate[0].items[0].categoryCode").value("CAT_03"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].categoryName").value("안전시설비"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].usageStatementItemName").value("터널 환기덕트 안전시설 설치"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].title").value("세금계산서"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].evidenceTypeCodes[0]").value("tax_invoice"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].reason").value("터널 환기덕트 필수 증빙 누락: 세금계산서"));
+    }
+
+    @Test
+    void safety_doc_todos에_증빙_유형이_복수이면_모두_반환된다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+
+        String todosJson = "[{" +
+                "\"usage_statement_item_id\":" + itemId + "," +
+                "\"category_code\":\"CAT_01\"," +
+                "\"category_name\":\"안전보건관리자 임금\"," +
+                "\"usage_statement_item_name\":\"안전관리자 임금\"," +
+                "\"title\":\"세금계산서, 안전교육일지\"," +
+                "\"evidence_type_codes\":[\"tax_invoice\",\"safety_education_log\"]," +
+                "\"reason\":\"안전관리자 임금 필수 증빙 누락: 세금계산서, 안전교육일지\"" +
+                "}]";
+        insertTodoLog(projectId, statementId, "safety-doc", "success", "hil",
+                "필수 증빙 누락 항목 1건", todosJson);
+
+        mockMvc.perform(get("/projects/{pid}/agents/todos", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(statementId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate[0].items[0].evidenceTypeCodes", hasSize(2)))
+                .andExpect(jsonPath("$.data.validate[0].items[0].evidenceTypeCodes[0]").value("tax_invoice"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].evidenceTypeCodes[1]").value("safety_education_log"));
+    }
+
+    @Test
+    void link_todos에_위치_컨텍스트가_포함되면_응답에_그대로_반환된다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+
+        String todosJson = "[{" +
+                "\"usage_statement_item_id\":" + itemId + "," +
+                "\"category_code\":\"CAT_03\"," +
+                "\"category_name\":\"안전시설비\"," +
+                "\"usage_statement_item_name\":\"터널 환기덕트 안전시설 설치\"," +
+                "\"title\":\"영수증/세금계산서\"," +
+                "\"match_status\":\"review_needed\"," +
+                "\"reason\":\"터널 환기덕트 증빙 매칭 검토 필요: review_needed\"" +
+                "}]";
+        insertTodoLog(projectId, statementId, "link", "success", "hil",
+                "매칭 검토 보완 필요 1건", todosJson);
+
+        mockMvc.perform(get("/projects/{pid}/agents/todos", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(statementId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate[0].agentTypeCode").value("link"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].categoryCode").value("CAT_03"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].categoryName").value("안전시설비"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].usageStatementItemName").value("터널 환기덕트 안전시설 설치"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].title").value("영수증/세금계산서"))
+                .andExpect(jsonPath("$.data.validate[0].items[0].evidenceTypeCodes", hasSize(0)))
+                .andExpect(jsonPath("$.data.validate[0].items[0].reason").value("터널 환기덕트 증빙 매칭 검토 필요: review_needed"));
+    }
+
+    @Test
+    void 위치_컨텍스트_없는_기존_todos는_해당_필드가_null로_반환된다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+
+        String todosJson = "[{\"usage_statement_item_id\":" + itemId + ",\"reason\":\"필수 증빙 누락: 안전교육일지\"}]";
+        insertTodoLog(projectId, statementId, "safety-doc", "success", "hil",
+                "필수 증빙 누락 항목 1건", todosJson);
+
+        mockMvc.perform(get("/projects/{pid}/agents/todos", projectId)
+                        .cookie(cookie)
+                        .param("usageStatementId", String.valueOf(statementId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.validate[0].items[0].categoryCode").isEmpty())
+                .andExpect(jsonPath("$.data.validate[0].items[0].categoryName").isEmpty())
+                .andExpect(jsonPath("$.data.validate[0].items[0].usageStatementItemName").isEmpty())
+                .andExpect(jsonPath("$.data.validate[0].items[0].title").isEmpty())
+                .andExpect(jsonPath("$.data.validate[0].items[0].evidenceTypeCodes", hasSize(0)))
+                .andExpect(jsonPath("$.data.validate[0].items[0].reason").value("필수 증빙 누락: 안전교육일지"));
+    }
+
     // ─── fixtures ─────────────────────────────────────────────────────────
 
     private Map<String, String> createUser(String roleCode) {
