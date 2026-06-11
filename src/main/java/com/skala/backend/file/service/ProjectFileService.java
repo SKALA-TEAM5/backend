@@ -44,6 +44,10 @@ public class ProjectFileService {
 	private static final int DEFAULT_PAGE_SIZE = 20;
 	private static final int MAX_PAGE_SIZE = 50;
 
+	// 사용내역서는 OCR/파싱 대상이라 PDF만 허용한다. 다른 증빙(영수증·사진 등)은 제약 없음.
+	private static final String USAGE_STATEMENT_TYPE_CODE = "usage_statement";
+	private static final byte[] PDF_MAGIC = {'%', 'P', 'D', 'F'};
+
 	private final ProjectAccessService projectAccessService;
 	private final ProjectFileRepository fileRepository;
 	private final CodeLookupService codeLookupService;
@@ -109,6 +113,10 @@ public class ProjectFileService {
 
 		String originalFilename = multipartFile.getOriginalFilename() == null ? "upload" : multipartFile.getOriginalFilename();
 		String mimeType = multipartFile.getContentType() == null ? "application/octet-stream" : multipartFile.getContentType();
+
+		if (USAGE_STATEMENT_TYPE_CODE.equals(evidenceTypeCode)) {
+			requirePdf(originalFilename, mimeType, multipartFile);
+		}
 		String storageKey = storageKey(projectId, originalFilename);
 
 		try (InputStream inputStream = multipartFile.getInputStream()) {
@@ -179,6 +187,30 @@ public class ProjectFileService {
 		usageStatementRepository.clearSourceFileId(file.getId());
 		deleteFromMinio(file.getStorageKey());
 		fileRepository.delete(file);
+	}
+
+	// 사용내역서 업로드 가드: 확장자·MIME·매직넘버(%PDF) 3중으로 PDF만 통과시킨다.
+	// 프론트 검증은 직접 API 호출로 우회 가능하므로 저장 직전 백엔드에서 한 번 더 막는다.
+	private void requirePdf(String originalFilename, String mimeType, MultipartFile multipartFile) {
+		boolean pdfExtension = originalFilename.toLowerCase().endsWith(".pdf");
+		boolean pdfMime = "application/pdf".equals(mimeType)
+				|| "application/octet-stream".equals(mimeType);
+		if (!pdfExtension || !pdfMime || !hasPdfMagic(multipartFile)) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "사용내역서는 PDF 파일만 업로드할 수 있습니다.");
+		}
+	}
+
+	private boolean hasPdfMagic(MultipartFile multipartFile) {
+		byte[] header = new byte[PDF_MAGIC.length];
+		try (InputStream inputStream = multipartFile.getInputStream()) {
+			int read = inputStream.readNBytes(header, 0, PDF_MAGIC.length);
+			if (read < PDF_MAGIC.length) {
+				return false;
+			}
+		} catch (Exception e) {
+			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일을 읽을 수 없습니다.");
+		}
+		return java.util.Arrays.equals(header, PDF_MAGIC);
 	}
 
 	private void deleteFromMinio(String storageKey) {
