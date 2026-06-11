@@ -30,4 +30,10 @@ public final class AgentRequests {
 			@Schema(description = "사용내역서 ID", example = "42")
 			@NotNull(message = "usageStatementId는 필수입니다.") Long usageStatementId
 	) {}
+
+	@Schema(description = "TODO 확인(체크) 토글 요청")
+	public record ConfirmTodoRequest(
+			@Schema(description = "true=확인, false=확인 해제", example = "true")
+			@NotNull(message = "confirmed는 필수입니다.") Boolean confirmed
+	) {}
 }
