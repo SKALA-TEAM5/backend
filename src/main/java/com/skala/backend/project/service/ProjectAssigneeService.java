@@ -6,6 +6,7 @@ import com.skala.backend.project.domain.ProjectUserAssignment;
 import com.skala.backend.project.dto.ProjectResponses;
 import com.skala.backend.project.repository.ProjectRepository;
 import com.skala.backend.project.repository.ProjectUserAssignmentRepository;
+import com.skala.backend.user.domain.RoleCode;
 import com.skala.backend.user.domain.User;
 import com.skala.backend.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -46,7 +47,7 @@ public class ProjectAssigneeService {
 
 	@Transactional
 	public ProjectResponses.AssigneeListResponse replaceAssignees(Long currentUserId, Long projectId, List<Long> assigneeUserIds) {
-		User assignedBy = projectAccessService.requireProjectManager(currentUserId);
+		User assignedBy = projectAccessService.requireProjectManagerOf(currentUserId, projectId);
 		Project project = findProject(projectId);
 		List<Long> userIds = validateAssigneeIds(assigneeUserIds);
 
@@ -54,6 +55,9 @@ public class ProjectAssigneeService {
 				.collect(Collectors.toMap(User::getId, u -> u));
 		if (userMap.size() != userIds.size()) {
 			throw new ApiException(HttpStatus.NOT_FOUND, "존재하지 않는 사용자가 포함되어 있습니다.");
+		}
+		if (userMap.values().stream().anyMatch(u -> u.getRoleCode() == RoleCode.SYSTEM_ADMIN)) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "system_admin은 프로젝트 담당자로 추가할 수 없습니다.");
 		}
 
 		assignmentRepository.deleteByProjectId(projectId);
@@ -69,10 +73,13 @@ public class ProjectAssigneeService {
 
 	@Transactional
 	public void addAssignee(Long currentUserId, Long projectId, Long userId) {
-		User assignedBy = projectAccessService.requireProjectManager(currentUserId);
+		User assignedBy = projectAccessService.requireProjectManagerOf(currentUserId, projectId);
 		Project project = findProject(projectId);
 		User user = findUser(userId);
 
+		if (user.getRoleCode() == RoleCode.SYSTEM_ADMIN) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "system_admin은 프로젝트 담당자로 추가할 수 없습니다.");
+		}
 		if (assignmentRepository.existsByProjectIdAndUserId(projectId, userId)) {
 			throw new ApiException(HttpStatus.CONFLICT, "이미 할당된 담당자입니다.");
 		}
@@ -82,7 +89,7 @@ public class ProjectAssigneeService {
 
 	@Transactional
 	public void removeAssignee(Long currentUserId, Long projectId, Long userId) {
-		projectAccessService.requireProjectManager(currentUserId);
+		projectAccessService.requireProjectManagerOf(currentUserId, projectId);
 		ProjectUserAssignment assignment = assignmentRepository.findByProjectIdAndUserId(projectId, userId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "할당 정보를 찾을 수 없습니다."));
 		assignmentRepository.delete(assignment);
