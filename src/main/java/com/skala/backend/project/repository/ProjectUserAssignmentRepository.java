@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,6 +14,9 @@ public interface ProjectUserAssignmentRepository extends JpaRepository<ProjectUs
 
 	@EntityGraph(attributePaths = {"user", "assignedBy"})
 	List<ProjectUserAssignment> findByProjectIdOrderByIdAsc(Long projectId);
+
+	@EntityGraph(attributePaths = {"user"})
+	List<ProjectUserAssignment> findByProjectIdIn(Collection<Long> projectIds);
 
 	long countByProjectId(Long projectId);
 
