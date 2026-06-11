@@ -53,7 +53,7 @@ public class ChatbotController {
 		SseEmitter emitter = new SseEmitter(300_000L); // 타임아웃 5분
 
 		executor.submit(() ->
-				chatbotClient.stream(request)
+				chatbotClient.stream(request, currentUser.id())
 						.subscribe(
 								line -> {
 									try {

@@ -29,10 +29,11 @@ public class ChatbotClient {
 	 *
 	 * FastAPI가 보내는 SSE 포맷("data: {...}\n\n")을 한 줄씩 수신한다.
 	 */
-	public Flux<String> stream(ChatRequest request) {
+	public Flux<String> stream(ChatRequest request, Long userId) {
 		Map<String, Object> body = new HashMap<>();
 		body.put("question", request.question());
 		body.put("session_id", request.sessionId());
+		body.put("user_id", userId);
 
 		return webClient.post()
 			.uri("/chat")
