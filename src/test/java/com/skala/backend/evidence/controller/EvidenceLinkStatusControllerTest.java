@@ -112,7 +112,7 @@ class EvidenceLinkStatusControllerTest {
     }
 
     @Test
-    void upload_completed_상태에서_파일_연결해도_상태_변화_없다() throws Exception {
+    void upload_completed_상태에서_파일_연결하면_draft로_전환된다() throws Exception {
         Map<String, String> user = createUser("admin");
         Cookie cookie = loginCookie(user);
         int userId = getUserId(user.get("employeeNo"));
@@ -131,7 +131,78 @@ class EvidenceLinkStatusControllerTest {
         entityManager.clear();
         String status = jdbcTemplate.queryForObject(
                 "SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
-        assert "upload_completed".equals(status) : "expected upload_completed but got " + status;
+        assert "draft".equals(status) : "expected draft but got " + status;
+    }
+
+    @Test
+    void review_completed_상태에서_파일_연결하면_draft로_전환된다() throws Exception {
+        Map<String, String> user = createUser("admin");
+        Cookie cookie = loginCookie(user);
+        int userId = getUserId(user.get("employeeNo"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId, "review_completed");
+        int itemId = insertItem(statementId);
+        int fileId = insertFile(projectId, userId);
+
+        mockMvc.perform(post("/projects/{pid}/usage-statement-items/{iid}/evidence-files", projectId, itemId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", fileId, "evidenceTypeCode", "receipt"))))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        entityManager.clear();
+        String status = jdbcTemplate.queryForObject(
+                "SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+        assert "draft".equals(status) : "expected draft but got " + status;
+    }
+
+    @Test
+    void review_completed_상태에서_파일_연결_이동하면_draft로_전환된다() throws Exception {
+        Map<String, String> user = createUser("admin");
+        Cookie cookie = loginCookie(user);
+        int userId = getUserId(user.get("employeeNo"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId, "review_completed");
+        int itemId1 = insertItem(statementId);
+        int itemId2 = insertItem(statementId);
+        int fileId = insertFile(projectId, userId);
+        int linkId = insertLink(itemId1, fileId, "receipt");
+
+        mockMvc.perform(patch("/projects/{pid}/evidence-file-links/{lid}", projectId, linkId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("targetItemId", itemId2, "evidenceTypeCode", "receipt"))))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        entityManager.clear();
+        String status = jdbcTemplate.queryForObject(
+                "SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+        assert "draft".equals(status) : "expected draft but got " + status;
+    }
+
+    @Test
+    void review_completed_상태에서_파일_연결_삭제하면_draft로_전환된다() throws Exception {
+        Map<String, String> user = createUser("admin");
+        Cookie cookie = loginCookie(user);
+        int userId = getUserId(user.get("employeeNo"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId, "review_completed");
+        int itemId = insertItem(statementId);
+        int fileId = insertFile(projectId, userId);
+        int linkId = insertLink(itemId, fileId, "receipt");
+
+        mockMvc.perform(delete("/projects/{pid}/evidence-file-links/{lid}", projectId, linkId)
+                        .cookie(cookie))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        entityManager.clear();
+        String status = jdbcTemplate.queryForObject(
+                "SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+        assert "draft".equals(status) : "expected draft but got " + status;
     }
 
     @Test

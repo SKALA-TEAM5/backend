@@ -7,6 +7,7 @@ import com.skala.backend.evidence.service.EvidenceQueryService;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
+import com.skala.backend.usage.domain.UsageStatement;
 import com.skala.backend.usage.domain.UsageStatementItem;
 import com.skala.backend.usage.dto.UsageStatementItemRequests.ChangeCategoryRequest;
 import com.skala.backend.usage.dto.UsageStatementItemRequests.CreateItemRequest;
@@ -54,6 +55,7 @@ public class UsageStatementItemService {
 		this.codeLookupService = codeLookupService;
 	}
 
+	@Transactional
 	public CreateItemResponse createItem(Long currentUserId, Long projectId, Long usageStatementId, CreateItemRequest request) {
 		projectAccessService.requireWritable(currentUserId, projectId);
 
@@ -76,6 +78,8 @@ public class UsageStatementItemService {
 				request.unitPrice(),
 				request.totalAmount()
 		);
+
+		statementRepository.findById(usageStatementId).ifPresent(UsageStatement::revertToDraft);
 
 		List<CreateItemResponse.CategoryChange> changes = classi.changes().stream()
 				.map(c -> new CreateItemResponse.CategoryChange(

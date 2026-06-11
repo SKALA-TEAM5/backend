@@ -76,6 +76,7 @@ public class UsageStatement {
 
 	public void revertToDraft() {
 		if (status != UsageStatementStatus.SUPPLEMENT_REQUIRED
+				&& status != UsageStatementStatus.UPLOAD_COMPLETED
 				&& status != UsageStatementStatus.REVIEW_COMPLETED) {
 			return;
 		}

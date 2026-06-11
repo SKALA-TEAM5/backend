@@ -5,6 +5,7 @@ import com.skala.backend.agent.client.FastApiAgentClient;
 import com.skala.backend.user.domain.RoleCode;
 import com.skala.backend.user.domain.User;
 import com.skala.backend.user.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +58,9 @@ class UsageStatementItemControllerTest {
 
 	@Autowired
 	PasswordEncoder passwordEncoder;
+
+	@Autowired
+	EntityManager entityManager;
 
 	@MockitoBean
 	FastApiAgentClient fastApiAgentClient;
@@ -397,6 +401,84 @@ class UsageStatementItemControllerTest {
 				.andExpect(jsonPath("$.message").value(containsString("categoryCode:")));
 	}
 
+	// ─── classi 실행 시 상태 전환 ───────────────────────────────────────
+
+	@Test
+	void upload_completed_상태에서_classi_실행하면_draft로_전환된다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		int statementId = insertUsageStatementWithStatus(projectId, "upload_completed");
+
+		mockMvc.perform(post("/projects/{pid}/usage-statements/{sid}/items", projectId, statementId)
+						.cookie(cookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(defaultItemRequest())))
+				.andExpect(status().isCreated());
+
+		entityManager.flush();
+		entityManager.clear();
+		String status = jdbcTemplate.queryForObject(
+				"SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+		assert "draft".equals(status) : "expected draft but got " + status;
+	}
+
+	@Test
+	void supplement_required_상태에서_classi_실행하면_draft로_전환된다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		int statementId = insertUsageStatementWithStatus(projectId, "supplement_required");
+
+		mockMvc.perform(post("/projects/{pid}/usage-statements/{sid}/items", projectId, statementId)
+						.cookie(cookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(defaultItemRequest())))
+				.andExpect(status().isCreated());
+
+		entityManager.flush();
+		entityManager.clear();
+		String status = jdbcTemplate.queryForObject(
+				"SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+		assert "draft".equals(status) : "expected draft but got " + status;
+	}
+
+	@Test
+	void review_completed_상태에서_classi_실행하면_draft로_전환된다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		int statementId = insertUsageStatementWithStatus(projectId, "review_completed");
+
+		mockMvc.perform(post("/projects/{pid}/usage-statements/{sid}/items", projectId, statementId)
+						.cookie(cookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(defaultItemRequest())))
+				.andExpect(status().isCreated());
+
+		entityManager.flush();
+		entityManager.clear();
+		String status = jdbcTemplate.queryForObject(
+				"SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+		assert "draft".equals(status) : "expected draft but got " + status;
+	}
+
+	@Test
+	void draft_상태에서_classi_실행해도_상태_변화_없다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		int statementId = insertUsageStatement(projectId);
+
+		mockMvc.perform(post("/projects/{pid}/usage-statements/{sid}/items", projectId, statementId)
+						.cookie(cookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(defaultItemRequest())))
+				.andExpect(status().isCreated());
+
+		entityManager.flush();
+		entityManager.clear();
+		String status = jdbcTemplate.queryForObject(
+				"SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+		assert "draft".equals(status) : "expected draft but got " + status;
+	}
+
 	// ─── D-05: statusCode 조회 응답 반영 ────────────────────────────────
 
 	@Test
@@ -500,6 +582,15 @@ class UsageStatementItemControllerTest {
 				VALUES (?, '2026-05-01'::date, 1, '2026-05-15'::date, 30)
 				RETURNING id
 				""", Integer.class, projectId);
+	}
+
+	private int insertUsageStatementWithStatus(int projectId, String statusCode) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO service.usage_statements
+					(project_id, report_month, revision_no, document_written_date, cumulative_progress_rate, status_code)
+				VALUES (?, '2026-05-01'::date, 1, '2026-05-15'::date, 30, ?)
+				RETURNING id
+				""", Integer.class, projectId, statusCode);
 	}
 
 	private int insertUsageStatementItem(int usageStatementId, String categoryCode) {
