@@ -578,6 +578,10 @@ class UsageStatementStatusControllerTest {
 				INSERT INTO service.agent_logs
 					(project_id, usage_statement_id, agent_type_code, status_code, result_code)
 				VALUES (?, ?, ?, ?, ?)
+				ON CONFLICT (usage_statement_id, agent_type_code) WHERE usage_statement_item_id IS NULL
+				DO UPDATE SET status_code = EXCLUDED.status_code,
+				              result_code = EXCLUDED.result_code,
+				              updated_at  = now()
 				""", projectId, statementId, agentTypeCode, statusCode, resultCode);
 	}
 }

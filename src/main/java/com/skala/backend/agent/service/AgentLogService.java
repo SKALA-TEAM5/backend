@@ -115,6 +115,11 @@ public class AgentLogService {
                     .map(node -> new AgentResponses.TodoItem(
                             node.path("usage_statement_item_id").isNull() ? null
                                     : node.path("usage_statement_item_id").longValue(),
+                            node.path("category_code").isNull() ? null : node.path("category_code").asText(null),
+                            node.path("category_name").isNull() ? null : node.path("category_name").asText(null),
+                            node.path("usage_statement_item_name").isNull() ? null : node.path("usage_statement_item_name").asText(null),
+                            node.path("title").isNull() ? null : node.path("title").asText(null),
+                            parseStringList(node.path("evidence_type_codes")),
                             node.path("reason").asText(null)
                     ))
                     .filter(item -> item.reason() != null)
@@ -122,5 +127,13 @@ public class AgentLogService {
         } catch (Exception e) {
             return List.of();
         }
+    }
+
+    private List<String> parseStringList(JsonNode node) {
+        if (node.isMissingNode() || node.isNull() || !node.isArray()) return List.of();
+        return StreamSupport.stream(node.spliterator(), false)
+                .map(JsonNode::asText)
+                .filter(s -> !s.isBlank())
+                .toList();
     }
 }
