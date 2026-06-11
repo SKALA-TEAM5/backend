@@ -119,7 +119,7 @@ class ProjectRequirementContractTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(Map.of("assigneeUserIds", List.of(firstUserId, secondUserId)))))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.assignees", hasSize(2)))
+				.andExpect(jsonPath("$.data.assignees", hasSize(3))) // user×2 + admin 소유자
 				.andExpect(jsonPath("$.data.assignees[0].userId").value(firstUserId))
 				.andExpect(jsonPath("$.data.assignees[0].roleCode").value("user"))
 				.andExpect(jsonPath("$.data.assignees[1].userId").value(secondUserId))
@@ -137,14 +137,14 @@ class ProjectRequirementContractTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(Map.of("assigneeUserIds", List.of(replacementUserId)))))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.assignees", hasSize(1)))
+				.andExpect(jsonPath("$.data.assignees", hasSize(2))) // user×1 + admin 소유자
 				.andExpect(jsonPath("$.data.assignees[0].userId").value(replacementUserId))
 				.andExpect(jsonPath("$.data.assignees[0].roleCode").value("user"));
 
 		mockMvc.perform(get("/projects/{projectId}", projectId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.project.assignees", hasSize(1)))
+				.andExpect(jsonPath("$.data.project.assignees", hasSize(2))) // user×1 + admin 소유자
 				.andExpect(jsonPath("$.data.project.assignees[0].userId").value(replacementUserId));
 
 		mockMvc.perform(delete("/projects/{projectId}/assignees/{userId}", projectId, replacementUserId)
@@ -154,7 +154,7 @@ class ProjectRequirementContractTest {
 		mockMvc.perform(get("/projects/{projectId}/assignees", projectId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.assignees", hasSize(0)));
+				.andExpect(jsonPath("$.data.assignees", hasSize(1))); // admin 소유자만 남음
 	}
 
 	@Test

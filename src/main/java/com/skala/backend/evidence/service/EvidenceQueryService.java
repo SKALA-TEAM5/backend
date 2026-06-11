@@ -78,7 +78,7 @@ public class EvidenceQueryService {
 			return Map.of();
 		}
 
-		Map<Long, ProjectFile> filesById = fileRepository.findByIdInAndDeletedAtIsNull(
+		Map<Long, ProjectFile> filesById = fileRepository.findByIdIn(
 						links.stream().map(EvidenceFileLink::getFileId).collect(Collectors.toSet())
 				)
 				.stream()

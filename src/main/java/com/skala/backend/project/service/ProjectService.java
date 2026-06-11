@@ -137,7 +137,7 @@ public class ProjectService {
 
 	@Transactional
 	public ProjectResponses.DetailDataResponse updateProject(Long currentUserId, Long projectId, ProjectRequests.UpdateRequest request) {
-		projectAccessService.requireProjectManager(currentUserId);
+		projectAccessService.requireProjectManagerOf(currentUserId, projectId);
 		if (request.isEmpty()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "수정할 값이 없습니다.");
 		}
@@ -150,7 +150,7 @@ public class ProjectService {
 
 	@Transactional
 	public void deleteProject(Long currentUserId, Long projectId) {
-		projectAccessService.requireProjectManager(currentUserId);
+		projectAccessService.requireProjectManagerOf(currentUserId, projectId);
 		Project project = findProject(projectId);
 		try {
 			assignmentRepository.deleteByProjectId(projectId);

@@ -1,5 +1,7 @@
 package com.skala.backend.file.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skala.backend.evidence.service.EvidenceCommandService;
 import com.skala.backend.file.domain.ProjectFile;
 import com.skala.backend.evidence.dto.EvidenceRequests.LinkEvidenceFileRequest;
@@ -8,13 +10,16 @@ import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileListResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileUploadResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.UploadAndLinkResponse;
+import com.skala.backend.file.dto.ProjectFileResponses.VisionDetections;
 import com.skala.backend.file.repository.ProjectFileRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
+import com.skala.backend.usage.repository.UsageStatementRepository;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import io.minio.errors.ErrorResponseException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
@@ -28,6 +33,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -42,7 +48,9 @@ public class ProjectFileService {
 	private final ProjectFileRepository fileRepository;
 	private final CodeLookupService codeLookupService;
 	private final EvidenceCommandService evidenceCommandService;
+	private final UsageStatementRepository usageStatementRepository;
 	private final MinioClient minioClient;
+	private final ObjectMapper objectMapper;
 	private final String bucket;
 
 	public ProjectFileService(
@@ -50,14 +58,18 @@ public class ProjectFileService {
 			ProjectFileRepository fileRepository,
 			CodeLookupService codeLookupService,
 			EvidenceCommandService evidenceCommandService,
+			UsageStatementRepository usageStatementRepository,
 			MinioClient minioClient,
+			ObjectMapper objectMapper,
 			@Value("${app.file-storage.bucket}") String bucket
 	) {
 		this.projectAccessService = projectAccessService;
 		this.fileRepository = fileRepository;
 		this.codeLookupService = codeLookupService;
 		this.evidenceCommandService = evidenceCommandService;
+		this.usageStatementRepository = usageStatementRepository;
 		this.minioClient = minioClient;
+		this.objectMapper = objectMapper;
 		this.bucket = bucket;
 	}
 
@@ -128,8 +140,7 @@ public class ProjectFileService {
 				file.getUploadedEvidenceTypeCode(),
 				file.getMimeType(),
 				file.getSizeBytes(),
-				file.getUploadedAt(),
-				file.getDetail()
+				file.getUploadedAt()
 		);
 	}
 
@@ -165,11 +176,26 @@ public class ProjectFileService {
 		projectAccessService.requireWritable(currentUserId, projectId);
 		ProjectFile file = requireFile(projectId, fileId);
 		evidenceCommandService.deleteLinksForFile(file.getId());
-		file.markDeleted(currentUserId);
+		usageStatementRepository.clearSourceFileId(file.getId());
+		deleteFromMinio(file.getStorageKey());
+		fileRepository.delete(file);
+	}
+
+	private void deleteFromMinio(String storageKey) {
+		try {
+			minioClient.removeObject(
+					RemoveObjectArgs.builder()
+							.bucket(bucket)
+							.object(storageKey)
+							.build()
+			);
+		} catch (Exception e) {
+			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 삭제에 실패했습니다.");
+		}
 	}
 
 	private ProjectFile requireFile(Long projectId, Long fileId) {
-		return fileRepository.findByIdAndProjectIdAndDeletedAtIsNull(fileId, projectId)
+		return fileRepository.findByIdAndProjectId(fileId, projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
 	}
 
@@ -204,8 +230,38 @@ public class ProjectFileService {
 				file.getUploadedAt(),
 				file.getStatusCode(),
 				linkedCounts.getOrDefault(file.getId(), 0L),
-				file.getDetail()
+				parseVisionDetections(file.getDetail())
 		);
+	}
+
+	private VisionDetections parseVisionDetections(String detail) {
+		if (detail == null) return null;
+		try {
+			JsonNode vision = objectMapper.readTree(detail).path("vision_validation");
+			if (vision.isMissingNode()) return null;
+
+			List<VisionDetections.Detection> detections = new ArrayList<>();
+			for (JsonNode d : vision.path("detections")) {
+				List<Double> bbox = new ArrayList<>();
+				for (JsonNode coord : d.path("bbox_xyxy")) {
+					bbox.add(coord.asDouble());
+				}
+				detections.add(new VisionDetections.Detection(
+						d.path("label").asText(null),
+						d.path("box_color").asText(null),
+						d.path("confidence").asDouble(),
+						d.path("is_wearing").asBoolean(),
+						bbox
+				));
+			}
+			return new VisionDetections(
+					vision.path("image_width").asInt(),
+					vision.path("image_height").asInt(),
+					detections
+			);
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	private String storageKey(Long projectId, String originalFilename) {

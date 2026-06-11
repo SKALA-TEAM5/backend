@@ -73,6 +73,15 @@ public class ProjectAccessService {
 		return currentUser;
 	}
 
+	public User requireProjectManagerOf(Long currentUserId, Long projectId) {
+		User currentUser = requireProjectManager(currentUserId);
+		if (currentUser.getRoleCode() == RoleCode.ADMIN
+				&& !assignmentRepository.existsByProjectIdAndUserId(projectId, currentUser.getId())) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return currentUser;
+	}
+
 	public void requireProjectWorkAccessible(Long currentUserId) {
 		User currentUser = requireCurrentUser(currentUserId);
 		if (currentUser.getRoleCode() == RoleCode.SYSTEM_ADMIN) {

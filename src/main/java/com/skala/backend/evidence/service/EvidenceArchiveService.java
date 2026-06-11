@@ -66,14 +66,13 @@ public class EvidenceArchiveService {
 					count(DISTINCT i.id) AS item_count,
 					count(DISTINCT l.file_id) AS linked_file_count,
 					count(l.id) AS link_count,
-					count(DISTINCT l.file_id) FILTER (WHERE l.checked_at IS NULL AND f.deleted_at IS NULL) AS unchecked_matched_file_count,
+					count(DISTINCT l.file_id) FILTER (WHERE l.checked_at IS NULL) AS unchecked_matched_file_count,
 					count(r.id) AS unsatisfied_requirement_count
 				FROM service.usage_categories c
 				LEFT JOIN service.usage_statement_items i
 					ON i.category_code = c.code
 					AND i.usage_statement_id = ?
 				LEFT JOIN service.evidence_file_links l ON l.usage_statement_item_id = i.id
-				LEFT JOIN service.files f ON f.id = l.file_id
 				LEFT JOIN service.evidence_requirements r
 					ON r.usage_statement_item_id = i.id
 					AND r.is_active = true
@@ -119,12 +118,11 @@ public class EvidenceArchiveService {
 					i.remark,
 					i.page_no,
 					count(DISTINCT l.file_id) AS linked_file_count,
-					count(DISTINCT l.file_id) FILTER (WHERE l.checked_at IS NULL AND f.deleted_at IS NULL) AS unchecked_matched_file_count,
+					count(DISTINCT l.file_id) FILTER (WHERE l.checked_at IS NULL) AS unchecked_matched_file_count,
 					count(r.id) AS unsatisfied_requirement_count
 				FROM service.usage_statement_items i
 				JOIN service.usage_statements s ON s.id = i.usage_statement_id
 				LEFT JOIN service.evidence_file_links l ON l.usage_statement_item_id = i.id
-				LEFT JOIN service.files f ON f.id = l.file_id
 				LEFT JOIN service.evidence_requirements r
 					ON r.usage_statement_item_id = i.id
 					AND r.is_active = true

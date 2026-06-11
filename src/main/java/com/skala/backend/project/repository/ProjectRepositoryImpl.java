@@ -100,9 +100,7 @@ public class ProjectRepositoryImpl implements ProjectRepositoryCustom {
 					FROM service.evidence_file_links l
 					JOIN service.usage_statement_items i ON i.id = l.usage_statement_item_id
 					JOIN service.usage_statements us ON us.id = i.usage_statement_id
-					JOIN service.files f ON f.id = l.file_id
 					WHERE l.checked_at IS NULL
-						AND f.deleted_at IS NULL
 					GROUP BY us.project_id
 				)
 				SELECT

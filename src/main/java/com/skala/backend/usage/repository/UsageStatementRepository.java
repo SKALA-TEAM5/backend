@@ -2,6 +2,9 @@ package com.skala.backend.usage.repository;
 
 import com.skala.backend.usage.domain.UsageStatement;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -18,4 +21,8 @@ public interface UsageStatementRepository extends JpaRepository<UsageStatement, 
 	List<UsageStatement> findByProjectIdOrderByReportMonthDescRevisionNoDesc(Long projectId);
 
 	boolean existsByIdAndProjectId(Long id, Long projectId);
+
+	@Modifying
+	@Query("UPDATE UsageStatement s SET s.sourceFileId = null WHERE s.sourceFileId = :fileId")
+	void clearSourceFileId(@Param("fileId") Long fileId);
 }

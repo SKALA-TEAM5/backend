@@ -35,9 +35,7 @@ public interface EvidenceFileLinkRepository extends JpaRepository<EvidenceFileLi
 			FROM service.evidence_file_links l
 			JOIN service.usage_statement_items i ON i.id = l.usage_statement_item_id
 			JOIN service.usage_statements s ON s.id = i.usage_statement_id
-			JOIN service.files f ON f.id = l.file_id
 			WHERE s.project_id = :projectId
-				AND f.deleted_at IS NULL
 				AND l.checked_at IS NULL
 			""", nativeQuery = true)
 	long countUncheckedMatchedFiles(@Param("projectId") Long projectId);
@@ -47,13 +45,10 @@ public interface EvidenceFileLinkRepository extends JpaRepository<EvidenceFileLi
 			UPDATE service.evidence_file_links l
 			SET checked_at = now()
 			FROM service.usage_statement_items i,
-				service.usage_statements s,
-				service.files f
+				service.usage_statements s
 			WHERE i.id = l.usage_statement_item_id
 				AND s.id = i.usage_statement_id
-				AND f.id = l.file_id
 				AND s.project_id = :projectId
-				AND f.deleted_at IS NULL
 				AND l.checked_at IS NULL
 			""", nativeQuery = true)
 	int markProjectLinksChecked(@Param("projectId") Long projectId);
