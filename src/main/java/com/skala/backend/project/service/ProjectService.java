@@ -110,6 +110,13 @@ public class ProjectService {
 		User creator = projectAccessService.requireAdmin(currentUserId);
 		validateDateRange(request.constructionStartDate(), request.constructionEndDate());
 
+		if (projectRepository.existsByContractNo(request.contractNo())) {
+			throw new ApiException(HttpStatus.CONFLICT, "이미 사용 중인 계약번호입니다.");
+		}
+		if (projectRepository.existsByProjectName(request.projectName())) {
+			throw new ApiException(HttpStatus.CONFLICT, "이미 사용 중인 프로젝트명입니다.");
+		}
+
 		Project project = Project.create(
 				request.contractNo(),
 				request.constructionCompany(),
@@ -143,6 +150,14 @@ public class ProjectService {
 		}
 
 		Project project = findProject(projectId);
+
+		if (request.contractNo() != null && projectRepository.existsByContractNoAndIdNot(request.contractNo(), projectId)) {
+			throw new ApiException(HttpStatus.CONFLICT, "이미 사용 중인 계약번호입니다.");
+		}
+		if (request.projectName() != null && projectRepository.existsByProjectNameAndIdNot(request.projectName(), projectId)) {
+			throw new ApiException(HttpStatus.CONFLICT, "이미 사용 중인 프로젝트명입니다.");
+		}
+
 		applyUpdate(project, request);
 		validateDateRange(project.getConstructionStartDate(), project.getConstructionEndDate());
 		return toDetailDataResponse(project);

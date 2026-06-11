@@ -621,6 +621,83 @@ class ProjectRequirementContractTest {
 				.andExpect(status().isForbidden());
 	}
 
+	@Test
+	void 중복_계약번호로_생성시_409를_반환한다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String contractNo = "DUP-CN-" + UUID.randomUUID();
+		createProject(managerCookie, projectRequest("계약번호중복-원본", contractNo, "active", "2026-01-01", "2026-12-31"));
+
+		mockMvc.perform(post("/projects")
+						.cookie(managerCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(
+								projectRequest("계약번호중복-사본", contractNo, "active", "2026-01-01", "2026-12-31"))))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value("이미 사용 중인 계약번호입니다."));
+	}
+
+	@Test
+	void 중복_프로젝트명으로_생성시_409를_반환한다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String projectName = "중복프로젝트명-" + UUID.randomUUID();
+		createProject(managerCookie, projectRequest(projectName, "CN-ORIG-" + UUID.randomUUID(), "active", "2026-01-01", "2026-12-31"));
+
+		mockMvc.perform(post("/projects")
+						.cookie(managerCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(
+								projectRequest(projectName, "CN-DUP-" + UUID.randomUUID(), "active", "2026-01-01", "2026-12-31"))))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value("이미 사용 중인 프로젝트명입니다."));
+	}
+
+	@Test
+	void 수정시_다른_프로젝트_계약번호와_충돌하면_409를_반환한다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String takenContractNo = "TAKEN-CN-" + UUID.randomUUID();
+		createProject(managerCookie, projectRequest("계약번호선점", takenContractNo, "active", "2026-01-01", "2026-12-31"));
+		int targetProjectId = createProject(managerCookie, projectRequest("수정대상", "MY-CN-" + UUID.randomUUID(), "active", "2026-01-01", "2026-12-31"));
+
+		mockMvc.perform(patch("/projects/{projectId}", targetProjectId)
+						.cookie(managerCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("contractNo", takenContractNo))))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value("이미 사용 중인 계약번호입니다."));
+	}
+
+	@Test
+	void 수정시_다른_프로젝트명과_충돌하면_409를_반환한다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String takenName = "선점된프로젝트명-" + UUID.randomUUID();
+		createProject(managerCookie, projectRequest(takenName, "CN-TAKEN-" + UUID.randomUUID(), "active", "2026-01-01", "2026-12-31"));
+		int targetProjectId = createProject(managerCookie, projectRequest("수정대상프로젝트", "CN-TARGET-" + UUID.randomUUID(), "active", "2026-01-01", "2026-12-31"));
+
+		mockMvc.perform(patch("/projects/{projectId}", targetProjectId)
+						.cookie(managerCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("projectName", takenName))))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value("이미 사용 중인 프로젝트명입니다."));
+	}
+
+	@Test
+	void 수정시_자기_자신의_계약번호와_프로젝트명은_허용된다() throws Exception {
+		Cookie managerCookie = loginCookie(createUser("admin"));
+		String contractNo = "SELF-CN-" + UUID.randomUUID();
+		String projectName = "자기자신수정-" + UUID.randomUUID();
+		int projectId = createProject(managerCookie, projectRequest(projectName, contractNo, "active", "2026-01-01", "2026-12-31"));
+
+		mockMvc.perform(patch("/projects/{projectId}", projectId)
+						.cookie(managerCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"contractNo", contractNo,
+								"projectName", projectName
+						))))
+				.andExpect(status().isOk());
+	}
+
 	private Map<String, Object> projectRequest(String projectName) {
 		return projectRequest(projectName, "CN-" + UUID.randomUUID(), "active", "2026-05-01", "2026-12-31");
 	}
