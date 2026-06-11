@@ -473,7 +473,7 @@ class UsageStatementItemControllerTest {
 						.content(objectMapper.writeValueAsString(Map.of(
 								"contractNo", "CN-" + UUID.randomUUID(),
 								"constructionCompany", "스칼라건설",
-								"projectName", "테스트 프로젝트",
+								"projectName", "테스트 프로젝트-" + UUID.randomUUID(),
 								"siteLocation", "서울시 강남구",
 								"contractAmount", 100_000_000,
 								"constructionStartDate", "2026-01-01",
