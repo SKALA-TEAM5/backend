@@ -13,6 +13,14 @@ import java.time.LocalDate;
 
 public interface ProjectRepository extends JpaRepository<Project, Long>, ProjectRepositoryCustom {
 
+	boolean existsByContractNo(String contractNo);
+
+	boolean existsByProjectName(String projectName);
+
+	boolean existsByContractNoAndIdNot(String contractNo, Long id);
+
+	boolean existsByProjectNameAndIdNot(String projectName, Long id);
+
 	@Query("""
 			SELECT p
 			FROM Project p
