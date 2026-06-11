@@ -479,6 +479,84 @@ class UsageStatementItemControllerTest {
 		assert "draft".equals(status) : "expected draft but got " + status;
 	}
 
+	// ─── 기존 세부항목 변경 시 상태 전환 (수정/삭제/카테고리 이동) ────────
+
+	@Test
+	void upload_completed_상태에서_세부항목_수정하면_draft로_전환된다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		int statementId = insertUsageStatementWithStatus(projectId, "upload_completed");
+		int itemId = insertUsageStatementItem(statementId, "CAT_01");
+
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/items/{iid}", projectId, statementId, itemId)
+						.cookie(cookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"usedOn", "2026-06-01",
+								"itemName", "안전모 구입(수정)",
+								"quantity", 20,
+								"unitPrice", 6000,
+								"totalAmount", 120000,
+								"pageNo", 2
+						))))
+				.andExpect(status().isOk());
+
+		assertStatusCode(statementId, "draft");
+	}
+
+	@Test
+	void supplement_required_상태에서_세부항목_삭제하면_draft로_전환된다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		int statementId = insertUsageStatementWithStatus(projectId, "supplement_required");
+		int itemId = insertUsageStatementItem(statementId, "CAT_01");
+
+		mockMvc.perform(delete("/projects/{pid}/usage-statements/{sid}/items/{iid}", projectId, statementId, itemId)
+						.cookie(cookie))
+				.andExpect(status().isOk());
+
+		assertStatusCode(statementId, "draft");
+	}
+
+	@Test
+	void review_completed_상태에서_카테고리_이동하면_draft로_전환된다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		int statementId = insertUsageStatementWithStatus(projectId, "review_completed");
+		int itemId = insertUsageStatementItem(statementId, "CAT_01");
+
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/items/{iid}/category", projectId, statementId, itemId)
+						.cookie(cookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("categoryCode", "CAT_02"))))
+				.andExpect(status().isOk());
+
+		assertStatusCode(statementId, "draft");
+	}
+
+	@Test
+	void draft_상태에서_세부항목_수정해도_draft를_유지한다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		int statementId = insertUsageStatement(projectId);
+		int itemId = insertUsageStatementItem(statementId, "CAT_01");
+
+		mockMvc.perform(patch("/projects/{pid}/usage-statements/{sid}/items/{iid}", projectId, statementId, itemId)
+						.cookie(cookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"usedOn", "2026-06-01",
+								"itemName", "안전모 구입(수정)",
+								"quantity", 20,
+								"unitPrice", 6000,
+								"totalAmount", 120000,
+								"pageNo", 2
+						))))
+				.andExpect(status().isOk());
+
+		assertStatusCode(statementId, "draft");
+	}
+
 	// ─── D-05: statusCode 조회 응답 반영 ────────────────────────────────
 
 	@Test
@@ -637,6 +715,14 @@ class UsageStatementItemControllerTest {
 		return jdbcTemplate.queryForObject(
 				"SELECT count(*)::int FROM service.evidence_requirements WHERE usage_statement_item_id = ?",
 				Integer.class, itemId);
+	}
+
+	private void assertStatusCode(int statementId, String expected) {
+		entityManager.flush();
+		entityManager.clear();
+		String status = jdbcTemplate.queryForObject(
+				"SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+		assertThat(status).isEqualTo(expected);
 	}
 
 	private Map<String, Object> defaultItemRequest() {
