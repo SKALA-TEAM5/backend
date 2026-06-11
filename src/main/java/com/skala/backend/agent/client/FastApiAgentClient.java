@@ -1,12 +1,17 @@
 package com.skala.backend.agent.client;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skala.backend.agent.dto.AgentResponses;
+import com.skala.backend.global.error.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -14,6 +19,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 @Component
 public class FastApiAgentClient {
@@ -32,6 +38,7 @@ public class FastApiAgentClient {
 	}
 
 	private final RestClient restClient;
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	public FastApiAgentClient(
 			RestClient.Builder builder,
@@ -47,14 +54,43 @@ public class FastApiAgentClient {
 				.build();
 	}
 
+	private <T> T callFastApi(Supplier<T> call) {
+		try {
+			return call.get();
+		} catch (RestClientResponseException e) {
+			String message = extractMessage(e.getResponseBodyAsString());
+			if (e.getStatusCode().is4xxClientError()) {
+				throw new ApiException(HttpStatus.valueOf(e.getStatusCode().value()), message);
+			}
+			throw new ApiException(HttpStatus.BAD_GATEWAY, "AI 서비스 처리 중 오류가 발생했습니다: " + message);
+		} catch (ResourceAccessException e) {
+			throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI 서비스에 연결할 수 없습니다.");
+		}
+	}
+
+	private String extractMessage(String body) {
+		if (body == null || body.isBlank()) return "AI 서비스 오류";
+		try {
+			JsonNode root = objectMapper.readTree(body);
+			JsonNode detail = root.get("detail");
+			if (detail != null) {
+				if (detail.isTextual()) return detail.asText();
+				if (detail.isArray() && !detail.isEmpty()) return detail.get(0).path("msg").asText("AI 서비스 오류");
+			}
+			JsonNode message = root.get("message");
+			if (message != null && message.isTextual()) return message.asText();
+		} catch (Exception ignored) {}
+		return body.length() > 200 ? body.substring(0, 200) : body;
+	}
+
 	// parse: usage_statement_id → top-level, item_count → result.item_count
 	public AgentResponses.ParseResult parseUsageStatement(Long projectId, Long fileId) {
-		Map<String, Object> raw = restClient.post()
+		Map<String, Object> raw = callFastApi(() -> restClient.post()
 				.uri("/orchestrator/usage-statements/parse")
 				.body(Map.of("project_id", projectId, "file_id", fileId))
 				.retrieve()
 				.toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
-				.getBody();
+				.getBody());
 
 		Long usageStatementId = toLong(raw.get("usage_statement_id"));
 
@@ -79,19 +115,19 @@ public class FastApiAgentClient {
 		body.put("unit_price", unitPrice);
 		body.put("total_amount", totalAmount);
 
-		Map<String, Object> raw = restClient.post()
+		Map<String, Object> raw = callFastApi(() -> restClient.post()
 				.uri("/orchestrator/usage-statements/classify")
 				.body(body)
 				.retrieve()
 				.toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
-				.getBody();
+				.getBody());
 
 		return extractClassifyResult(raw);
 	}
 
 	// validate: result.{"safety-doc", "link", "vision"} 각각 AgentRunResult로 변환
 	public List<AgentResponses.AgentRunResult> runValidation(Long projectId, Long usageStatementId, Long triggeredByUserId) {
-		Map<String, Object> raw = restClient.post()
+		Map<String, Object> raw = callFastApi(() -> restClient.post()
 				.uri("/orchestrator/usage-statements/validate")
 				.body(Map.of(
 						"project_id",           projectId,
@@ -100,7 +136,7 @@ public class FastApiAgentClient {
 				))
 				.retrieve()
 				.toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
-				.getBody();
+				.getBody());
 
 		@SuppressWarnings("unchecked")
 		Map<String, Object> result = (Map<String, Object>) raw.get("result");
@@ -118,7 +154,7 @@ public class FastApiAgentClient {
 
 	// legal: result.legal 에서 AgentRunResult 추출
 	public AgentResponses.AgentRunResult runLegal(Long projectId, Long usageStatementId, Long triggeredByUserId) {
-		Map<String, Object> raw = restClient.post()
+		Map<String, Object> raw = callFastApi(() -> restClient.post()
 				.uri("/orchestrator/usage-statements/legal")
 				.body(Map.of(
 						"project_id",           projectId,
@@ -127,7 +163,7 @@ public class FastApiAgentClient {
 				))
 				.retrieve()
 				.toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
-				.getBody();
+				.getBody());
 
 		String status  = (String) raw.get("status");
 		String message = (String) raw.get("message");
@@ -146,7 +182,7 @@ public class FastApiAgentClient {
 
 	// report: result.report + result.report.result.reportDraft 에서 추출
 	public AgentResponses.AgentRunResult runReport(Long projectId, Long usageStatementId, Long triggeredByUserId) {
-		Map<String, Object> raw = restClient.post()
+		Map<String, Object> raw = callFastApi(() -> restClient.post()
 				.uri("/orchestrator/usage-statements/report")
 				.body(Map.of(
 						"project_id",           projectId,
@@ -155,7 +191,7 @@ public class FastApiAgentClient {
 				))
 				.retrieve()
 				.toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
-				.getBody();
+				.getBody());
 		return mapReportResponse(raw);
 	}
 
