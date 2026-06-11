@@ -46,7 +46,7 @@ def dummy_file():
 def apply_auth_cookies(client, resp):
     """requests/localhost 쿠키 저장 버그 대응 — Set-Cookie를 세션에 직접 주입."""
     for cookie in resp.cookies:
-        client.cookies.set(cookie.name, cookie.value, domain="localhost", path="/")
+        client.cookies[cookie.name] = cookie.value
 
 
 # ── Admin 시나리오 ────────────────────────────────────────────────
