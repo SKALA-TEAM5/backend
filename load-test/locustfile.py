@@ -21,11 +21,48 @@ from locust import HttpUser, task, between
 import random
 import io
 import uuid
+import subprocess
 
-# ── 계정 풀 (make locust-seed로 사전 생성) ────────────────────────
+# ── 계정 풀 — DB에서 동적으로 로드 (형식·개수 무관) ──────────────
 PASSWORD = "P@ssw0rd123!"
-ADMIN_POOL = [{"employeeNo": f"LOAD-ADMIN-{n:03d}", "password": PASSWORD} for n in range(1, 31)]
-USER_POOL  = [{"employeeNo": f"LOAD-USER-{n:03d}",  "password": PASSWORD} for n in range(1, 31)]
+
+def _build_pools():
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "safety_db", "psql",
+             "-U", "safety_user", "-d", "safety",
+             "-t", "-A", "-F", "\t",
+             "-c", "SELECT employee_no, role_code FROM service.users "
+                   "WHERE employee_no LIKE 'LOAD-%' "
+                   "AND password_hash = ("
+                   "  SELECT password_hash FROM service.users "
+                   "  WHERE employee_no LIKE 'LOAD-ADMIN-%' LIMIT 1"
+                   ") ORDER BY employee_no"],
+            capture_output=True, text=True, timeout=10
+        )
+        admins, users = [], []
+        for line in result.stdout.strip().splitlines():
+            parts = line.split("\t")
+            if len(parts) != 2:
+                continue
+            emp_no, role = parts[0].strip(), parts[1].strip()
+            entry = {"employeeNo": emp_no, "password": PASSWORD}
+            if role == "admin":
+                admins.append(entry)
+            elif role == "user":
+                users.append(entry)
+        if admins and users:
+            print(f"[pool] admin {len(admins)}명 / user {len(users)}명 로드됨")
+            return admins, users
+    except Exception as e:
+        print(f"[pool] DB 조회 실패, fallback 사용: {e}")
+    # fallback — seed.sql 기본값
+    return (
+        [{"employeeNo": f"LOAD-ADMIN-{n:03d}", "password": PASSWORD} for n in range(1, 31)],
+        [{"employeeNo": f"LOAD-USER-{n:03d}",  "password": PASSWORD} for n in range(1, 31)],
+    )
+
+ADMIN_POOL, USER_POOL = _build_pools()
 
 CATEGORY_CODES = [f"CAT_0{n}" for n in range(1, 10)]
 
