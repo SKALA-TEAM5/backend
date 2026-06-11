@@ -23,6 +23,8 @@ import org.springframework.web.client.RestClientException;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -489,6 +491,88 @@ class AgentRunControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    // ─── 비동기 디스패치 전 'running' 선기록 (race condition 방지) ──────────────
+    // POST 202 직후 statement-level 로그가 'running'으로 가시화되어야,
+    // 프론트 첫 button-states 폴링이 "미실행"을 "완료"로 오인하지 않는다.
+
+    @Test
+    void validate_202_직후_safety_doc만_running으로_선기록한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "classi", "success", "success");
+
+        mockMvc.perform(post("/projects/{pid}/agents/validate", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isAccepted());
+
+        // safety-doc은 항상 실행되므로 선기록 → running
+        assertEquals("running", statementLogStatus(statementId, "safety-doc"),
+                "safety-doc 로그가 running으로 선기록되어야 한다");
+        // link/vision은 FastAPI가 조건부로만 실행하므로 선기록하면 안 됨 (stuck-running 회귀 방지)
+        assertEquals(0, statementLogCount(statementId, "link"), "link는 선기록하면 안 된다");
+        assertEquals(0, statementLogCount(statementId, "vision"), "vision은 선기록하면 안 된다");
+    }
+
+    @Test
+    void legal_202_직후_legal을_running으로_선기록한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "success");
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isAccepted());
+
+        assertEquals("running", statementLogStatus(statementId, "legal"),
+                "legal 로그가 running으로 선기록되어야 한다");
+    }
+
+    @Test
+    void legal_재실행_시_기존_success_로그를_running_result_null로_리셋한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "safety-doc", "success", "success");
+        // 이전 실행 완료 상태 (재실행 대상)
+        insertLog(projectId, statementId, "legal", "success", "hil");
+
+        mockMvc.perform(post("/projects/{pid}/agents/legal", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isAccepted());
+
+        // ON CONFLICT DO UPDATE 경로: 단일 행이 running으로 갱신되고 result_code는 NULL로 리셋
+        assertEquals(1, statementLogCount(statementId, "legal"), "legal 로그는 단일 행이어야 한다");
+        assertEquals("running", statementLogStatus(statementId, "legal"),
+                "재실행 시 legal 로그가 running으로 갱신되어야 한다");
+        assertNull(statementLogResult(statementId, "legal"),
+                "재실행 시 result_code가 NULL로 리셋되어야 한다");
+    }
+
+    @Test
+    void report_202_직후_report를_running으로_선기록한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        insertLog(projectId, statementId, "legal", "success", "success");
+
+        mockMvc.perform(post("/projects/{pid}/agents/report", projectId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("usageStatementId", statementId))))
+                .andExpect(status().isAccepted());
+
+        assertEquals("running", statementLogStatus(statementId, "report"),
+                "report 로그가 running으로 선기록되어야 한다");
+    }
+
     // ─── fixtures ─────────────────────────────────────────────────────────
 
     private Map<String, String> createUser(String roleCode) {
@@ -573,5 +657,30 @@ class AgentRunControllerTest {
                     (project_id, usage_statement_id, agent_type_code, status_code, created_at, updated_at)
                 VALUES (?, ?, ?, ?, NOW() - INTERVAL '16 minutes', NOW() - INTERVAL '16 minutes')
                 """, projectId, statementId, agentTypeCode, statusCode);
+    }
+
+    /** statement-level(item_id IS NULL) 로그의 status_code 조회 — 없으면 null */
+    private String statementLogStatus(int statementId, String agentTypeCode) {
+        return jdbcTemplate.query("""
+                SELECT status_code FROM service.agent_logs
+                WHERE usage_statement_id = ? AND agent_type_code = ? AND usage_statement_item_id IS NULL
+                """, rs -> rs.next() ? rs.getString(1) : null, statementId, agentTypeCode);
+    }
+
+    /** statement-level(item_id IS NULL) 로그의 result_code 조회 — 없으면 null */
+    private String statementLogResult(int statementId, String agentTypeCode) {
+        return jdbcTemplate.query("""
+                SELECT result_code FROM service.agent_logs
+                WHERE usage_statement_id = ? AND agent_type_code = ? AND usage_statement_item_id IS NULL
+                """, rs -> rs.next() ? rs.getString(1) : null, statementId, agentTypeCode);
+    }
+
+    /** statement-level(item_id IS NULL) 로그 행 수 */
+    private int statementLogCount(int statementId, String agentTypeCode) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM service.agent_logs
+                WHERE usage_statement_id = ? AND agent_type_code = ? AND usage_statement_item_id IS NULL
+                """, Integer.class, statementId, agentTypeCode);
+        return count != null ? count : 0;
     }
 }

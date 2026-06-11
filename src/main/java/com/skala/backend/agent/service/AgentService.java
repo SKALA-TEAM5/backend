@@ -53,6 +53,11 @@ public class AgentService {
 				|| agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.VISION.getCode(), validateStaleSeconds)) {
 			throw new ApiException(HttpStatus.CONFLICT, "현재 실행 중입니다.");
 		}
+		// 비동기 디스패치 전 'running' 선기록으로 폴링 race를 차단한다.
+		// safety-doc은 항상 실행되며(validateRunning은 OR 조건) 단독으로 validate를 running 처리한다.
+		// link/vision은 증빙 유무에 따라 FastAPI가 조건부로만 실행하므로 선기록하지 않는다
+		// (선기록 시 FastAPI가 갱신하지 않아 'running'에 갇혀 legal이 영구 차단되는 회귀 발생).
+		agentLogRepository.upsertStatementLogRunning(projectId, sid, AgentTypeCode.SAFETY_DOC.getCode());
 		agentAsyncService.fireValidate(projectId, sid, currentUserId);
 	}
 
@@ -73,6 +78,8 @@ public class AgentService {
 		if (agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.LEGAL.getCode(), legalStaleSeconds)) {
 			throw new ApiException(HttpStatus.CONFLICT, "현재 실행 중입니다.");
 		}
+		// 비동기 디스패치 전 'running' 선기록 — 첫 폴링이 미실행을 완료로 오인하는 race 차단.
+		agentLogRepository.upsertStatementLogRunning(projectId, sid, AgentTypeCode.LEGAL.getCode());
 		agentAsyncService.fireLegal(projectId, sid, currentUserId);
 	}
 
@@ -85,6 +92,8 @@ public class AgentService {
 		if (agentLogRepository.existsActiveNonStaleLog(sid, AgentTypeCode.REPORT.getCode(), reportStaleSeconds)) {
 			throw new ApiException(HttpStatus.CONFLICT, "현재 실행 중입니다.");
 		}
+		// 비동기 디스패치 전 'running' 선기록 — 첫 폴링이 미실행을 완료로 오인하는 race 차단.
+		agentLogRepository.upsertStatementLogRunning(projectId, sid, AgentTypeCode.REPORT.getCode());
 		agentAsyncService.fireReport(projectId, sid, currentUserId);
 	}
 
