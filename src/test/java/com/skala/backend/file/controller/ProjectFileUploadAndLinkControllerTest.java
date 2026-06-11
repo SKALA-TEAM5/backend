@@ -119,7 +119,7 @@ class ProjectFileUploadAndLinkControllerTest {
     }
 
     @Test
-    void upload_completed_상태에서_업로드_연결_해도_상태_변화_없다() throws Exception {
+    void upload_completed_상태에서_업로드_연결_시_draft로_전환된다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
         int statementId = insertStatement(projectId, "upload_completed");
@@ -137,7 +137,29 @@ class ProjectFileUploadAndLinkControllerTest {
 
         String statusCode = jdbcTemplate.queryForObject(
                 "SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
-        assert "upload_completed".equals(statusCode) : "expected upload_completed but got " + statusCode;
+        assert "draft".equals(statusCode) : "expected draft but got " + statusCode;
+    }
+
+    @Test
+    void review_completed_상태에서_업로드_연결_시_draft로_전환된다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId, "review_completed");
+        int itemId = insertItem(statementId);
+        MockMultipartFile file = new MockMultipartFile("file", "photo.jpg", "image/jpeg", "img".getBytes());
+
+        mockMvc.perform(multipart("/projects/{pid}/usage-statement-items/{iid}/evidence-files/upload", projectId, itemId)
+                        .file(file)
+                        .param("evidenceTypeCode", "site_photo")
+                        .cookie(cookie))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        entityManager.clear();
+
+        String statusCode = jdbcTemplate.queryForObject(
+                "SELECT status_code FROM service.usage_statements WHERE id = ?", String.class, statementId);
+        assert "draft".equals(statusCode) : "expected draft but got " + statusCode;
     }
 
     // ─── 오류 케이스 ──────────────────────────────────────────────────────

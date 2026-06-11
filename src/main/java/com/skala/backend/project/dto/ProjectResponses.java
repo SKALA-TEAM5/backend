@@ -37,6 +37,22 @@ public final class ProjectResponses {
 		}
 	}
 
+	@Schema(description = "담당자 요약 정보 (역할별 그룹에 사용)")
+	public record AssigneeSummary(
+			@Schema(description = "사용자 ID", example = "1") Long userId,
+			@Schema(description = "담당자 이름", example = "김스칼라") String realName
+	) {}
+
+	@Schema(description = "역할별 담당자 그룹")
+	public record RoleGroupedAssignees(
+			@Schema(description = "admin 역할 담당자 목록") List<AssigneeSummary> admin,
+			@Schema(description = "user 역할 담당자 목록") List<AssigneeSummary> user
+	) {
+		public static RoleGroupedAssignees empty() {
+			return new RoleGroupedAssignees(List.of(), List.of());
+		}
+	}
+
 	@Schema(description = "프로젝트 담당자 목록 응답 데이터")
 	public record AssigneeListResponse(
 			@Schema(description = "프로젝트 ID", example = "1") Long projectId,
@@ -57,15 +73,16 @@ public final class ProjectResponses {
 			@Schema(description = "프로젝트 상태", example = "active") ProjectStatusCode status,
 			@Schema(description = "관리자가 아직 확인하지 않은 매칭 파일 수", example = "3") long uncheckedMatchedFileCount,
 			@Schema(description = "최신 사용내역서 상태", example = "upload_completed") String latestUsageStatementStatusCode,
-			@Schema(description = "검토 필요 여부 (소속 사용내역서 중 upload_completed 또는 supplement_required 상태가 하나라도 있으면 true)", example = "true") boolean needCheck
+			@Schema(description = "검토 필요 여부 (소속 사용내역서 중 upload_completed 또는 supplement_required 상태가 하나라도 있으면 true)", example = "true") boolean needCheck,
+			@Schema(description = "역할별 담당자 그룹") RoleGroupedAssignees assigneesByRole
 	) {
-		public static CardResponse from(ProjectCardRow row, boolean includeUncheckedMatchedFileCount) {
+		public static CardResponse from(ProjectCardRow row, boolean includeUncheckedMatchedFileCount, RoleGroupedAssignees assigneesByRole) {
 			return new CardResponse(
 					row.id(), row.projectName(), row.assigneeNames(), row.assigneeCount(),
 					row.contractNo(), row.constructionStartDate(), row.constructionEndDate(),
 					row.latestCumulativeProgressRate(), row.usageRate(), row.status(),
 					includeUncheckedMatchedFileCount ? row.uncheckedMatchedFileCount() : 0,
-					row.latestUsageStatementStatusCode(), row.needCheck()
+					row.latestUsageStatementStatusCode(), row.needCheck(), assigneesByRole
 			);
 		}
 	}
@@ -93,18 +110,19 @@ public final class ProjectResponses {
 			@Schema(description = "발주처명", example = "스칼라시") String clientName,
 			@Schema(description = "책정 예산", example = "1500000000") BigDecimal appropriatedAmount,
 			@Schema(description = "프로젝트 상태", example = "active") ProjectStatusCode status,
-			@Schema(description = "프로젝트 담당자 목록") List<AssigneeResponse> assignees,
+			@Schema(description = "프로젝트 담당자 목록 (상세)") List<AssigneeResponse> assignees,
+			@Schema(description = "역할별 담당자 그룹") RoleGroupedAssignees assigneesByRole,
 			@Schema(description = "관리자가 아직 확인하지 않은 매칭 파일 수", example = "3") long uncheckedMatchedFileCount,
 			@Schema(description = "생성 일시", example = "2026-05-05T01:00:00Z") Instant createdAt,
 			@Schema(description = "수정 일시", example = "2026-05-05T01:00:00Z") Instant updatedAt
 	) {
-		public static DetailResponse of(Project project, List<AssigneeResponse> assignees, long uncheckedMatchedFileCount) {
+		public static DetailResponse of(Project project, List<AssigneeResponse> assignees, RoleGroupedAssignees assigneesByRole, long uncheckedMatchedFileCount) {
 			return new DetailResponse(
 					project.getId(), project.getContractNo(), project.getConstructionCompany(),
 					project.getProjectName(), project.getSiteLocation(), project.getRepresentativeName(),
 					project.getContractAmount(), project.getConstructionStartDate(), project.getConstructionEndDate(),
 					project.getClientName(), project.getAppropriatedAmount(), project.getStatus(),
-					assignees, uncheckedMatchedFileCount, project.getCreatedAt(), project.getUpdatedAt()
+					assignees, assigneesByRole, uncheckedMatchedFileCount, project.getCreatedAt(), project.getUpdatedAt()
 			);
 		}
 	}

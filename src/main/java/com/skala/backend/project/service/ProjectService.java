@@ -23,6 +23,8 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ProjectService {
@@ -91,9 +93,16 @@ public class ProjectService {
 				pageSize
 		);
 
+		List<Long> projectIds = result.getContent().stream().map(ProjectCardRow::id).toList();
+		Map<Long, ProjectResponses.RoleGroupedAssignees> roleGroupedMap = buildRoleGroupedMap(projectIds);
+
 		List<ProjectResponses.CardResponse> items = result.getContent()
 				.stream()
-				.map(row -> ProjectResponses.CardResponse.from(row, isProjectManager(currentUser)))
+				.map(row -> ProjectResponses.CardResponse.from(
+						row,
+						isProjectManager(currentUser),
+						roleGroupedMap.getOrDefault(row.id(), ProjectResponses.RoleGroupedAssignees.empty())
+				))
 				.toList();
 
 		return new ProjectResponses.ListResponse(
@@ -177,16 +186,43 @@ public class ProjectService {
 	}
 
 	private ProjectResponses.DetailDataResponse toDetailDataResponse(Project project) {
-		List<ProjectResponses.AssigneeResponse> assignees = assignmentRepository.findByProjectIdOrderByIdAsc(project.getId())
-				.stream()
+		List<ProjectUserAssignment> assignments = assignmentRepository.findByProjectIdOrderByIdAsc(project.getId());
+
+		List<ProjectResponses.AssigneeResponse> assignees = assignments.stream()
 				.map(ProjectResponses.AssigneeResponse::from)
 				.toList();
+
+		ProjectResponses.RoleGroupedAssignees assigneesByRole = toRoleGrouped(assignments);
 
 		return new ProjectResponses.DetailDataResponse(ProjectResponses.DetailResponse.of(
 				project,
 				assignees,
+				assigneesByRole,
 				linkRepository.countUncheckedMatchedFiles(project.getId())
 		));
+	}
+
+	private Map<Long, ProjectResponses.RoleGroupedAssignees> buildRoleGroupedMap(List<Long> projectIds) {
+		if (projectIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, List<ProjectUserAssignment>> byProject = assignmentRepository.findByProjectIdIn(projectIds)
+				.stream()
+				.collect(Collectors.groupingBy(a -> a.getProject().getId()));
+		return byProject.entrySet().stream()
+				.collect(Collectors.toMap(Map.Entry::getKey, e -> toRoleGrouped(e.getValue())));
+	}
+
+	private ProjectResponses.RoleGroupedAssignees toRoleGrouped(List<ProjectUserAssignment> assignments) {
+		List<ProjectResponses.AssigneeSummary> admins = assignments.stream()
+				.filter(a -> a.getUser().getRoleCode() == RoleCode.ADMIN)
+				.map(a -> new ProjectResponses.AssigneeSummary(a.getUser().getId(), a.getUser().getRealName()))
+				.toList();
+		List<ProjectResponses.AssigneeSummary> users = assignments.stream()
+				.filter(a -> a.getUser().getRoleCode() == RoleCode.USER)
+				.map(a -> new ProjectResponses.AssigneeSummary(a.getUser().getId(), a.getUser().getRealName()))
+				.toList();
+		return new ProjectResponses.RoleGroupedAssignees(admins, users);
 	}
 
 	private void applyUpdate(Project project, ProjectRequests.UpdateRequest request) {
