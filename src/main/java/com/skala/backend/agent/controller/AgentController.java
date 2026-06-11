@@ -4,6 +4,7 @@ import com.skala.backend.agent.dto.AgentRequests;
 import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.agent.service.AgentLogService;
 import com.skala.backend.agent.service.AgentService;
+import com.skala.backend.agent.service.TodoService;
 import com.skala.backend.auth.security.AuthenticatedUser;
 import com.skala.backend.global.config.OpenApiConfig;
 import com.skala.backend.global.response.ApiResponse;
@@ -15,6 +16,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,37 +34,60 @@ public class AgentController {
 
 	private final AgentService agentService;
 	private final AgentLogService agentLogService;
+	private final TodoService todoService;
 
-	public AgentController(AgentService agentService, AgentLogService agentLogService) {
+	public AgentController(AgentService agentService, AgentLogService agentLogService, TodoService todoService) {
 		this.agentService = agentService;
 		this.agentLogService = agentLogService;
+		this.todoService = todoService;
 	}
 
 	@GetMapping("/todos")
 	@Operation(
 			summary = "TODO 목록 조회",
 			description = """
-					validate / legal 버튼 실행 결과 중 hil 또는 fail 항목을 버튼 단위로 반환합니다.
+					사용내역서의 TODO를 평탄화된 단일 리스트로 반환합니다. (todos 읽기 모델)
 
-					**포함 기준**
-					- `result_code = 'hil'` 또는 `status_code = 'fail'` 인 agent만 포함
-					- success / skipped는 생략
-
-					**validate** : safety-doc / link / vision 중 해당 항목 배열
-					**legal** : legal agent 단건 (없으면 null). 사용내역서 상태가 `review_completed`이면 항상 null 반환.
-
-					버튼을 누를 때마다 agent_logs가 갱신되므로 항상 최신 결과를 반영합니다.
+					**구성**
+					- agent 실행(validate / legal) 직후 Spring이 `agent_logs.details` JSONB의 todos[]를
+					  평탄화하여 todos 테이블에 재생성합니다. 본 조회는 그 테이블만 읽습니다.
+					- 포함 대상: `result_code = 'hil'` 또는 `status_code = 'fail'` 인 safety-doc / link / vision / legal.
+					- 사용내역서 상태가 `review_completed`이면 legal TODO는 제외됩니다.
+					- 각 TODO의 `confirmed`는 사용자가 확인(체크)한 상태이며 agent 재실행에도 보존됩니다
+					  (단, 해당 TODO의 reason이 바뀌면 자동 해제).
 					"""
 	)
-	public ResponseEntity<ApiResponse<AgentResponses.TodoListResponse>> getTodos(
+	public ResponseEntity<ApiResponse<List<AgentResponses.TodoResponse>>> getTodos(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
 			@PathVariable Long projectId,
 			@Parameter(description = "사용내역서 ID", required = true)
 			@RequestParam Long usageStatementId
 	) {
-		AgentResponses.TodoListResponse response =
-				agentLogService.getTodos(currentUser.id(), projectId, usageStatementId);
+		List<AgentResponses.TodoResponse> response =
+				todoService.getTodos(currentUser.id(), projectId, usageStatementId);
 		return ResponseEntity.ok(ApiResponse.success(response, "TODO 목록 조회에 성공했습니다."));
+	}
+
+	@PatchMapping("/todos/{todoId}/confirm")
+	@Operation(
+			summary = "TODO 확인(체크) 토글",
+			description = """
+					TODO 단건의 확인(체크) 상태를 설정/해제합니다.
+
+					- 조회 응답의 `todoId`를 경로에 그대로 사용합니다.
+					- `confirmed=true`면 확인, `false`면 확인 해제입니다.
+					- agent 재실행으로 해당 TODO의 reason이 바뀌면 새 TODO로 재생성되어 확인 상태는 자동 해제됩니다
+					  (내용이 동일하게 재생성되면 유지).
+					"""
+	)
+	public ResponseEntity<ApiResponse<Void>> confirmTodo(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@Parameter(description = "TODO ID", required = true) @PathVariable Long todoId,
+			@Valid @RequestBody AgentRequests.ConfirmTodoRequest request
+	) {
+		todoService.confirmTodo(currentUser.id(), projectId, todoId, request.confirmed());
+		return ResponseEntity.ok(ApiResponse.success(null, "TODO 확인 상태가 변경되었습니다."));
 	}
 
 	@GetMapping("/button-states")

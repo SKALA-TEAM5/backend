@@ -15,10 +15,13 @@ public class AgentAsyncService {
 
 	private final FastApiAgentClient fastApiAgentClient;
 	private final AgentLogRepository agentLogRepository;
+	private final TodoService todoService;
 
-	public AgentAsyncService(FastApiAgentClient fastApiAgentClient, AgentLogRepository agentLogRepository) {
+	public AgentAsyncService(FastApiAgentClient fastApiAgentClient, AgentLogRepository agentLogRepository,
+			TodoService todoService) {
 		this.fastApiAgentClient = fastApiAgentClient;
 		this.agentLogRepository = agentLogRepository;
+		this.todoService = todoService;
 	}
 
 	@Async("agentAsyncExecutor")
@@ -30,6 +33,8 @@ public class AgentAsyncService {
 			upsertFail(projectId, usageStatementId, AgentTypeCode.SAFETY_DOC);
 			upsertFail(projectId, usageStatementId, AgentTypeCode.LINK);
 			upsertFail(projectId, usageStatementId, AgentTypeCode.VISION);
+		} finally {
+			refreshTodos(usageStatementId);
 		}
 	}
 
@@ -40,6 +45,8 @@ public class AgentAsyncService {
 		} catch (Exception e) {
 			log.warn("legal FastAPI 호출 실패 — fail 보정 (statementId={}): {}", usageStatementId, e.getMessage());
 			upsertFail(projectId, usageStatementId, AgentTypeCode.LEGAL);
+		} finally {
+			refreshTodos(usageStatementId);
 		}
 	}
 
@@ -50,6 +57,15 @@ public class AgentAsyncService {
 		} catch (Exception e) {
 			log.warn("report FastAPI 호출 실패 — fail 보정 (statementId={}): {}", usageStatementId, e.getMessage());
 			upsertFail(projectId, usageStatementId, AgentTypeCode.REPORT);
+		}
+	}
+
+	/** agent 실행 직후 TODO 읽기 모델을 재생성한다. 실패해도 agent 흐름을 막지 않는다. */
+	private void refreshTodos(Long usageStatementId) {
+		try {
+			todoService.refresh(usageStatementId);
+		} catch (Exception ex) {
+			log.error("todos 재생성 실패 (statementId={}): {}", usageStatementId, ex.getMessage());
 		}
 	}
 
