@@ -22,17 +22,55 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.nullValue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
 class ProjectFileDetailControllerTest {
+
+    static final String VISION_DETAIL = """
+            {"vision_validation": {
+              "reason": "안전모가 1건 확인되었습니다.",
+              "detections": [{
+                "label": "안전모 착용",
+                "class_id": 3,
+                "bbox_xyxy": [241.49, 33.61, 431.7, 278.23],
+                "box_color": "blue",
+                "equipment": "safety_helmet",
+                "class_code": "07",
+                "confidence": 0.8332,
+                "is_wearing": true,
+                "needs_review": false
+              }],
+              "image_width": 677,
+              "result_code": "hil",
+              "status_code": "success",
+              "image_height": 493,
+              "is_appropriate": true,
+              "original_filename": "스크린샷 2026-06-11 10.11.02.png",
+              "usage_statement_id": 2
+            }}
+            """;
+
+    static final String MULTI_DETECTION_DETAIL = """
+            {"vision_validation": {
+              "reason": "안전모 2건, 안전벨트 1건 확인.",
+              "detections": [
+                {"label": "안전모 착용", "bbox_xyxy": [10.0, 20.0, 30.0, 40.0],
+                 "box_color": "blue", "confidence": 0.91, "is_wearing": true},
+                {"label": "안전모 미착용", "bbox_xyxy": [50.0, 60.0, 70.0, 80.0],
+                 "box_color": "red", "confidence": 0.78, "is_wearing": false},
+                {"label": "안전벨트 착용", "bbox_xyxy": [90.0, 100.0, 110.0, 120.0],
+                 "box_color": "blue", "confidence": 0.85, "is_wearing": true}
+              ],
+              "image_width": 1280,
+              "image_height": 720
+            }}
+            """;
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
@@ -43,129 +81,158 @@ class ProjectFileDetailControllerTest {
     @MockitoBean
     MinioClient minioClient;
 
+    record Session(Cookie cookie, int userId) {}
+
     // ─── 업로드 응답 ──────────────────────────────────────────────────────
 
     @Test
-    void 업로드_직후_응답에_detail은_null이다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "data".getBytes());
-
-        mockMvc.perform(multipart("/projects/{pid}/files", projectId)
-                        .file(file)
-                        .param("evidenceTypeCode", "receipt")
-                        .cookie(cookie))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.detail").isEmpty());
-    }
-
-    @Test
-    void 업로드_응답에_detail_필드는_null이다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
+    void 업로드_응답에는_visionDetections_필드가_없다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
         MockMultipartFile file = new MockMultipartFile("file", "photo.jpg", "image/jpeg", "data".getBytes());
 
         mockMvc.perform(multipart("/projects/{pid}/files", projectId)
                         .file(file)
                         .param("evidenceTypeCode", "site_photo")
-                        .cookie(cookie))
+                        .cookie(s.cookie()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.detail").value(nullValue()));
+                .andExpect(jsonPath("$.data.visionDetections").doesNotExist());
     }
 
-    // ─── 목록 조회 응답 ───────────────────────────────────────────────────
+    // ─── visionDetections 파싱 ────────────────────────────────────────────
 
     @Test
-    void 목록_조회_시_detail이_null인_파일은_null로_반환된다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int userId = readUserId(createUser("admin"));
-        insertFile(userId, projectId, null);
+    void vision_validation이_있으면_imageWidth_imageHeight가_정확히_파싱된다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
 
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(cookie))
+        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].detail").isEmpty());
-    }
-
-    @Test
-    void FastAPI가_detail을_채우면_목록_조회_시_반환된다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int userId = readUserId(createUser("admin"));
-        insertFile(userId, projectId, "{\"exif\":{\"lat\":37.5,\"lon\":127.0}}");
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(cookie))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].detail").isNotEmpty());
+                .andExpect(jsonPath("$.data.items[0].visionDetections.imageWidth").value(677))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.imageHeight").value(493));
     }
 
     @Test
-    void 목록_조회_시_detail의_JSON_내용이_DB_저장값과_정확히_일치한다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int userId = readUserId(createUser("admin"));
-        insertFile(userId, projectId, "{\"exif\":{\"lat\":37.5,\"lon\":127.0}}");
+    void detections_label_boxColor_confidence_isWearing이_정확히_파싱된다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
 
-        MvcResult result = mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(cookie))
+        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].label").value("안전모 착용"))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].boxColor").value("blue"))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].confidence").value(0.8332))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].isWearing").value(true));
+    }
+
+    @Test
+    void bboxXyxy_좌표_4개가_순서대로_정확히_반환된다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
+
+        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy", hasSize(4)))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy[0]").value(241.49))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy[1]").value(33.61))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy[2]").value(431.7))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy[3]").value(278.23));
+    }
+
+    @Test
+    void detections가_여러_건이면_전부_반환된다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+        insertFile(s.userId(), projectId, "site_photo", MULTI_DETECTION_DETAIL);
+
+        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].visionDetections.detections", hasSize(3)))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.imageWidth").value(1280))
+                .andExpect(jsonPath("$.data.items[0].visionDetections.imageHeight").value(720));
+    }
+
+    @Test
+    void class_id_class_code_equipment_needs_review_등_내부_필드는_노출되지_않는다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
+
+        MvcResult result = mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        String detailStr = objectMapper.readTree(result.getResponse().getContentAsString())
-                .path("data").path("items").get(0).path("detail").asText();
-        Map<?, ?> actual = objectMapper.readValue(detailStr, Map.class);
-        Map<?, ?> exif = (Map<?, ?>) actual.get("exif");
+        String body = result.getResponse().getContentAsString();
+        assertThat(body).doesNotContain("class_id", "class_code", "equipment", "needs_review",
+                "result_code", "status_code", "original_filename", "usage_statement_id", "reason");
+    }
 
-        org.assertj.core.api.Assertions.assertThat(exif.get("lat")).isEqualTo(37.5);
-        org.assertj.core.api.Assertions.assertThat(exif.get("lon")).isEqualTo(127.0);
+    // ─── visionDetections null 케이스 ─────────────────────────────────────
+
+    @Test
+    void detail이_null이면_visionDetections가_null이다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+        insertFile(s.userId(), projectId, "site_photo", null);
+
+        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].visionDetections").value(nullValue()));
     }
 
     @Test
-    void detail_있는_파일과_없는_파일이_혼재하면_각각_정확히_반환된다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int userId = readUserId(createUser("admin"));
+    void vision_validation_키가_없는_JSON이면_visionDetections가_null이다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+        insertFile(s.userId(), projectId, "site_photo", "{\"other_key\": {\"foo\": 1}}");
 
-        insertFile(userId, projectId, "{\"exif\":{\"lat\":37.5}}");
-        insertFile(userId, projectId, null);
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(cookie))
+        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items.length()").value(2));
+                .andExpect(jsonPath("$.data.items[0].visionDetections").value(nullValue()));
     }
 
     @Test
-    void 업로드_후_DB에_detail_기록되면_목록_조회_시_반영된다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
-        int userId = readUserId(createUser("admin"));
+    void site_photo가_아닌_타입은_vision_validation_없으므로_visionDetections가_null이다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+        insertFile(s.userId(), projectId, "receipt", null);
 
-        // JPA 1차 캐시 간섭을 피하기 위해 JdbcTemplate으로 직접 detail 포함 insert
-        insertFile(userId, projectId, "{\"ai\":{\"label\":\"안전모 착용 확인\"}}");
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(cookie))
+        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].detail").isNotEmpty());
+                .andExpect(jsonPath("$.data.items[0].visionDetections").value(nullValue()));
+    }
+
+    // ─── 혼재 케이스 ──────────────────────────────────────────────────────
+
+    @Test
+    void visionDetections_있는_파일과_없는_파일이_혼재하면_각각_정확히_반환된다() throws Exception {
+        Session s = login(createUser("admin"));
+        int projectId = createProject(s.cookie());
+
+        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
+        insertFile(s.userId(), projectId, "receipt", null);
+
+        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(2)));
     }
 
     // ─── fixtures ─────────────────────────────────────────────────────────
 
     private Map<String, String> createUser(String roleCode) {
-        Map<String, String> credentials = Map.of(
-                "employeeNo", "EMP-" + UUID.randomUUID(),
-                "realName", "홍길동",
-                "password", "P@ssw0rd123!",
-                "roleCode", roleCode
-        );
+        String empNo = "EMP-" + UUID.randomUUID();
         userRepository.saveAndFlush(User.create(
-                credentials.get("employeeNo"),
-                credentials.get("realName"),
-                passwordEncoder.encode(credentials.get("password")),
+                empNo, "홍길동",
+                passwordEncoder.encode("P@ssw0rd123!"),
                 RoleCode.from(roleCode)
         ));
-        return credentials;
+        return Map.of("employeeNo", empNo, "password", "P@ssw0rd123!");
     }
 
-    private Cookie loginCookie(Map<String, String> credentials) throws Exception {
+    private Session login(Map<String, String> credentials) throws Exception {
         MvcResult result = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -174,20 +241,10 @@ class ProjectFileDetailControllerTest {
                         ))))
                 .andExpect(status().isOk())
                 .andReturn();
-        return result.getResponse().getCookie("access_token");
-    }
-
-    private int readUserId(Map<String, String> credentials) throws Exception {
-        MvcResult result = mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "employeeNo", credentials.get("employeeNo"),
-                                "password", credentials.get("password")
-                        ))))
-                .andExpect(status().isOk())
-                .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString())
+        Cookie cookie = result.getResponse().getCookie("access_token");
+        int userId = objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("user").path("id").asInt();
+        return new Session(cookie, userId);
     }
 
     private int createProject(Cookie cookie) throws Exception {
@@ -197,7 +254,7 @@ class ProjectFileDetailControllerTest {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "contractNo", "CN-" + UUID.randomUUID(),
                                 "constructionCompany", "스칼라건설",
-                                "projectName", "테스트 프로젝트-" + UUID.randomUUID(),
+                                "projectName", "테스트-" + UUID.randomUUID(),
                                 "siteLocation", "서울시 강남구",
                                 "contractAmount", 100_000_000,
                                 "constructionStartDate", "2026-01-01",
@@ -210,21 +267,21 @@ class ProjectFileDetailControllerTest {
                 .path("data").path("project").path("id").asInt();
     }
 
-    private void insertFile(int userId, int projectId, String detailJson) {
+    private void insertFile(int userId, int projectId, String evidenceTypeCode, String detailJson) {
         if (detailJson != null) {
             jdbcTemplate.update("""
                     INSERT INTO service.files
                         (project_id, uploaded_by_user_id, uploaded_evidence_type_code,
                          original_filename, storage_key, mime_type, size_bytes, detail)
-                    VALUES (?, ?, 'receipt', 'test.jpg', ?, 'image/jpeg', 1024, ?::jsonb)
-                    """, projectId, userId, "key-" + UUID.randomUUID(), detailJson);
+                    VALUES (?, ?, ?, 'photo.jpg', ?, 'image/jpeg', 1024, ?::jsonb)
+                    """, projectId, userId, evidenceTypeCode, "key-" + UUID.randomUUID(), detailJson);
         } else {
             jdbcTemplate.update("""
                     INSERT INTO service.files
                         (project_id, uploaded_by_user_id, uploaded_evidence_type_code,
                          original_filename, storage_key, mime_type, size_bytes)
-                    VALUES (?, ?, 'receipt', 'test.jpg', ?, 'image/jpeg', 1024)
-                    """, projectId, userId, "key-" + UUID.randomUUID());
+                    VALUES (?, ?, ?, 'photo.jpg', ?, 'image/jpeg', 1024)
+                    """, projectId, userId, evidenceTypeCode, "key-" + UUID.randomUUID());
         }
     }
 }

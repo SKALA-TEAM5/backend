@@ -1,5 +1,7 @@
 package com.skala.backend.file.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skala.backend.evidence.service.EvidenceCommandService;
 import com.skala.backend.file.domain.ProjectFile;
 import com.skala.backend.evidence.dto.EvidenceRequests.LinkEvidenceFileRequest;
@@ -8,6 +10,7 @@ import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileListResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileUploadResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.UploadAndLinkResponse;
+import com.skala.backend.file.dto.ProjectFileResponses.VisionDetections;
 import com.skala.backend.file.repository.ProjectFileRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
@@ -28,6 +31,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -43,6 +47,7 @@ public class ProjectFileService {
 	private final CodeLookupService codeLookupService;
 	private final EvidenceCommandService evidenceCommandService;
 	private final MinioClient minioClient;
+	private final ObjectMapper objectMapper;
 	private final String bucket;
 
 	public ProjectFileService(
@@ -51,6 +56,7 @@ public class ProjectFileService {
 			CodeLookupService codeLookupService,
 			EvidenceCommandService evidenceCommandService,
 			MinioClient minioClient,
+			ObjectMapper objectMapper,
 			@Value("${app.file-storage.bucket}") String bucket
 	) {
 		this.projectAccessService = projectAccessService;
@@ -58,6 +64,7 @@ public class ProjectFileService {
 		this.codeLookupService = codeLookupService;
 		this.evidenceCommandService = evidenceCommandService;
 		this.minioClient = minioClient;
+		this.objectMapper = objectMapper;
 		this.bucket = bucket;
 	}
 
@@ -128,8 +135,7 @@ public class ProjectFileService {
 				file.getUploadedEvidenceTypeCode(),
 				file.getMimeType(),
 				file.getSizeBytes(),
-				file.getUploadedAt(),
-				file.getDetail()
+				file.getUploadedAt()
 		);
 	}
 
@@ -204,8 +210,38 @@ public class ProjectFileService {
 				file.getUploadedAt(),
 				file.getStatusCode(),
 				linkedCounts.getOrDefault(file.getId(), 0L),
-				file.getDetail()
+				parseVisionDetections(file.getDetail())
 		);
+	}
+
+	private VisionDetections parseVisionDetections(String detail) {
+		if (detail == null) return null;
+		try {
+			JsonNode vision = objectMapper.readTree(detail).path("vision_validation");
+			if (vision.isMissingNode()) return null;
+
+			List<VisionDetections.Detection> detections = new ArrayList<>();
+			for (JsonNode d : vision.path("detections")) {
+				List<Double> bbox = new ArrayList<>();
+				for (JsonNode coord : d.path("bbox_xyxy")) {
+					bbox.add(coord.asDouble());
+				}
+				detections.add(new VisionDetections.Detection(
+						d.path("label").asText(null),
+						d.path("box_color").asText(null),
+						d.path("confidence").asDouble(),
+						d.path("is_wearing").asBoolean(),
+						bbox
+				));
+			}
+			return new VisionDetections(
+					vision.path("image_width").asInt(),
+					vision.path("image_height").asInt(),
+					detections
+			);
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	private String storageKey(Long projectId, String originalFilename) {
