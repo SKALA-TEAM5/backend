@@ -48,12 +48,6 @@ public class ProjectFile {
 	@Column(name = "status_code", nullable = false, length = 20)
 	private String statusCode = "draft";
 
-	@Column(name = "deleted_at")
-	private Instant deletedAt;
-
-	@Column(name = "deleted_by_user_id")
-	private Long deletedByUserId;
-
 	@Column(name = "detail", columnDefinition = "jsonb", insertable = false, updatable = false)
 	private String detail;
 
@@ -80,11 +74,6 @@ public class ProjectFile {
 		this.uploadedAt = Instant.now();
 	}
 
-	public void markDeleted(Long deletedByUserId) {
-		this.deletedAt = Instant.now();
-		this.deletedByUserId = deletedByUserId;
-	}
-
 	public Long getId() { return id; }
 	public Long getProjectId() { return projectId; }
 	public Long getUploadedByUserId() { return uploadedByUserId; }
@@ -96,7 +85,5 @@ public class ProjectFile {
 	public Instant getCapturedAt() { return capturedAt; }
 	public Instant getUploadedAt() { return uploadedAt; }
 	public String getStatusCode() { return statusCode; }
-	public Instant getDeletedAt() { return deletedAt; }
-	public Long getDeletedByUserId() { return deletedByUserId; }
 	public String getDetail() { return detail; }
 }

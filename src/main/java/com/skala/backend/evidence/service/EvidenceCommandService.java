@@ -63,7 +63,7 @@ public class EvidenceCommandService {
 		projectAccessService.requireWritable(currentUserId, projectId);
 		requireEvidenceType(request.evidenceTypeCode());
 		UsageStatementItem item = evidenceQueryService.requireProjectItem(projectId, itemId);
-		ProjectFile file = fileRepository.findByIdAndProjectIdAndDeletedAtIsNull(request.fileId(), projectId)
+		ProjectFile file = fileRepository.findByIdAndProjectId(request.fileId(), projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
 
 		if (linkRepository.existsByUsageStatementItemIdAndFileId(itemId, file.getId())) {

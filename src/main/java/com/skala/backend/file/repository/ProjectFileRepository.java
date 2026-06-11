@@ -11,19 +11,14 @@ import java.util.Optional;
 
 public interface ProjectFileRepository extends JpaRepository<ProjectFile, Long> {
 
-	Optional<ProjectFile> findByIdAndProjectIdAndDeletedAtIsNull(Long id, Long projectId);
+	Optional<ProjectFile> findByIdAndProjectId(Long id, Long projectId);
 
-	List<ProjectFile> findByIdInAndDeletedAtIsNull(Collection<Long> ids);
-
-	List<ProjectFile> findByProjectIdAndIdInAndDeletedAtIsNull(Long projectId, Collection<Long> ids);
-
-	List<ProjectFile> findByProjectIdAndDeletedAtIsNull(Long projectId);
+	List<ProjectFile> findByIdIn(Collection<Long> ids);
 
 	@Query(value = """
 			SELECT f.*
 			FROM service.files f
 			WHERE f.project_id = :projectId
-				AND f.deleted_at IS NULL
 				AND (CAST(:evidenceTypeCode AS text) IS NULL OR f.uploaded_evidence_type_code = :evidenceTypeCode)
 				AND (
 					CAST(:linked AS boolean) IS NULL
