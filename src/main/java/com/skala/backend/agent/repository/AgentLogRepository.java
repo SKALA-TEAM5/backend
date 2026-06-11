@@ -170,4 +170,27 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
             @Param("statementId")   Long   usageStatementId,
             @Param("agentTypeCode") String agentTypeCode
     );
+
+    /**
+     * 비동기 FastAPI 호출 직전에 statement-level 로그를 'running'으로 동기 선기록한다.
+     * POST 응답(202)이 나가기 전에 행을 가시화하여, 프론트 첫 button-states 폴링이
+     * "아직 시작 안 함(enabled=true)"을 "완료"로 오인하는 race condition을 막는다.
+     * 재실행 시 이전 result_code를 NULL로 리셋한다 (FastAPI가 실행 시 덮어씀).
+     */
+    @Transactional
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            INSERT INTO service.agent_logs
+                (project_id, usage_statement_id, agent_type_code, status_code, result_code, created_at, updated_at)
+            VALUES
+                (:projectId, :statementId, :agentTypeCode, 'running', NULL, NOW(), NOW())
+            ON CONFLICT (usage_statement_id, agent_type_code)
+            WHERE usage_statement_item_id IS NULL
+            DO UPDATE SET status_code = 'running', result_code = NULL, updated_at = NOW()
+            """)
+    void upsertStatementLogRunning(
+            @Param("projectId")     Long   projectId,
+            @Param("statementId")   Long   usageStatementId,
+            @Param("agentTypeCode") String agentTypeCode
+    );
 }
