@@ -184,6 +184,66 @@ class ProjectAssigneePermissionTest {
 	}
 
 	@Test
+	void 마지막_admin은_프로젝트에서_제거할_수_없다() throws Exception {
+		Cookie ownerCookie = loginCookie(createUser("admin"));
+		int ownerId = parseUserId(ownerCookie);
+		int projectId = createProject(ownerCookie, "마지막admin_제거차단");
+
+		mockMvc.perform(delete("/projects/{projectId}/assignees/{userId}", projectId, ownerId)
+						.cookie(ownerCookie))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value("프로젝트에 최소 한 명의 admin이 있어야 합니다."));
+	}
+
+	@Test
+	void admin이_두_명일_때_한_명_제거는_가능하다() throws Exception {
+		Cookie ownerCookie = loginCookie(createUser("admin"));
+		int ownerId = parseUserId(ownerCookie);
+		int secondAdminId = createUserId("admin");
+		int projectId = createProject(ownerCookie, "admin두명_한명제거");
+
+		Cookie agentCookie = loginCookie(createUser("agent"));
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, secondAdminId)
+						.cookie(agentCookie))
+				.andExpect(status().isOk());
+
+		// secondAdmin 제거 — owner(admin)가 남으므로 가능
+		mockMvc.perform(delete("/projects/{projectId}/assignees/{userId}", projectId, secondAdminId)
+						.cookie(ownerCookie))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void agent는_admin_없는_목록으로_교체할_수_없다() throws Exception {
+		Cookie ownerCookie = loginCookie(createUser("admin"));
+		Cookie agentCookie = loginCookie(createUser("agent"));
+		int targetUserId = createUserId("user");
+		int projectId = createProject(ownerCookie, "agent_admin없는교체차단");
+
+		mockMvc.perform(put("/projects/{projectId}/assignees", projectId)
+						.cookie(agentCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("assigneeUserIds", List.of(targetUserId)))))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value("프로젝트에 최소 한 명의 admin이 있어야 합니다."));
+	}
+
+	@Test
+	void agent는_admin_포함_목록으로_교체할_수_있다() throws Exception {
+		Cookie ownerCookie = loginCookie(createUser("admin"));
+		Cookie agentCookie = loginCookie(createUser("agent"));
+		int ownerId = parseUserId(ownerCookie);
+		int targetUserId = createUserId("user");
+		int projectId = createProject(ownerCookie, "agent_admin포함교체_허용");
+
+		mockMvc.perform(put("/projects/{projectId}/assignees", projectId)
+						.cookie(agentCookie)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("assigneeUserIds", List.of(ownerId, targetUserId)))))
+				.andExpect(status().isOk());
+	}
+
+	@Test
 	void 여러_프로젝트에_소속된_admin은_각_프로젝트_담당자를_개별_관리할_수_있다() throws Exception {
 		Cookie adminCookie = loginCookie(createUser("admin"));
 		Cookie otherAdminCookie = loginCookie(createUser("admin"));

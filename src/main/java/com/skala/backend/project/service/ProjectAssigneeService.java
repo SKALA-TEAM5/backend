@@ -60,6 +60,13 @@ public class ProjectAssigneeService {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "system_admin은 프로젝트 담당자로 추가할 수 없습니다.");
 		}
 
+		// agent가 호출할 때 목록에 admin이 없으면 고아 프로젝트가 될 수 있으므로 차단
+		boolean callerIsAdmin = assignedBy.getRoleCode() == RoleCode.ADMIN;
+		boolean listHasAdmin = userMap.values().stream().anyMatch(u -> u.getRoleCode() == RoleCode.ADMIN);
+		if (!callerIsAdmin && !listHasAdmin) {
+			throw new ApiException(HttpStatus.CONFLICT, "프로젝트에 최소 한 명의 admin이 있어야 합니다.");
+		}
+
 		assignmentRepository.deleteByProjectId(projectId);
 		assignmentRepository.flush();
 
@@ -67,6 +74,11 @@ public class ProjectAssigneeService {
 				.map(id -> ProjectUserAssignment.create(project, userMap.get(id), assignedBy))
 				.toList();
 		assignmentRepository.saveAll(assignments);
+
+		// admin 소유자는 목록에 없어도 항상 소속 유지 (마지막 순서로 추가)
+		if (assignedBy.getRoleCode() == RoleCode.ADMIN && !userIds.contains(currentUserId)) {
+			assignmentRepository.save(ProjectUserAssignment.create(project, assignedBy, assignedBy));
+		}
 
 		return toAssigneeListResponse(projectId);
 	}
@@ -90,6 +102,11 @@ public class ProjectAssigneeService {
 	@Transactional
 	public void removeAssignee(Long currentUserId, Long projectId, Long userId) {
 		projectAccessService.requireProjectManagerOf(currentUserId, projectId);
+		User userToRemove = findUser(userId);
+		if (userToRemove.getRoleCode() == RoleCode.ADMIN
+				&& assignmentRepository.countAdminsByProjectId(projectId) <= 1) {
+			throw new ApiException(HttpStatus.CONFLICT, "프로젝트에 최소 한 명의 admin이 있어야 합니다.");
+		}
 		ProjectUserAssignment assignment = assignmentRepository.findByProjectIdAndUserId(projectId, userId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "할당 정보를 찾을 수 없습니다."));
 		assignmentRepository.delete(assignment);
