@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/dashboard")
-@Tag(name = "관리자 대시보드", description = "admin 전용 통계 및 현황 조회 API")
+@Tag(name = "관리자 대시보드", description = "통계 및 현황 조회 API (system_admin=전체, admin·user=본인 배정 프로젝트, agent=403)")
 @SecurityRequirement(name = OpenApiConfig.COOKIE_AUTH)
 public class AdminDashboardController {
 
@@ -39,6 +39,7 @@ public class AdminDashboardController {
                     - `supplementAssignees[].roleCode`: 담당자 역할 코드 포함
                     - AI 사용량 조회는 `GET /dashboard/ai-usage` 사용
                     - 프로젝트 목록 조회는 `GET /projects` 사용
+                    - 집계 범위: system_admin=전체, admin·user=본인 배정 프로젝트, agent=403
                     """)
     public ResponseEntity<ApiResponse<DashboardResponse>> getDashboard(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser) {
@@ -54,6 +55,8 @@ public class AdminDashboardController {
 
                     `year`/`month` 파라미터로 특정 월 필터 가능. `year`만 전달하면 해당 연도 전체.
                     둘 다 생략하면 전체 기간 집계.
+
+                    집계 범위: system_admin=전체, admin·user=본인 배정 프로젝트, agent=403
                     """)
     public ResponseEntity<ApiResponse<AiUsageSummary>> getAiUsage(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,

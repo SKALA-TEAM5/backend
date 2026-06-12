@@ -70,6 +70,9 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
               AND (:agentTypeCode IS NULL OR r.agent_type_code = :agentTypeCode)
               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR r.created_at >= :from)
               AND (CAST(:to AS TIMESTAMPTZ) IS NULL OR r.created_at < :to)
+              AND (:scopeUserId IS NULL OR r.project_id IN (
+                  SELECT pua.project_id FROM service.project_user_assignments pua
+                  WHERE pua.user_id = :scopeUserId))
             GROUP BY u.id, u.real_name
             ORDER BY COALESCE(SUM(r.cost_usd), 0) DESC
             """)
@@ -78,7 +81,8 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
             @Param("projectId") Long projectId,
             @Param("agentTypeCode") String agentTypeCode,
             @Param("from") Instant from,
-            @Param("to") Instant to
+            @Param("to") Instant to,
+            @Param("scopeUserId") Long scopeUserId
     );
 
     @Query(nativeQuery = true, value = """
@@ -96,6 +100,9 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
               AND (:agentTypeCode IS NULL OR r.agent_type_code = :agentTypeCode)
               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR r.created_at >= :from)
               AND (CAST(:to AS TIMESTAMPTZ) IS NULL OR r.created_at < :to)
+              AND (:scopeUserId IS NULL OR r.project_id IN (
+                  SELECT pua.project_id FROM service.project_user_assignments pua
+                  WHERE pua.user_id = :scopeUserId))
             GROUP BY p.id, p.project_name
             ORDER BY COALESCE(SUM(r.cost_usd), 0) DESC
             """)
@@ -104,7 +111,8 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
             @Param("projectId") Long projectId,
             @Param("agentTypeCode") String agentTypeCode,
             @Param("from") Instant from,
-            @Param("to") Instant to
+            @Param("to") Instant to,
+            @Param("scopeUserId") Long scopeUserId
     );
 
     @Query(nativeQuery = true, value = """
@@ -120,6 +128,9 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
               AND (:agentTypeCode IS NULL OR r.agent_type_code = :agentTypeCode)
               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR r.created_at >= :from)
               AND (CAST(:to AS TIMESTAMPTZ) IS NULL OR r.created_at < :to)
+              AND (:scopeUserId IS NULL OR r.project_id IN (
+                  SELECT pua.project_id FROM service.project_user_assignments pua
+                  WHERE pua.user_id = :scopeUserId))
             GROUP BY r.agent_type_code
             ORDER BY COALESCE(SUM(r.cost_usd), 0) DESC
             """)
@@ -128,7 +139,8 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
             @Param("projectId") Long projectId,
             @Param("agentTypeCode") String agentTypeCode,
             @Param("from") Instant from,
-            @Param("to") Instant to
+            @Param("to") Instant to,
+            @Param("scopeUserId") Long scopeUserId
     );
 
     @Query(nativeQuery = true, value = """
@@ -144,6 +156,9 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
               AND (:agentTypeCode IS NULL OR r.agent_type_code = :agentTypeCode)
               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR r.created_at >= :from)
               AND (CAST(:to AS TIMESTAMPTZ) IS NULL OR r.created_at < :to)
+              AND (:scopeUserId IS NULL OR r.project_id IN (
+                  SELECT pua.project_id FROM service.project_user_assignments pua
+                  WHERE pua.user_id = :scopeUserId))
             GROUP BY TO_CHAR(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM')
             ORDER BY month ASC
             """)
@@ -152,7 +167,8 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
             @Param("projectId") Long projectId,
             @Param("agentTypeCode") String agentTypeCode,
             @Param("from") Instant from,
-            @Param("to") Instant to
+            @Param("to") Instant to,
+            @Param("scopeUserId") Long scopeUserId
     );
 
     @Query(nativeQuery = true, value = """
@@ -168,6 +184,9 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
               AND (:agentTypeCode IS NULL OR r.agent_type_code = :agentTypeCode)
               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR r.created_at >= :from)
               AND (CAST(:to AS TIMESTAMPTZ) IS NULL OR r.created_at < :to)
+              AND (:scopeUserId IS NULL OR r.project_id IN (
+                  SELECT pua.project_id FROM service.project_user_assignments pua
+                  WHERE pua.user_id = :scopeUserId))
             GROUP BY TO_CHAR(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD')
             ORDER BY date ASC
             """)
@@ -176,7 +195,8 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
             @Param("projectId") Long projectId,
             @Param("agentTypeCode") String agentTypeCode,
             @Param("from") Instant from,
-            @Param("to") Instant to
+            @Param("to") Instant to,
+            @Param("scopeUserId") Long scopeUserId
     );
 
     /**
