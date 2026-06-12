@@ -4,6 +4,7 @@ import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.domain.Project;
 import com.skala.backend.project.domain.ProjectUserAssignment;
 import com.skala.backend.project.dto.ProjectResponses;
+import com.skala.backend.project.repository.AssigneeCandidateRow;
 import com.skala.backend.project.repository.ProjectRepository;
 import com.skala.backend.project.repository.ProjectUserAssignmentRepository;
 import com.skala.backend.user.domain.RoleCode;
@@ -12,6 +13,7 @@ import com.skala.backend.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.HashSet;
 import java.util.List;
@@ -43,6 +45,27 @@ public class ProjectAssigneeService {
 	public ProjectResponses.AssigneeListResponse listAssignees(Long currentUserId, Long projectId) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		return toAssigneeListResponse(projectId);
+	}
+
+	@Transactional(readOnly = true)
+	public ProjectResponses.AssigneeCandidatesResponse listAssigneeCandidates(Long currentUserId, String keyword) {
+		projectAccessService.requireProjectWorkAccessible(currentUserId);
+		User currentUser = projectAccessService.requireCurrentUser(currentUserId);
+		String keywordPattern = containsPattern(keyword);
+
+		// agent는 전체 프로젝트가 보이므로 풀 제한 없이 전체 담당자 후보를 조회한다.
+		List<AssigneeCandidateRow> rows = currentUser.getRoleCode() == RoleCode.AGENT
+				? assignmentRepository.findAllAssigneePool(keywordPattern)
+				: assignmentRepository.findAssigneePoolByUser(currentUserId, keywordPattern);
+
+		List<ProjectResponses.AssigneeCandidate> candidates = rows.stream()
+				.map(row -> new ProjectResponses.AssigneeCandidate(
+						row.getUserId(),
+						row.getRealName(),
+						RoleCode.from(row.getRoleCode())
+				))
+				.toList();
+		return new ProjectResponses.AssigneeCandidatesResponse(candidates);
 	}
 
 	@Transactional
@@ -128,6 +151,10 @@ public class ProjectAssigneeService {
 	private User findUser(Long userId) {
 		return userRepository.findById(userId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+	}
+
+	private String containsPattern(String value) {
+		return StringUtils.hasText(value) ? "%" + value.trim().toLowerCase() + "%" : null;
 	}
 
 	private List<Long> validateAssigneeIds(List<Long> userIds) {

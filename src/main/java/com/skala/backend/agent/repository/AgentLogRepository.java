@@ -193,4 +193,21 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
             @Param("statementId")   Long   usageStatementId,
             @Param("agentTypeCode") String agentTypeCode
     );
+
+    /**
+     * 사용내역서 삭제 시 관련 agent_logs를 일괄 제거한다.
+     * statement-level 로그(usage_statement_id)와 item-level 로그(usage_statement_item_id)를 한 번에 커버한다.
+     * itemIds가 비어 있어도 = ANY(...)는 안전하게 0건을 매칭한다(IN ()의 빈 컬렉션 문제 회피).
+     */
+    @Transactional
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            DELETE FROM service.agent_logs
+            WHERE usage_statement_id = :statementId
+               OR usage_statement_item_id = ANY(:itemIds)
+            """)
+    void deleteByStatementOrItems(
+            @Param("statementId") Long   usageStatementId,
+            @Param("itemIds")     Long[] itemIds
+    );
 }

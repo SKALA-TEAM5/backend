@@ -167,12 +167,15 @@ class ProjectRequirementContractTest {
 		int assignedProjectId = createProject(managerCookie, prefix + "-내담당");
 		int otherProjectId = createProject(otherManagerCookie, prefix + "-전체전용");
 
+		// admin 기본값은 본인 담당 프로젝트만(assigned)
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
 						.param("keyword", prefix))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.items", hasSize(2)));
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
 
+		// scope=all 명시 시 admin은 전체 조회 가능(하위호환)
 		mockMvc.perform(get("/projects")
 						.cookie(managerCookie)
 						.param("scope", "all")
@@ -533,21 +536,122 @@ class ProjectRequirementContractTest {
 	}
 
 	@Test
-	void user는_담당자필터를_사용할_수_없다() throws Exception {
+	void user는_본인_풀_내에서_담당자필터를_사용할_수_있다() throws Exception {
 		Cookie managerCookie = loginCookie(createUser("admin"));
 		Map<String, String> user = createUser("user");
 		Cookie userCookie = loginCookie(user);
 		int projectUserId = readUserIdFromLogin(user);
-		int projectId = createProject(managerCookie, "user 담당자필터 프로젝트");
+		String prefix = "user-filter-" + UUID.randomUUID();
+		int projectId = createProject(managerCookie, prefix + "-담당");
 
 		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, projectUserId)
 						.cookie(managerCookie))
 				.andExpect(status().isOk());
 
+		// user도 담당자 필터를 사용할 수 있으나, 본인이 가시한 프로젝트 풀 안에서만 좁혀진다.
 		mockMvc.perform(get("/projects")
 						.cookie(userCookie)
-						.param("assigneeUserId", String.valueOf(projectUserId)))
+						.param("assigneeUserId", String.valueOf(projectUserId))
+						.param("keyword", prefix))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items", hasSize(1)))
+				.andExpect(jsonPath("$.data.items[0].id").value(projectId));
+	}
+
+	@Test
+	void 담당자_후보는_본인_프로젝트_풀_안의_사용자만_노출한다() throws Exception {
+		Map<String, String> admin = createUser("admin");
+		Cookie adminCookie = loginCookie(admin);
+		Map<String, String> teammate = createUser("user");
+		Cookie teammateCookie = loginCookie(teammate);
+		int teammateId = readUserIdFromLogin(teammate);
+
+		// 같은 프로젝트에 admin과 teammate를 배정 → 서로 풀에 포함
+		int sharedProjectId = createProject(adminCookie, "후보풀 공유 프로젝트");
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", sharedProjectId, teammateId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk());
+
+		// 다른 admin이 만든, 본인이 배정되지 않은 프로젝트의 사용자(outsider)는 풀에 없어야 함
+		Cookie otherAdminCookie = loginCookie(createUser("admin"));
+		Map<String, String> outsider = createUser("user");
+		int outsiderId = readUserIdFromLogin(outsider);
+		int otherProjectId = createProject(otherAdminCookie, "외부 프로젝트");
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", otherProjectId, outsiderId)
+						.cookie(otherAdminCookie))
+				.andExpect(status().isOk());
+
+		// teammate(user)도 후보 조회 가능, 본인 풀(공유 프로젝트)의 admin/user만 노출
+		mockMvc.perform(get("/projects/assignee-candidates").cookie(teammateCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.candidates[?(@.userId == " + teammateId + ")]", hasSize(1)))
+				.andExpect(jsonPath("$.data.candidates[?(@.userId == " + outsiderId + ")]", hasSize(0)));
+
+		// keyword로 이름 검색 (teammate의 realName 일부)
+		String teammateName = teammate.get("realName");
+		mockMvc.perform(get("/projects/assignee-candidates")
+						.cookie(adminCookie)
+						.param("keyword", teammateName))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.candidates[?(@.userId == " + teammateId + ")]", hasSize(1)))
+				.andExpect(jsonPath("$.data.candidates[?(@.userId == " + outsiderId + ")]", hasSize(0)));
+	}
+
+	@Test
+	void 담당자_후보는_admin_user_역할만_포함한다() throws Exception {
+		Map<String, String> admin = createUser("admin");
+		Cookie adminCookie = loginCookie(admin);
+		int adminId = readUserIdFromLogin(admin);
+		int agentId = createUserId("agent");
+
+		int projectId = createProject(adminCookie, "역할필터 프로젝트");
+		// agent도 담당자로 배정 가능하지만 후보 목록에는 노출되지 않아야 함
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, agentId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/projects/assignee-candidates").cookie(adminCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.candidates[?(@.userId == " + adminId + ")]", hasSize(1)))
+				.andExpect(jsonPath("$.data.candidates[?(@.userId == " + agentId + ")]", hasSize(0)));
+	}
+
+	@Test
+	void agent는_전체_담당자_풀을_조회한다() throws Exception {
+		// agent는 어떤 프로젝트에도 배정되지 않아도 전체 프로젝트의 담당자를 후보로 본다.
+		Cookie agentCookie = loginCookie(createUser("agent"));
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		Map<String, String> someUser = createUser("user");
+		int someUserId = readUserIdFromLogin(someUser);
+
+		int projectId = createProject(adminCookie, "agent 전체풀 프로젝트");
+		mockMvc.perform(post("/projects/{projectId}/assignees/{userId}", projectId, someUserId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/projects/assignee-candidates").cookie(agentCookie))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.candidates[?(@.userId == " + someUserId + ")]", hasSize(1)));
+	}
+
+	@Test
+	void system_admin은_담당자_후보를_조회할_수_없다() throws Exception {
+		Cookie systemAdminCookie = loginCookie(createUser("system_admin"));
+
+		mockMvc.perform(get("/projects/assignee-candidates").cookie(systemAdminCookie))
 				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void 담당자_후보_검색은_일치하는_이름이_없으면_빈_목록을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		createProject(adminCookie, "빈검색 프로젝트");
+
+		mockMvc.perform(get("/projects/assignee-candidates")
+						.cookie(adminCookie)
+						.param("keyword", "존재하지않는이름-" + UUID.randomUUID()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.candidates", hasSize(0)));
 	}
 
 	@Test
