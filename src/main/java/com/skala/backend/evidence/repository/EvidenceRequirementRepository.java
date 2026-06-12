@@ -18,4 +18,8 @@ public interface EvidenceRequirementRepository extends JpaRepository<EvidenceReq
 	@Modifying
 	@Query("DELETE FROM EvidenceRequirement r WHERE r.usageStatementItemId = :itemId")
 	void deleteByUsageStatementItemId(@Param("itemId") Long itemId);
+
+	@Modifying
+	@Query("DELETE FROM EvidenceRequirement r WHERE r.usageStatementItemId IN :itemIds")
+	void deleteByUsageStatementItemIdIn(@Param("itemIds") Collection<Long> itemIds);
 }

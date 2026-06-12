@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -107,5 +108,16 @@ public class ProjectUsageStatementController {
 	) {
 		UsageStatementStatusResponse response = usageStatementService.completeReview(currentUser.id(), projectId, usageStatementId);
 		return ResponseEntity.ok(ApiResponse.success(response, "최종 승인이 완료되었습니다."));
+	}
+
+	@DeleteMapping("/{usageStatementId}")
+	@Operation(summary = "사용내역서 삭제 및 데이터 정리")
+	public ResponseEntity<ApiResponse<Void>> delete(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@PathVariable Long usageStatementId
+	) {
+		usageStatementService.delete(currentUser.id(), projectId, usageStatementId);
+		return ResponseEntity.ok(ApiResponse.success(null, "사용내역서가 삭제되었습니다."));
 	}
 }

@@ -59,4 +59,11 @@ public interface EvidenceFileLinkRepository extends JpaRepository<EvidenceFileLi
 	@Modifying
 	@Query("DELETE FROM EvidenceFileLink l WHERE l.usageStatementItemId = :itemId")
 	void deleteByUsageStatementItemId(@Param("itemId") Long itemId);
+
+	@Query("SELECT DISTINCT l.fileId FROM EvidenceFileLink l WHERE l.usageStatementItemId IN :itemIds")
+	List<Long> findFileIdsByItemIds(@Param("itemIds") Collection<Long> itemIds);
+
+	@Modifying
+	@Query("DELETE FROM EvidenceFileLink l WHERE l.usageStatementItemId IN :itemIds")
+	void deleteByUsageStatementItemIdIn(@Param("itemIds") Collection<Long> itemIds);
 }

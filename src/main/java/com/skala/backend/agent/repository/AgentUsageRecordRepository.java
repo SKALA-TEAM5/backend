@@ -2,8 +2,10 @@ package com.skala.backend.agent.repository;
 
 import com.skala.backend.agent.domain.AgentUsageRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -176,4 +178,13 @@ public interface AgentUsageRecordRepository extends JpaRepository<AgentUsageReco
             @Param("from") Instant from,
             @Param("to") Instant to
     );
+
+    /**
+     * 사용내역서 삭제 시 비용 기록은 보존하되 statement 참조만 끊는다(SET NULL).
+     * 프로젝트 단위 비용 집계는 그대로 유지된다.
+     */
+    @Transactional
+    @Modifying
+    @Query("UPDATE AgentUsageRecord r SET r.usageStatementId = null WHERE r.usageStatementId = :usageStatementId")
+    void clearUsageStatementId(@Param("usageStatementId") Long usageStatementId);
 }
