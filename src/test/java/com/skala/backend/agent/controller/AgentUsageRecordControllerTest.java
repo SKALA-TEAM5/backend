@@ -82,44 +82,67 @@ class AgentUsageRecordControllerTest {
     }
 
     @Test
-    void user는_본인_데이터만_반환된다() throws Exception {
+    void by_user_user는_배정된_프로젝트의_사용량만_집계된다() throws Exception {
         Map<String, String> admin = createUser("admin");
         Map<String, String> user1 = createUser("user");
         Map<String, String> user2 = createUser("user");
         Cookie adminCookie = loginCookie(admin);
         Cookie user1Cookie = loginCookie(user1);
+        int adminId = readUserId(admin);
         int user1Id = readUserId(user1);
         int user2Id = readUserId(user2);
-        int projectId = createProject(adminCookie);
+        int projectA = createProject(adminCookie);
+        int projectB = createProject(adminCookie);
+        assign(adminCookie, projectA, user1Id);
 
-        insertUsageRecord(user1Id, projectId, "legal",      100, 50, "0.01000000");
-        insertUsageRecord(user2Id, projectId, "safety-doc", 200, 80, "0.02000000");
+        // 배정된 projectA: 본인 + 동료(admin) 실행 → 모두 보임 (프로젝트 기준)
+        insertUsageRecord(user1Id, projectA, "legal",  100, 50, "0.01000000");
+        insertUsageRecord(adminId, projectA, "vision", 300, 100, "0.03000000");
+        // 비배정 projectB: 보이지 않음
+        insertUsageRecord(user2Id, projectB, "safety-doc", 200, 80, "0.02000000");
 
         mockMvc.perform(get("/usage-records/by-user").cookie(user1Cookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].userId").value(user1Id));
+                .andExpect(jsonPath("$.data", hasSize(2)));
     }
 
     @Test
-    void user가_다른_userId를_전달해도_본인_데이터만_반환된다() throws Exception {
+    void by_user_user는_배정되지_않은_프로젝트는_projectId로_지정해도_조회되지_않는다() throws Exception {
         Map<String, String> admin = createUser("admin");
         Map<String, String> user1 = createUser("user");
-        Map<String, String> user2 = createUser("user");
         Cookie adminCookie = loginCookie(admin);
         Cookie user1Cookie = loginCookie(user1);
         int user1Id = readUserId(user1);
-        int user2Id = readUserId(user2);
-        int projectId = createProject(adminCookie);
+        int projectA = createProject(adminCookie);
+        int projectB = createProject(adminCookie);
+        assign(adminCookie, projectA, user1Id);
 
-        insertUsageRecord(user1Id, projectId, "legal",      100, 50, "0.01000000");
-        insertUsageRecord(user2Id, projectId, "safety-doc", 200, 80, "0.02000000");
+        // user1이 직접 실행했더라도 비배정 projectB는 집계 범위 밖
+        insertUsageRecord(user1Id, projectB, "legal", 100, 50, "0.01000000");
 
         mockMvc.perform(get("/usage-records/by-user").cookie(user1Cookie)
-                        .param("userId", String.valueOf(user2Id)))
+                        .param("projectId", String.valueOf(projectB)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].userId").value(user1Id));
+                .andExpect(jsonPath("$.data", hasSize(0)));
+    }
+
+    @Test
+    void by_user_system_admin은_전체_사용자를_집계한다() throws Exception {
+        Map<String, String> admin = createUser("admin");
+        Cookie adminCookie = loginCookie(admin);
+        int adminId = readUserId(admin);
+        Map<String, String> user1 = createUser("user");
+        int user1Id = readUserId(user1);
+        Cookie saCookie = loginCookie(createUser("system_admin"));
+        int projectId = createProject(adminCookie); // system_admin에 배정되지 않은 프로젝트
+
+        insertUsageRecord(adminId, projectId, "legal",  100, 50, "0.01000000");
+        insertUsageRecord(user1Id, projectId, "vision", 200, 80, "0.02000000");
+
+        // system_admin은 배정 여부와 무관하게 전체 사용자 집계
+        mockMvc.perform(get("/usage-records/by-user").cookie(saCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)));
     }
 
     @Test
@@ -244,7 +267,7 @@ class AgentUsageRecordControllerTest {
     }
 
     @Test
-    void by_project_user는_본인이_실행한_프로젝트만_반환된다() throws Exception {
+    void by_project_user는_배정된_프로젝트만_반환된다() throws Exception {
         Map<String, String> admin = createUser("admin");
         Map<String, String> user1 = createUser("user");
         Map<String, String> user2 = createUser("user");
@@ -254,14 +277,33 @@ class AgentUsageRecordControllerTest {
         int user2Id = readUserId(user2);
         int projectA = createProject(adminCookie);
         int projectB = createProject(adminCookie);
+        assign(adminCookie, projectA, user1Id);
 
-        insertUsageRecord(user1Id, projectA, "legal",      100, 50, "0.01000000");
-        insertUsageRecord(user2Id, projectB, "safety-doc", 200, 80, "0.02000000");
+        // 배정된 projectA에 동료(user2)가 실행 → 보임. 비배정 projectB에 본인이 실행 → 안 보임
+        insertUsageRecord(user2Id, projectA, "legal",      100, 50, "0.01000000");
+        insertUsageRecord(user1Id, projectB, "safety-doc", 200, 80, "0.02000000");
 
         mockMvc.perform(get("/usage-records/by-project").cookie(user1Cookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].projectId").value(projectA));
+    }
+
+    @Test
+    void by_project_system_admin은_전체_프로젝트를_집계한다() throws Exception {
+        Map<String, String> admin = createUser("admin");
+        Cookie adminCookie = loginCookie(admin);
+        int adminId = readUserId(admin);
+        Cookie saCookie = loginCookie(createUser("system_admin"));
+        int projectId = createProject(adminCookie); // system_admin에 배정되지 않은 프로젝트
+
+        insertUsageRecord(adminId, projectId, "legal", 100, 50, "0.01000000");
+
+        // system_admin은 배정 여부와 무관하게 전체 집계
+        mockMvc.perform(get("/usage-records/by-project").cookie(saCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].projectId").value(projectId));
     }
 
     @Test
@@ -326,7 +368,7 @@ class AgentUsageRecordControllerTest {
     }
 
     @Test
-    void by_agent_user는_본인_실행_데이터만_집계된다() throws Exception {
+    void by_agent_user는_배정된_프로젝트의_데이터만_집계된다() throws Exception {
         Map<String, String> admin = createUser("admin");
         Map<String, String> user1 = createUser("user");
         Map<String, String> user2 = createUser("user");
@@ -334,10 +376,13 @@ class AgentUsageRecordControllerTest {
         Cookie user1Cookie = loginCookie(user1);
         int user1Id = readUserId(user1);
         int user2Id = readUserId(user2);
-        int projectId = createProject(adminCookie);
+        int projectA = createProject(adminCookie);
+        int projectB = createProject(adminCookie);
+        assign(adminCookie, projectA, user1Id);
 
-        insertUsageRecord(user1Id, projectId, "legal",      100, 50, "0.01000000");
-        insertUsageRecord(user2Id, projectId, "safety-doc", 200, 80, "0.02000000");
+        // 배정된 projectA의 동료 실행(legal)은 보이고, 비배정 projectB 본인 실행(safety-doc)은 안 보임
+        insertUsageRecord(user2Id, projectA, "legal",      100, 50, "0.01000000");
+        insertUsageRecord(user1Id, projectB, "safety-doc", 200, 80, "0.02000000");
 
         mockMvc.perform(get("/usage-records/by-agent").cookie(user1Cookie))
                 .andExpect(status().isOk())
@@ -412,7 +457,7 @@ class AgentUsageRecordControllerTest {
     }
 
     @Test
-    void by_month_user는_본인_데이터만_조회된다() throws Exception {
+    void by_month_user는_배정된_프로젝트의_데이터만_조회된다() throws Exception {
         Map<String, String> admin = createUser("admin");
         Map<String, String> user1 = createUser("user");
         Map<String, String> user2 = createUser("user");
@@ -420,10 +465,13 @@ class AgentUsageRecordControllerTest {
         Cookie user1Cookie = loginCookie(user1);
         int user1Id = readUserId(user1);
         int user2Id = readUserId(user2);
-        int projectId = createProject(adminCookie);
+        int projectA = createProject(adminCookie);
+        int projectB = createProject(adminCookie);
+        assign(adminCookie, projectA, user1Id);
 
-        insertUsageRecordAt(user1Id, projectId, "legal", 100, 50, "0.01000000", "2026-05-01T00:00:00Z");
-        insertUsageRecordAt(user2Id, projectId, "legal", 200, 80, "0.02000000", "2026-05-01T00:00:00Z");
+        // 배정 projectA(100) 집계, 비배정 projectB(200) 제외
+        insertUsageRecordAt(user2Id, projectA, "legal", 100, 50, "0.01000000", "2026-05-01T00:00:00Z");
+        insertUsageRecordAt(user1Id, projectB, "legal", 200, 80, "0.02000000", "2026-05-01T00:00:00Z");
 
         mockMvc.perform(get("/usage-records/by-month").cookie(user1Cookie))
                 .andExpect(status().isOk())
@@ -512,7 +560,7 @@ class AgentUsageRecordControllerTest {
     }
 
     @Test
-    void by_date_user는_본인_데이터만_조회된다() throws Exception {
+    void by_date_user는_배정된_프로젝트의_데이터만_조회된다() throws Exception {
         Map<String, String> admin = createUser("admin");
         Map<String, String> user1 = createUser("user");
         Map<String, String> user2 = createUser("user");
@@ -520,15 +568,36 @@ class AgentUsageRecordControllerTest {
         Cookie user1Cookie = loginCookie(user1);
         int user1Id = readUserId(user1);
         int user2Id = readUserId(user2);
-        int projectId = createProject(adminCookie);
+        int projectA = createProject(adminCookie);
+        int projectB = createProject(adminCookie);
+        assign(adminCookie, projectA, user1Id);
 
-        insertUsageRecordAt(user1Id, projectId, "legal", 100, 50, "0.01000000", "2026-05-10T00:00:00Z");
-        insertUsageRecordAt(user2Id, projectId, "legal", 200, 80, "0.02000000", "2026-05-10T00:00:00Z");
+        // 배정 projectA(100) 집계, 비배정 projectB(200) 제외
+        insertUsageRecordAt(user2Id, projectA, "legal", 100, 50, "0.01000000", "2026-05-10T00:00:00Z");
+        insertUsageRecordAt(user1Id, projectB, "legal", 200, 80, "0.02000000", "2026-05-10T00:00:00Z");
 
         mockMvc.perform(get("/usage-records/by-date").cookie(user1Cookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].inputTokens").value(100));
+    }
+
+    // ─── agent 접근 차단 (대시보드와 동일 정책) ───────────────────────────
+
+    @Test
+    void agent는_사용량_조회에_접근할_수_없다() throws Exception {
+        Cookie agentCookie = loginCookie(createUser("agent"));
+
+        mockMvc.perform(get("/usage-records/by-user").cookie(agentCookie))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/usage-records/by-project").cookie(agentCookie))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/usage-records/by-agent").cookie(agentCookie))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/usage-records/by-month").cookie(agentCookie))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/usage-records/by-date").cookie(agentCookie))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -598,6 +667,11 @@ class AgentUsageRecordControllerTest {
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("project").path("id").asInt();
+    }
+
+    private void assign(Cookie cookie, int projectId, int userId) throws Exception {
+        mockMvc.perform(post("/projects/{pid}/assignees/{uid}", projectId, userId).cookie(cookie))
+                .andExpect(status().isOk());
     }
 
     private void insertUsageRecord(int userId, int projectId, String agentTypeCode,

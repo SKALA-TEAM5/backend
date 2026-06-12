@@ -2,8 +2,10 @@ package com.skala.backend.agent.service;
 
 import com.skala.backend.agent.dto.UsageRecordResponses;
 import com.skala.backend.agent.repository.AgentUsageRecordRepository;
+import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.ProjectAccessService;
 import com.skala.backend.user.domain.RoleCode;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,9 +31,8 @@ public class AgentUsageRecordService {
             Long currentUserId, RoleCode roleCode,
             Long userId, Long projectId, String agentTypeCode,
             LocalDate from, LocalDate to) {
-        projectAccessService.requireCurrentUser(currentUserId);
-        Long effectiveUserId = isPrivileged(roleCode) ? userId : currentUserId;
-        return repository.groupByUser(effectiveUserId, projectId, agentTypeCode, toFrom(from), toTo(to))
+        Long scopeUserId = resolveScopeUserId(currentUserId, roleCode);
+        return repository.groupByUser(userId, projectId, agentTypeCode, toFrom(from), toTo(to), scopeUserId)
                 .stream()
                 .map(r -> new UsageRecordResponses.ByUser(
                         r.getUserId(), r.getUserName(),
@@ -45,9 +46,8 @@ public class AgentUsageRecordService {
             Long currentUserId, RoleCode roleCode,
             Long userId, Long projectId, String agentTypeCode,
             LocalDate from, LocalDate to) {
-        projectAccessService.requireCurrentUser(currentUserId);
-        Long effectiveUserId = isPrivileged(roleCode) ? userId : currentUserId;
-        return repository.groupByProject(effectiveUserId, projectId, agentTypeCode, toFrom(from), toTo(to))
+        Long scopeUserId = resolveScopeUserId(currentUserId, roleCode);
+        return repository.groupByProject(userId, projectId, agentTypeCode, toFrom(from), toTo(to), scopeUserId)
                 .stream()
                 .map(r -> new UsageRecordResponses.ByProject(
                         r.getProjectId(), r.getProjectName(),
@@ -61,9 +61,8 @@ public class AgentUsageRecordService {
             Long currentUserId, RoleCode roleCode,
             Long userId, Long projectId, String agentTypeCode,
             LocalDate from, LocalDate to) {
-        projectAccessService.requireCurrentUser(currentUserId);
-        Long effectiveUserId = isPrivileged(roleCode) ? userId : currentUserId;
-        return repository.groupByAgent(effectiveUserId, projectId, agentTypeCode, toFrom(from), toTo(to))
+        Long scopeUserId = resolveScopeUserId(currentUserId, roleCode);
+        return repository.groupByAgent(userId, projectId, agentTypeCode, toFrom(from), toTo(to), scopeUserId)
                 .stream()
                 .map(r -> new UsageRecordResponses.ByAgent(
                         r.getAgentTypeCode(),
@@ -77,9 +76,8 @@ public class AgentUsageRecordService {
             Long currentUserId, RoleCode roleCode,
             Long userId, Long projectId, String agentTypeCode,
             LocalDate from, LocalDate to) {
-        projectAccessService.requireCurrentUser(currentUserId);
-        Long effectiveUserId = isPrivileged(roleCode) ? userId : currentUserId;
-        return repository.groupByMonth(effectiveUserId, projectId, agentTypeCode, toFrom(from), toTo(to))
+        Long scopeUserId = resolveScopeUserId(currentUserId, roleCode);
+        return repository.groupByMonth(userId, projectId, agentTypeCode, toFrom(from), toTo(to), scopeUserId)
                 .stream()
                 .map(r -> new UsageRecordResponses.ByMonth(
                         r.getMonth(),
@@ -93,9 +91,8 @@ public class AgentUsageRecordService {
             Long currentUserId, RoleCode roleCode,
             Long userId, Long projectId, String agentTypeCode,
             LocalDate from, LocalDate to) {
-        projectAccessService.requireCurrentUser(currentUserId);
-        Long effectiveUserId = isPrivileged(roleCode) ? userId : currentUserId;
-        return repository.groupByDate(effectiveUserId, projectId, agentTypeCode, toFrom(from), toTo(to))
+        Long scopeUserId = resolveScopeUserId(currentUserId, roleCode);
+        return repository.groupByDate(userId, projectId, agentTypeCode, toFrom(from), toTo(to), scopeUserId)
                 .stream()
                 .map(r -> new UsageRecordResponses.ByDate(
                         r.getDate(),
@@ -104,8 +101,18 @@ public class AgentUsageRecordService {
                 .toList();
     }
 
-    private boolean isPrivileged(RoleCode roleCode) {
-        return roleCode == RoleCode.SYSTEM_ADMIN || roleCode == RoleCode.ADMIN;
+    /**
+     * 사용량 조회 권한 검증 후 프로젝트 집계 범위를 결정한다. (대시보드와 동일 정책)
+     * - system_admin: 전체 집계 → null 반환(필터 미적용)
+     * - admin, user: 본인 배정 프로젝트만 → 본인 userId 반환
+     * - agent: 403
+     */
+    private Long resolveScopeUserId(Long currentUserId, RoleCode roleCode) {
+        projectAccessService.requireCurrentUser(currentUserId);
+        if (roleCode == RoleCode.AGENT) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+        }
+        return roleCode == RoleCode.SYSTEM_ADMIN ? null : currentUserId;
     }
 
     private Instant toFrom(LocalDate date) {
