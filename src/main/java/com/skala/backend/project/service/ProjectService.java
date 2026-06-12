@@ -72,10 +72,6 @@ public class ProjectService {
 		int pageSize = validateSize(size);
 		ProjectSort projectSort = ProjectSort.from(sort);
 
-		if (!isProjectManager(currentUser) && assigneeUserId != null) {
-			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-		}
-
 		Long visibleUserId = resolveVisibleUserId(currentUser, scope);
 		Page<ProjectCardRow> result = projectRepository.searchCards(
 				containsPattern(keyword),
@@ -254,11 +250,13 @@ public class ProjectService {
 			normalized = normalized.toLowerCase(Locale.ROOT);
 		}
 		if (normalized == null) {
-			return isProjectManager(currentUser) ? "all" : "assigned";
+			// admin은 기본적으로 본인이 배정된 프로젝트만 조회한다. agent만 기본 전체 조회.
+			return currentUser.getRoleCode() == RoleCode.AGENT ? "all" : "assigned";
 		}
 		if (!normalized.equals("all") && !normalized.equals("assigned")) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "scope는 all 또는 assigned만 사용할 수 있습니다.");
 		}
+		// scope=all 명시 요청은 admin·agent만 허용(하위호환). user는 차단.
 		if (!isProjectManager(currentUser) && normalized.equals("all")) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
 		}

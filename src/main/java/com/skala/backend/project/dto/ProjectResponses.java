@@ -59,6 +59,18 @@ public final class ProjectResponses {
 			@Schema(description = "프로젝트 담당자 목록") List<AssigneeResponse> assignees
 	) {}
 
+	@Schema(description = "담당자 검색 후보 정보")
+	public record AssigneeCandidate(
+			@Schema(description = "사용자 ID", example = "3") Long userId,
+			@Schema(description = "담당자 이름", example = "이현장") String realName,
+			@Schema(description = "담당자 역할 코드", example = "user") RoleCode roleCode
+	) {}
+
+	@Schema(description = "담당자 검색 후보 목록 응답 데이터")
+	public record AssigneeCandidatesResponse(
+			@Schema(description = "현재 사용자의 프로젝트 풀 내 담당자 후보 목록") List<AssigneeCandidate> candidates
+	) {}
+
 	@Schema(name = "ProjectCardResponse", description = "프로젝트 목록 카드 정보")
 	public record CardResponse(
 			@Schema(description = "프로젝트 ID", example = "1") Long id,
