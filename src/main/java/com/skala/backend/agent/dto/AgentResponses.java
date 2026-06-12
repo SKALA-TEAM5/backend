@@ -86,29 +86,20 @@ public final class AgentResponses {
 		}
 	}
 
-	@Schema(description = "TODO 항목 단건")
-	public record TodoItem(
-			@Schema(description = "세부항목 ID (항목 단위가 아닌 경우 null)") Long usageStatementItemId,
+	@Schema(description = "TODO 단건 (todos 읽기 모델 행)")
+	public record TodoResponse(
+			@Schema(description = "TODO ID", example = "1") Long todoId,
+			@Schema(description = "사용내역서 ID", example = "42") Long usageStatementId,
+			@Schema(description = "세부항목 ID (항목 단위가 아니면 null)", example = "101") Long usageStatementItemId,
+			@Schema(description = "세부항목명", example = "터널 환기덕트 안전시설 설치") String usageStatementItemName,
 			@Schema(description = "카테고리 코드", example = "CAT_03") String categoryCode,
 			@Schema(description = "카테고리명", example = "안전시설비") String categoryName,
-			@Schema(description = "세부항목명", example = "터널 환기덕트 안전시설 설치") String usageStatementItemName,
-			@Schema(description = "조치 대상 증빙명 또는 요약 (reason의 구조화 버전)", example = "세금계산서") String title,
-			@Schema(description = "필요 증빙 유형 코드 목록 (safety-doc 전용, 없으면 빈 배열)") List<String> evidenceTypeCodes,
-			@Schema(description = "조치 사유") String reason
-	) {}
-
-	@Schema(description = "agent별 TODO 엔트리")
-	public record AgentTodoEntry(
 			@Schema(description = "에이전트 유형", example = "safety-doc") String agentTypeCode,
-			@Schema(description = "판단 결과", example = "hil") String resultCode,
-			@Schema(description = "요약 사유") String reason,
-			@Schema(description = "TODO 항목 목록") List<TodoItem> items
-	) {}
-
-	@Schema(description = "TODO 목록 응답")
-	public record TodoListResponse(
-			@Schema(description = "validate 버튼 결과 TODO (safety-doc / link / vision 중 hil·fail만)") List<AgentTodoEntry> validate,
-			@Schema(description = "legal 버튼 결과 TODO (없으면 null)") AgentTodoEntry legal
+			@Schema(description = "관련 파일 ID (없으면 null)", example = "55") Long fileId,
+			@Schema(description = "조치 사유") String reason,
+			@Schema(description = "확인(체크) 여부") boolean confirmed,
+			@Schema(description = "생성일시") Instant createdAt,
+			@Schema(description = "수정일시") Instant updatedAt
 	) {}
 
 	@Schema(description = "버튼 단건 상태")

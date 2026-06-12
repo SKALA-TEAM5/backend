@@ -7,6 +7,7 @@ import com.skala.backend.evidence.repository.EvidenceFileLinkRepository;
 import com.skala.backend.evidence.repository.EvidenceRequirementRepository;
 import com.skala.backend.file.domain.ProjectFile;
 import com.skala.backend.file.repository.ProjectFileRepository;
+import com.skala.backend.file.service.VisionDetectionParser;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
@@ -36,6 +37,7 @@ public class EvidenceQueryService {
 	private final EvidenceRequirementRepository requirementRepository;
 	private final ProjectFileRepository fileRepository;
 	private final CodeLookupService codeLookupService;
+	private final VisionDetectionParser visionDetectionParser;
 
 	public EvidenceQueryService(
 			ProjectAccessService projectAccessService,
@@ -43,7 +45,8 @@ public class EvidenceQueryService {
 			EvidenceFileLinkRepository linkRepository,
 			EvidenceRequirementRepository requirementRepository,
 			ProjectFileRepository fileRepository,
-			CodeLookupService codeLookupService
+			CodeLookupService codeLookupService,
+			VisionDetectionParser visionDetectionParser
 	) {
 		this.projectAccessService = projectAccessService;
 		this.itemRepository = itemRepository;
@@ -51,6 +54,7 @@ public class EvidenceQueryService {
 		this.requirementRepository = requirementRepository;
 		this.fileRepository = fileRepository;
 		this.codeLookupService = codeLookupService;
+		this.visionDetectionParser = visionDetectionParser;
 	}
 
 	@Transactional(readOnly = true)
@@ -101,7 +105,8 @@ public class EvidenceQueryService {
 							file.getMimeType(),
 							file.getSizeBytes(),
 							file.getCapturedAt(),
-							file.getUploadedAt()
+							file.getUploadedAt(),
+							visionDetectionParser.parse(file.getDetail())
 					));
 		}
 

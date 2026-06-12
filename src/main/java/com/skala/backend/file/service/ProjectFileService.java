@@ -1,7 +1,5 @@
 package com.skala.backend.file.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skala.backend.evidence.service.EvidenceCommandService;
 import com.skala.backend.file.domain.ProjectFile;
 import com.skala.backend.evidence.dto.EvidenceRequests.LinkEvidenceFileRequest;
@@ -10,7 +8,6 @@ import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileListResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileUploadResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.UploadAndLinkResponse;
-import com.skala.backend.file.dto.ProjectFileResponses.VisionDetections;
 import com.skala.backend.file.repository.ProjectFileRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
@@ -33,7 +30,6 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,13 +40,17 @@ public class ProjectFileService {
 	private static final int DEFAULT_PAGE_SIZE = 20;
 	private static final int MAX_PAGE_SIZE = 50;
 
+	// 사용내역서는 OCR/파싱 대상이라 PDF만 허용한다. 다른 증빙(영수증·사진 등)은 제약 없음.
+	private static final String USAGE_STATEMENT_TYPE_CODE = "usage_statement";
+	private static final byte[] PDF_MAGIC = {'%', 'P', 'D', 'F'};
+
 	private final ProjectAccessService projectAccessService;
 	private final ProjectFileRepository fileRepository;
 	private final CodeLookupService codeLookupService;
 	private final EvidenceCommandService evidenceCommandService;
 	private final UsageStatementRepository usageStatementRepository;
 	private final MinioClient minioClient;
-	private final ObjectMapper objectMapper;
+	private final VisionDetectionParser visionDetectionParser;
 	private final String bucket;
 
 	public ProjectFileService(
@@ -60,7 +60,7 @@ public class ProjectFileService {
 			EvidenceCommandService evidenceCommandService,
 			UsageStatementRepository usageStatementRepository,
 			MinioClient minioClient,
-			ObjectMapper objectMapper,
+			VisionDetectionParser visionDetectionParser,
 			@Value("${app.file-storage.bucket}") String bucket
 	) {
 		this.projectAccessService = projectAccessService;
@@ -69,7 +69,7 @@ public class ProjectFileService {
 		this.evidenceCommandService = evidenceCommandService;
 		this.usageStatementRepository = usageStatementRepository;
 		this.minioClient = minioClient;
-		this.objectMapper = objectMapper;
+		this.visionDetectionParser = visionDetectionParser;
 		this.bucket = bucket;
 	}
 
@@ -109,6 +109,10 @@ public class ProjectFileService {
 
 		String originalFilename = multipartFile.getOriginalFilename() == null ? "upload" : multipartFile.getOriginalFilename();
 		String mimeType = multipartFile.getContentType() == null ? "application/octet-stream" : multipartFile.getContentType();
+
+		if (USAGE_STATEMENT_TYPE_CODE.equals(evidenceTypeCode)) {
+			requirePdf(originalFilename, mimeType, multipartFile);
+		}
 		String storageKey = storageKey(projectId, originalFilename);
 
 		try (InputStream inputStream = multipartFile.getInputStream()) {
@@ -175,13 +179,19 @@ public class ProjectFileService {
 	public void delete(Long currentUserId, Long projectId, Long fileId) {
 		projectAccessService.requireWritable(currentUserId, projectId);
 		ProjectFile file = requireFile(projectId, fileId);
+		String storageKey = file.getStorageKey(); // 엔티티 삭제 전에 키 확보 (제거된 엔티티 getter 의존 방지)
 		evidenceCommandService.deleteLinksForFile(file.getId());
 		usageStatementRepository.clearSourceFileId(file.getId());
-		deleteFromMinio(file.getStorageKey());
 		fileRepository.delete(file);
+		// DB 삭제를 먼저 확정(flush)해 제약 위반을 표면화한 뒤 MinIO를 지운다.
+		// → MinIO만 지워지고 DB 행이 남는 역방향 고아를 방지. MinIO 실패 시 예외로 전체 롤백.
+		fileRepository.flush();
+		removeObject(storageKey);
 	}
 
-	private void deleteFromMinio(String storageKey) {
+	private void removeObject(String storageKey) {
+		// 주의: S3/MinIO removeObject(DeleteObject)는 멱등이라 키가 없거나 틀려도 예외 없이 성공한다.
+		// 따라서 "성공 응답 = 실제 삭제"가 아니다. 네트워크·권한 등 실제 오류만 예외로 올라오며, 이는 마스킹하지 않고 그대로 전파한다.
 		try {
 			minioClient.removeObject(
 					RemoveObjectArgs.builder()
@@ -192,6 +202,30 @@ public class ProjectFileService {
 		} catch (Exception e) {
 			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 삭제에 실패했습니다.");
 		}
+	}
+
+	// 사용내역서 업로드 가드: 확장자·MIME·매직넘버(%PDF) 3중으로 PDF만 통과시킨다.
+	// 프론트 검증은 직접 API 호출로 우회 가능하므로 저장 직전 백엔드에서 한 번 더 막는다.
+	private void requirePdf(String originalFilename, String mimeType, MultipartFile multipartFile) {
+		boolean pdfExtension = originalFilename.toLowerCase().endsWith(".pdf");
+		boolean pdfMime = "application/pdf".equals(mimeType)
+				|| "application/octet-stream".equals(mimeType);
+		if (!pdfExtension || !pdfMime || !hasPdfMagic(multipartFile)) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "사용내역서는 PDF 파일만 업로드할 수 있습니다.");
+		}
+	}
+
+	private boolean hasPdfMagic(MultipartFile multipartFile) {
+		byte[] header = new byte[PDF_MAGIC.length];
+		try (InputStream inputStream = multipartFile.getInputStream()) {
+			int read = inputStream.readNBytes(header, 0, PDF_MAGIC.length);
+			if (read < PDF_MAGIC.length) {
+				return false;
+			}
+		} catch (Exception e) {
+			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일을 읽을 수 없습니다.");
+		}
+		return java.util.Arrays.equals(header, PDF_MAGIC);
 	}
 
 	private ProjectFile requireFile(Long projectId, Long fileId) {
@@ -230,38 +264,8 @@ public class ProjectFileService {
 				file.getUploadedAt(),
 				file.getStatusCode(),
 				linkedCounts.getOrDefault(file.getId(), 0L),
-				parseVisionDetections(file.getDetail())
+				visionDetectionParser.parse(file.getDetail())
 		);
-	}
-
-	private VisionDetections parseVisionDetections(String detail) {
-		if (detail == null) return null;
-		try {
-			JsonNode vision = objectMapper.readTree(detail).path("vision_validation");
-			if (vision.isMissingNode()) return null;
-
-			List<VisionDetections.Detection> detections = new ArrayList<>();
-			for (JsonNode d : vision.path("detections")) {
-				List<Double> bbox = new ArrayList<>();
-				for (JsonNode coord : d.path("bbox_xyxy")) {
-					bbox.add(coord.asDouble());
-				}
-				detections.add(new VisionDetections.Detection(
-						d.path("label").asText(null),
-						d.path("box_color").asText(null),
-						d.path("confidence").asDouble(),
-						d.path("is_wearing").asBoolean(),
-						bbox
-				));
-			}
-			return new VisionDetections(
-					vision.path("image_width").asInt(),
-					vision.path("image_height").asInt(),
-					detections
-			);
-		} catch (Exception e) {
-			return null;
-		}
 	}
 
 	private String storageKey(Long projectId, String originalFilename) {

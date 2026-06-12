@@ -79,7 +79,7 @@ public class UsageStatementItemService {
 				request.totalAmount()
 		);
 
-		statementRepository.findById(usageStatementId).ifPresent(UsageStatement::revertToDraft);
+		revertToDraftIfNeeded(usageStatementId);
 
 		List<CreateItemResponse.CategoryChange> changes = classi.changes().stream()
 				.map(c -> new CreateItemResponse.CategoryChange(
@@ -109,6 +109,8 @@ public class UsageStatementItemService {
 				request.pageNo()
 		);
 
+		revertToDraftIfNeeded(item.getUsageStatementId());
+
 		return toItemResponse(item, codeLookupService.categoryNames());
 	}
 
@@ -119,9 +121,13 @@ public class UsageStatementItemService {
 		UsageStatementItem item = itemRepository.findProjectItem(projectId, itemId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "세부항목을 찾을 수 없습니다."));
 
+		Long usageStatementId = item.getUsageStatementId();
+
 		requirementRepository.deleteByUsageStatementItemId(item.getId());
 		linkRepository.deleteByUsageStatementItemId(item.getId());
 		itemRepository.delete(item);
+
+		revertToDraftIfNeeded(usageStatementId);
 	}
 
 	@Transactional
@@ -138,7 +144,14 @@ public class UsageStatementItemService {
 
 		item.changeCategory(request.categoryCode());
 
+		revertToDraftIfNeeded(item.getUsageStatementId());
+
 		return toItemResponse(item, categoryNames);
+	}
+
+	private void revertToDraftIfNeeded(Long usageStatementId) {
+		statementRepository.findById(usageStatementId)
+				.ifPresent(UsageStatement::revertToDraft);
 	}
 
 	private UsageStatementItemResponse toItemResponse(UsageStatementItem item, Map<String, String> categoryNames) {
