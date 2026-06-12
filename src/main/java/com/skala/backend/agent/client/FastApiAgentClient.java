@@ -232,6 +232,17 @@ public class FastApiAgentClient {
 		Map<String, Object> result = (Map<String, Object>) raw.get("result");
 		@SuppressWarnings("unchecked")
 		Map<String, Object> payload = result != null ? (Map<String, Object>) result.get("payload") : null;
+
+		@SuppressWarnings("unchecked")
+		List<Map<String, Object>> results = payload != null ? (List<Map<String, Object>>) payload.get("results") : null;
+		if (results != null && !results.isEmpty()) {
+			String reason = (String) results.get(0).get("reason");
+			if (reason != null && reason.contains("llm(unclassified)")) {
+				throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+						"해당 항목은 산업안전보건관리비 9개 항목으로 분류하기 어렵습니다. 항목명을 다시 확인해 주세요.");
+			}
+		}
+
 		@SuppressWarnings("unchecked")
 		List<Map<String, Object>> changes = payload != null ? (List<Map<String, Object>>) payload.get("changes") : null;
 		if (changes == null || changes.isEmpty()) return new ClassifyResult(false, List.of());
