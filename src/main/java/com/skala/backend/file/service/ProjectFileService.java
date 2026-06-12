@@ -183,10 +183,29 @@ public class ProjectFileService {
 	public void delete(Long currentUserId, Long projectId, Long fileId) {
 		projectAccessService.requireWritable(currentUserId, projectId);
 		ProjectFile file = requireFile(projectId, fileId);
+		String storageKey = file.getStorageKey(); // 엔티티 삭제 전에 키 확보 (제거된 엔티티 getter 의존 방지)
 		evidenceCommandService.deleteLinksForFile(file.getId());
 		usageStatementRepository.clearSourceFileId(file.getId());
-		deleteFromMinio(file.getStorageKey());
 		fileRepository.delete(file);
+		// DB 삭제를 먼저 확정(flush)해 제약 위반을 표면화한 뒤 MinIO를 지운다.
+		// → MinIO만 지워지고 DB 행이 남는 역방향 고아를 방지. MinIO 실패 시 예외로 전체 롤백.
+		fileRepository.flush();
+		removeObject(storageKey);
+	}
+
+	private void removeObject(String storageKey) {
+		// 주의: S3/MinIO removeObject(DeleteObject)는 멱등이라 키가 없거나 틀려도 예외 없이 성공한다.
+		// 따라서 "성공 응답 = 실제 삭제"가 아니다. 네트워크·권한 등 실제 오류만 예외로 올라오며, 이는 마스킹하지 않고 그대로 전파한다.
+		try {
+			minioClient.removeObject(
+					RemoveObjectArgs.builder()
+							.bucket(bucket)
+							.object(storageKey)
+							.build()
+			);
+		} catch (Exception e) {
+			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 삭제에 실패했습니다.");
+		}
 	}
 
 	// 사용내역서 업로드 가드: 확장자·MIME·매직넘버(%PDF) 3중으로 PDF만 통과시킨다.
@@ -211,19 +230,6 @@ public class ProjectFileService {
 			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일을 읽을 수 없습니다.");
 		}
 		return java.util.Arrays.equals(header, PDF_MAGIC);
-	}
-
-	private void deleteFromMinio(String storageKey) {
-		try {
-			minioClient.removeObject(
-					RemoveObjectArgs.builder()
-							.bucket(bucket)
-							.object(storageKey)
-							.build()
-			);
-		} catch (Exception e) {
-			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 삭제에 실패했습니다.");
-		}
 	}
 
 	private ProjectFile requireFile(Long projectId, Long fileId) {

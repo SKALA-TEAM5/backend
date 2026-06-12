@@ -5,8 +5,11 @@ import com.skala.backend.agent.domain.AgentTypeCode;
 import com.skala.backend.agent.dto.AgentRequests;
 import com.skala.backend.agent.dto.AgentResponses;
 import com.skala.backend.agent.repository.AgentLogRepository;
+import com.skala.backend.file.service.ProjectFileService;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.ProjectAccessService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,16 +18,20 @@ import org.springframework.stereotype.Service;
 @Service
 public class AgentService {
 
+	private static final Logger log = LoggerFactory.getLogger(AgentService.class);
+
 	private final FastApiAgentClient fastApiAgentClient;
 	private final ProjectAccessService projectAccessService;
 	private final AgentLogRepository agentLogRepository;
 	private final AgentAsyncService agentAsyncService;
+	private final ProjectFileService projectFileService;
 	private final int validateStaleSeconds;
 	private final int legalStaleSeconds;
 	private final int reportStaleSeconds;
 
 	public AgentService(FastApiAgentClient fastApiAgentClient, ProjectAccessService projectAccessService,
 			AgentLogRepository agentLogRepository, AgentAsyncService agentAsyncService,
+			ProjectFileService projectFileService,
 			@Value("${app.fastapi.stale-threshold.validate-seconds:900}") int validateStaleSeconds,
 			@Value("${app.fastapi.stale-threshold.legal-seconds:900}")    int legalStaleSeconds,
 			@Value("${app.fastapi.stale-threshold.report-seconds:900}")   int reportStaleSeconds) {
@@ -32,6 +39,7 @@ public class AgentService {
 		this.projectAccessService = projectAccessService;
 		this.agentLogRepository = agentLogRepository;
 		this.agentAsyncService = agentAsyncService;
+		this.projectFileService = projectFileService;
 		this.validateStaleSeconds = validateStaleSeconds;
 		this.legalStaleSeconds = legalStaleSeconds;
 		this.reportStaleSeconds = reportStaleSeconds;
@@ -39,7 +47,19 @@ public class AgentService {
 
 	public AgentResponses.ParseResult parse(Long currentUserId, Long projectId, AgentRequests.ParseRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
-		return fastApiAgentClient.parseUsageStatement(projectId, request.fileId());
+		try {
+			return fastApiAgentClient.parseUsageStatement(projectId, request.fileId());
+		} catch (RuntimeException e) {
+			// 파싱 실패 시 직전에 업로드된 사용내역서 파일은 쓸모가 없으므로 files 테이블+MinIO에서 정리한다.
+			// (업로드와 parse는 별도 요청이라 parse가 실패하면 파일이 고아로 남기 때문)
+			// 정리 과정에서 또 오류가 나도 원래 파싱 예외를 그대로 전파한다.
+			try {
+				projectFileService.delete(currentUserId, projectId, request.fileId());
+			} catch (RuntimeException cleanupError) {
+				log.warn("parse 실패 후 업로드 파일 정리 실패: projectId={}, fileId={}", projectId, request.fileId(), cleanupError);
+			}
+			throw e;
+		}
 	}
 
 	public void validate(Long currentUserId, Long projectId, AgentRequests.ValidateRequest request) {
