@@ -22,11 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+/**
+ * 파일 업로드/목록 응답에 visionDetections가 노출되지 않음을 검증한다.
+ * vision_validation 파싱 동작 자체는 세부내역 파일보기(evidence-files) 응답에서만 노출되며
+ * {@code EvidenceFileVisionDetectionsControllerTest}가 커버한다.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -37,38 +41,13 @@ class ProjectFileDetailControllerTest {
               "reason": "안전모가 1건 확인되었습니다.",
               "detections": [{
                 "label": "안전모 착용",
-                "class_id": 3,
                 "bbox_xyxy": [241.49, 33.61, 431.7, 278.23],
                 "box_color": "blue",
-                "equipment": "safety_helmet",
-                "class_code": "07",
                 "confidence": 0.8332,
-                "is_wearing": true,
-                "needs_review": false
+                "is_wearing": true
               }],
               "image_width": 677,
-              "result_code": "hil",
-              "status_code": "success",
-              "image_height": 493,
-              "is_appropriate": true,
-              "original_filename": "스크린샷 2026-06-11 10.11.02.png",
-              "usage_statement_id": 2
-            }}
-            """;
-
-    static final String MULTI_DETECTION_DETAIL = """
-            {"vision_validation": {
-              "reason": "안전모 2건, 안전벨트 1건 확인.",
-              "detections": [
-                {"label": "안전모 착용", "bbox_xyxy": [10.0, 20.0, 30.0, 40.0],
-                 "box_color": "blue", "confidence": 0.91, "is_wearing": true},
-                {"label": "안전모 미착용", "bbox_xyxy": [50.0, 60.0, 70.0, 80.0],
-                 "box_color": "red", "confidence": 0.78, "is_wearing": false},
-                {"label": "안전벨트 착용", "bbox_xyxy": [90.0, 100.0, 110.0, 120.0],
-                 "box_color": "blue", "confidence": 0.85, "is_wearing": true}
-              ],
-              "image_width": 1280,
-              "image_height": 720
+              "image_height": 493
             }}
             """;
 
@@ -82,8 +61,6 @@ class ProjectFileDetailControllerTest {
     MinioClient minioClient;
 
     record Session(Cookie cookie, int userId) {}
-
-    // ─── 업로드 응답 ──────────────────────────────────────────────────────
 
     @Test
     void 업로드_응답에는_visionDetections_필드가_없다() throws Exception {
@@ -99,125 +76,16 @@ class ProjectFileDetailControllerTest {
                 .andExpect(jsonPath("$.data.visionDetections").doesNotExist());
     }
 
-    // ─── visionDetections 파싱 ────────────────────────────────────────────
-
     @Test
-    void vision_validation이_있으면_imageWidth_imageHeight가_정확히_파싱된다() throws Exception {
+    void 파일_목록_응답에는_vision_validation이_있어도_visionDetections가_노출되지_않는다() throws Exception {
         Session s = login(createUser("admin"));
         int projectId = createProject(s.cookie());
         insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
 
         mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].visionDetections.imageWidth").value(677))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.imageHeight").value(493));
-    }
-
-    @Test
-    void detections_label_boxColor_confidence_isWearing이_정확히_파싱된다() throws Exception {
-        Session s = login(createUser("admin"));
-        int projectId = createProject(s.cookie());
-        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].label").value("안전모 착용"))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].boxColor").value("blue"))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].confidence").value(0.8332))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].isWearing").value(true));
-    }
-
-    @Test
-    void bboxXyxy_좌표_4개가_순서대로_정확히_반환된다() throws Exception {
-        Session s = login(createUser("admin"));
-        int projectId = createProject(s.cookie());
-        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy", hasSize(4)))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy[0]").value(241.49))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy[1]").value(33.61))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy[2]").value(431.7))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections[0].bboxXyxy[3]").value(278.23));
-    }
-
-    @Test
-    void detections가_여러_건이면_전부_반환된다() throws Exception {
-        Session s = login(createUser("admin"));
-        int projectId = createProject(s.cookie());
-        insertFile(s.userId(), projectId, "site_photo", MULTI_DETECTION_DETAIL);
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].visionDetections.detections", hasSize(3)))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.imageWidth").value(1280))
-                .andExpect(jsonPath("$.data.items[0].visionDetections.imageHeight").value(720));
-    }
-
-    @Test
-    void class_id_class_code_equipment_needs_review_등_내부_필드는_노출되지_않는다() throws Exception {
-        Session s = login(createUser("admin"));
-        int projectId = createProject(s.cookie());
-        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
-
-        MvcResult result = mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        String body = result.getResponse().getContentAsString();
-        assertThat(body).doesNotContain("class_id", "class_code", "equipment", "needs_review",
-                "result_code", "status_code", "original_filename", "usage_statement_id", "reason");
-    }
-
-    // ─── visionDetections null 케이스 ─────────────────────────────────────
-
-    @Test
-    void detail이_null이면_visionDetections가_null이다() throws Exception {
-        Session s = login(createUser("admin"));
-        int projectId = createProject(s.cookie());
-        insertFile(s.userId(), projectId, "site_photo", null);
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].visionDetections").value(nullValue()));
-    }
-
-    @Test
-    void vision_validation_키가_없는_JSON이면_visionDetections가_null이다() throws Exception {
-        Session s = login(createUser("admin"));
-        int projectId = createProject(s.cookie());
-        insertFile(s.userId(), projectId, "site_photo", "{\"other_key\": {\"foo\": 1}}");
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].visionDetections").value(nullValue()));
-    }
-
-    @Test
-    void site_photo가_아닌_타입은_vision_validation_없으므로_visionDetections가_null이다() throws Exception {
-        Session s = login(createUser("admin"));
-        int projectId = createProject(s.cookie());
-        insertFile(s.userId(), projectId, "receipt", null);
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].visionDetections").value(nullValue()));
-    }
-
-    // ─── 혼재 케이스 ──────────────────────────────────────────────────────
-
-    @Test
-    void visionDetections_있는_파일과_없는_파일이_혼재하면_각각_정확히_반환된다() throws Exception {
-        Session s = login(createUser("admin"));
-        int projectId = createProject(s.cookie());
-
-        insertFile(s.userId(), projectId, "site_photo", VISION_DETAIL);
-        insertFile(s.userId(), projectId, "receipt", null);
-
-        mockMvc.perform(get("/projects/{pid}/files", projectId).cookie(s.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items", hasSize(2)));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].visionDetections").doesNotExist());
     }
 
     // ─── fixtures ─────────────────────────────────────────────────────────
@@ -268,20 +136,11 @@ class ProjectFileDetailControllerTest {
     }
 
     private void insertFile(int userId, int projectId, String evidenceTypeCode, String detailJson) {
-        if (detailJson != null) {
-            jdbcTemplate.update("""
-                    INSERT INTO service.files
-                        (project_id, uploaded_by_user_id, uploaded_evidence_type_code,
-                         original_filename, storage_key, mime_type, size_bytes, detail)
-                    VALUES (?, ?, ?, 'photo.jpg', ?, 'image/jpeg', 1024, ?::jsonb)
-                    """, projectId, userId, evidenceTypeCode, "key-" + UUID.randomUUID(), detailJson);
-        } else {
-            jdbcTemplate.update("""
-                    INSERT INTO service.files
-                        (project_id, uploaded_by_user_id, uploaded_evidence_type_code,
-                         original_filename, storage_key, mime_type, size_bytes)
-                    VALUES (?, ?, ?, 'photo.jpg', ?, 'image/jpeg', 1024)
-                    """, projectId, userId, evidenceTypeCode, "key-" + UUID.randomUUID());
-        }
+        jdbcTemplate.update("""
+                INSERT INTO service.files
+                    (project_id, uploaded_by_user_id, uploaded_evidence_type_code,
+                     original_filename, storage_key, mime_type, size_bytes, detail)
+                VALUES (?, ?, ?, 'photo.jpg', ?, 'image/jpeg', 1024, ?::jsonb)
+                """, projectId, userId, evidenceTypeCode, "key-" + UUID.randomUUID(), detailJson);
     }
 }
