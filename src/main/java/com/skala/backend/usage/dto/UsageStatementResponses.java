@@ -108,7 +108,7 @@ public final class UsageStatementResponses {
 			Long sizeBytes,
 			Instant capturedAt,
 			Instant uploadedAt,
-			@Schema(description = "바운딩 박스 데이터. site_photo이고 vision agent 실행 완료 시에만 non-null.")
+			@Schema(description = "바운딩 박스 데이터. wearing_photo이고 vision agent 실행 완료 시에만 non-null.")
 			com.skala.backend.file.dto.ProjectFileResponses.VisionDetections visionDetections
 	) {
 	}

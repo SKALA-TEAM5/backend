@@ -54,7 +54,6 @@ public class ProjectFileService {
 	private final EvidenceCommandService evidenceCommandService;
 	private final UsageStatementRepository usageStatementRepository;
 	private final MinioClient minioClient;
-	private final VisionDetectionParser visionDetectionParser;
 	private final String bucket;
 
 	public ProjectFileService(
@@ -64,7 +63,6 @@ public class ProjectFileService {
 			EvidenceCommandService evidenceCommandService,
 			UsageStatementRepository usageStatementRepository,
 			MinioClient minioClient,
-			VisionDetectionParser visionDetectionParser,
 			@Value("${app.file-storage.bucket}") String bucket
 	) {
 		this.projectAccessService = projectAccessService;
@@ -73,7 +71,6 @@ public class ProjectFileService {
 		this.evidenceCommandService = evidenceCommandService;
 		this.usageStatementRepository = usageStatementRepository;
 		this.minioClient = minioClient;
-		this.visionDetectionParser = visionDetectionParser;
 		this.bucket = bucket;
 	}
 
@@ -287,8 +284,7 @@ public class ProjectFileService {
 				file.getCapturedAt(),
 				file.getUploadedAt(),
 				file.getStatusCode(),
-				linkedCounts.getOrDefault(file.getId(), 0L),
-				visionDetectionParser.parse(file.getDetail())
+				linkedCounts.getOrDefault(file.getId(), 0L)
 		);
 	}
 
