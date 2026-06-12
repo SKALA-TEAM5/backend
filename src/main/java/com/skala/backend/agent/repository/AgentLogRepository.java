@@ -154,6 +154,19 @@ public interface AgentLogRepository extends JpaRepository<AgentLog, Long> {
             @Param("thresholdSeconds")  int    thresholdSeconds
     );
 
+    /**
+     * 보고서 details(jsonb)를 통째로 덮어쓴다. jsonb 컬럼이라 명시적 CAST가 필요하며,
+     * 영속성 컨텍스트와의 불일치를 막기 위해 실행 후 컨텍스트를 비운다.
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE service.agent_logs
+            SET details = CAST(:details AS jsonb), updated_at = NOW()
+            WHERE id = :id
+            """)
+    void updateDetails(@Param("id") Long id, @Param("details") String details);
+
     @Transactional
     @Modifying
     @Query(nativeQuery = true, value = """

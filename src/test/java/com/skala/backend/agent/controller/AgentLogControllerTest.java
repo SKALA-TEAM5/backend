@@ -19,8 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -377,6 +379,147 @@ class AgentLogControllerTest {
 				.andExpect(status().isForbidden());
 	}
 
+	// ─── PATCH /agents/report ────────────────────────────────────────────
+
+	@Test
+	void 배정된_admin은_보고서_details를_수정한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertReportLog(projectId, statementId, "success", "success", "보고서 생성 완료", "2026-05-01T00:00:00Z");
+
+		mockMvc.perform(patch("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"details", "{\"summary\":\"관리자 수정본\"}"))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.agentTypeCode").value("report"))
+				.andExpect(jsonPath("$.data.details", containsString("관리자 수정본")));
+
+		// 재조회 시에도 수정본이 유지되는지 확인
+		mockMvc.perform(get("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.details", containsString("관리자 수정본")));
+	}
+
+	@Test
+	void report_agent가_실행_중이면_보고서_수정은_409를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertRunningReportLog(projectId, statementId); // report 로그가 실행 중 상태
+
+		mockMvc.perform(patch("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"details", "{\"summary\":\"수정\"}"))))
+				.andExpect(status().isConflict());
+	}
+
+	@Test
+	void 깨진_JSON으로_보고서를_수정하면_400을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertReportLog(projectId, statementId, "success", "success", null, "2026-05-01T00:00:00Z");
+
+		mockMvc.perform(patch("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"details", "{not valid json"))))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void details가_누락되면_보고서_수정은_400을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+		insertReportLog(projectId, statementId, "success", "success", null, "2026-05-01T00:00:00Z");
+
+		mockMvc.perform(patch("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{}"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 보고서_로그가_없으면_수정은_404를_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+
+		mockMvc.perform(patch("/projects/{pid}/agents/report", projectId)
+						.cookie(adminCookie)
+						.param("usageStatementId", String.valueOf(statementId))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"details", "{\"summary\":\"수정\"}"))))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void 프로젝트에_배정되지_않은_admin은_보고서를_수정할_수_없다() throws Exception {
+		Cookie ownerCookie = loginCookie(createUser("admin"));
+		Cookie otherAdminCookie = loginCookie(createUser("admin")); // 배정되지 않은 admin
+		int projectId = createProject(ownerCookie);
+		int statementId = insertStatement(projectId);
+		insertReportLog(projectId, statementId, "success", "success", null, "2026-05-01T00:00:00Z");
+
+		mockMvc.perform(patch("/projects/{pid}/agents/report", projectId)
+						.cookie(otherAdminCookie)
+						.param("usageStatementId", String.valueOf(statementId))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"details", "{\"summary\":\"수정\"}"))))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void 배정된_user는_보고서를_수정할_수_없다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		Map<String, String> user = createUser("user");
+		Cookie userCookie = loginCookie(user);
+		int userId = readUserId(user);
+		int projectId = createProject(adminCookie);
+		assign(adminCookie, projectId, userId); // 배정되어도 admin이 아니므로 불가
+		int statementId = insertStatement(projectId);
+		insertReportLog(projectId, statementId, "success", "success", null, "2026-05-01T00:00:00Z");
+
+		mockMvc.perform(patch("/projects/{pid}/agents/report", projectId)
+						.cookie(userCookie)
+						.param("usageStatementId", String.valueOf(statementId))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"details", "{\"summary\":\"수정\"}"))))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void 쿠키_없이_보고서를_수정하면_401을_반환한다() throws Exception {
+		Cookie adminCookie = loginCookie(createUser("admin"));
+		int projectId = createProject(adminCookie);
+		int statementId = insertStatement(projectId);
+
+		mockMvc.perform(patch("/projects/{pid}/agents/report", projectId)
+						.param("usageStatementId", String.valueOf(statementId))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of(
+								"details", "{\"summary\":\"수정\"}"))))
+				.andExpect(status().isUnauthorized());
+	}
+
 	// ─── fixtures ─────────────────────────────────────────────────────────
 
 	private Map<String, String> createUser(String roleCode) {
@@ -506,5 +649,13 @@ class AgentLogControllerTest {
 					(project_id, usage_statement_id, agent_type_code, status_code, result_code, reason, details, created_at)
 				VALUES (?, ?, 'report', ?, ?, ?, '{"summary": "보고서 생성 완료"}'::jsonb, ?::timestamptz)
 				""", projectId, statementId, statusCode, resultCode, reason, createdAt);
+	}
+
+	private void insertRunningReportLog(int projectId, int statementId) {
+		jdbcTemplate.update("""
+				INSERT INTO service.agent_logs
+					(project_id, usage_statement_id, agent_type_code, status_code, updated_at)
+				VALUES (?, ?, 'report', 'running', NOW())
+				""", projectId, statementId);
 	}
 }
