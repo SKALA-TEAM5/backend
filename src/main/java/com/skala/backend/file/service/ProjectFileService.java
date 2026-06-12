@@ -18,6 +18,8 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.errors.ErrorResponseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -36,6 +38,8 @@ import java.util.UUID;
 
 @Service
 public class ProjectFileService {
+
+	private static final Logger log = LoggerFactory.getLogger(ProjectFileService.class);
 
 	private static final int DEFAULT_PAGE_SIZE = 20;
 	private static final int MAX_PAGE_SIZE = 50;
@@ -187,6 +191,26 @@ public class ProjectFileService {
 		// → MinIO만 지워지고 DB 행이 남는 역방향 고아를 방지. MinIO 실패 시 예외로 전체 롤백.
 		fileRepository.flush();
 		removeObject(storageKey);
+	}
+
+	/**
+	 * 트랜잭션 커밋 이후 호출되는 best-effort MinIO 오브젝트 회수.
+	 * DB는 이미 삭제 확정된 상태이므로, 실패해도 예외를 던지지 않고 삼킨다(무해한 스토리지 찌꺼기로 남김).
+	 * 사용내역서 삭제(UsageStatementService.delete)의 afterCommit 단계에서 사용한다.
+	 */
+	public void removeObjectsQuietly(java.util.Collection<String> storageKeys) {
+		for (String storageKey : storageKeys) {
+			try {
+				minioClient.removeObject(
+						RemoveObjectArgs.builder()
+								.bucket(bucket)
+								.object(storageKey)
+								.build()
+				);
+			} catch (Exception e) {
+				log.warn("MinIO 오브젝트 회수 실패(무해한 찌꺼기로 남김): {}", storageKey, e);
+			}
+		}
 	}
 
 	private void removeObject(String storageKey) {

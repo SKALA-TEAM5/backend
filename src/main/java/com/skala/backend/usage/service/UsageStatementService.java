@@ -1,9 +1,13 @@
 package com.skala.backend.usage.service;
 
 import com.skala.backend.agent.repository.AgentLogRepository;
+import com.skala.backend.agent.repository.AgentUsageRecordRepository;
+import com.skala.backend.evidence.repository.EvidenceFileLinkRepository;
+import com.skala.backend.evidence.repository.EvidenceRequirementRepository;
 import com.skala.backend.evidence.service.EvidenceQueryService;
 import com.skala.backend.file.domain.ProjectFile;
 import com.skala.backend.file.repository.ProjectFileRepository;
+import com.skala.backend.file.service.ProjectFileService;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
@@ -25,12 +29,16 @@ import com.skala.backend.usage.repository.UsageStatementSummaryRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class UsageStatementService {
@@ -43,6 +51,10 @@ public class UsageStatementService {
 	private final EvidenceQueryService evidenceQueryService;
 	private final CodeLookupService codeLookupService;
 	private final AgentLogRepository agentLogRepository;
+	private final EvidenceRequirementRepository requirementRepository;
+	private final EvidenceFileLinkRepository linkRepository;
+	private final AgentUsageRecordRepository agentUsageRecordRepository;
+	private final ProjectFileService projectFileService;
 
 	public UsageStatementService(
 			ProjectAccessService projectAccessService,
@@ -52,7 +64,11 @@ public class UsageStatementService {
 			ProjectFileRepository fileRepository,
 			EvidenceQueryService evidenceQueryService,
 			CodeLookupService codeLookupService,
-			AgentLogRepository agentLogRepository
+			AgentLogRepository agentLogRepository,
+			EvidenceRequirementRepository requirementRepository,
+			EvidenceFileLinkRepository linkRepository,
+			AgentUsageRecordRepository agentUsageRecordRepository,
+			ProjectFileService projectFileService
 	) {
 		this.projectAccessService = projectAccessService;
 		this.statementRepository = statementRepository;
@@ -62,6 +78,10 @@ public class UsageStatementService {
 		this.evidenceQueryService = evidenceQueryService;
 		this.codeLookupService = codeLookupService;
 		this.agentLogRepository = agentLogRepository;
+		this.requirementRepository = requirementRepository;
+		this.linkRepository = linkRepository;
+		this.agentUsageRecordRepository = agentUsageRecordRepository;
+		this.projectFileService = projectFileService;
 	}
 
 	@Transactional(readOnly = true)
@@ -214,6 +234,68 @@ public class UsageStatementService {
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
 		statement.completeReview();
 		return new UsageStatementStatusResponse(statement.getId(), statement.getStatusCode());
+	}
+
+	/**
+	 * 사용내역서 삭제 및 연결 데이터 정리.
+	 * 권한은 쓰기 가능자(배정 admin·user, agent). 상태와 무관하게 삭제 가능.
+	 *
+	 * 정리 순서(자식 → 부모): agent_logs → evidence_requirements → evidence_file_links
+	 * → usage_statement_items → usage_statement_summaries → agent_usage_records(참조 NULL)
+	 * → usage_statements(todos는 FK CASCADE) → 고아 파일(DB) → (커밋 후) MinIO 오브젝트.
+	 *
+	 * 관계형 데이터는 단일 트랜잭션으로 원자적으로 정리되고, 원자화 불가능한 MinIO 오브젝트 제거만
+	 * 커밋 이후 best-effort로 수행한다. 실패 시 무해한 스토리지 찌꺼기로 남으며 삭제는 성공 처리된다.
+	 */
+	@Transactional
+	public void delete(Long currentUserId, Long projectId, Long statementId) {
+		projectAccessService.requireWritable(currentUserId, projectId);
+		UsageStatement statement = statementRepository.findByIdAndProjectId(statementId, projectId)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용내역서를 찾을 수 없습니다."));
+
+		List<Long> itemIds = itemRepository.findIdsByUsageStatementId(statementId);
+		Long[] itemIdArray = itemIds.toArray(Long[]::new);
+
+		// 삭제 전에 후보 파일 수집: 원본 PDF + 항목에 연결된 증빙 파일
+		Set<Long> candidateFileIds = new HashSet<>();
+		if (statement.getSourceFileId() != null) {
+			candidateFileIds.add(statement.getSourceFileId());
+		}
+		if (!itemIds.isEmpty()) {
+			candidateFileIds.addAll(linkRepository.findFileIdsByItemIds(itemIds));
+		}
+
+		// 자식 → 부모 순으로 관계형 데이터 제거
+		agentLogRepository.deleteByStatementOrItems(statementId, itemIdArray);
+		if (!itemIds.isEmpty()) {
+			requirementRepository.deleteByUsageStatementItemIdIn(itemIds);
+			linkRepository.deleteByUsageStatementItemIdIn(itemIds);
+		}
+		itemRepository.deleteByUsageStatementId(statementId);
+		summaryRepository.deleteByUsageStatementId(statementId);
+		agentUsageRecordRepository.clearUsageStatementId(statementId);
+		statementRepository.delete(statement);          // todos는 FK ON DELETE CASCADE로 함께 제거
+		statementRepository.flush();                    // 제약 위반을 커밋 전에 표면화
+
+		// 더 이상 참조되지 않는(고아) 파일만 DB에서 제거하고 MinIO 회수 대상 키 확보
+		List<ProjectFile> orphanFiles = candidateFileIds.isEmpty()
+				? List.of()
+				: fileRepository.findUnreferencedFiles(candidateFileIds.toArray(Long[]::new));
+		List<String> storageKeys = orphanFiles.stream().map(ProjectFile::getStorageKey).toList();
+		if (!orphanFiles.isEmpty()) {
+			fileRepository.deleteAll(orphanFiles);
+			fileRepository.flush();
+		}
+
+		// MinIO 오브젝트는 커밋 이후 best-effort로 회수(DB-스토리지 dual-write 분리)
+		if (!storageKeys.isEmpty()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					projectFileService.removeObjectsQuietly(storageKeys);
+				}
+			});
+		}
 	}
 
 	private void requireLegalRan(Long statementId) {

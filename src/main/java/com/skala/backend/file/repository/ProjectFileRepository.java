@@ -39,4 +39,18 @@ public interface ProjectFileRepository extends JpaRepository<ProjectFile, Long> 
 			@Param("limit") int limit,
 			@Param("offset") int offset
 	);
+
+	/**
+	 * 후보 파일 중 더 이상 어떤 증빙 링크·사용내역서 원본으로도 참조되지 않는(고아) 파일을 반환한다.
+	 * 사용내역서 삭제 시 호출되며, 링크·항목·사용내역서 행을 모두 지운 뒤에 실행해야 정확히 판정된다.
+	 * fileIds가 비어 있어도 = ANY(...)는 안전하게 0건을 매칭한다.
+	 */
+	@Query(value = """
+			SELECT f.*
+			FROM service.files f
+			WHERE f.id = ANY(:fileIds)
+				AND NOT EXISTS (SELECT 1 FROM service.evidence_file_links l WHERE l.file_id = f.id)
+				AND NOT EXISTS (SELECT 1 FROM service.usage_statements s WHERE s.source_file_id = f.id)
+			""", nativeQuery = true)
+	List<ProjectFile> findUnreferencedFiles(@Param("fileIds") Long[] fileIds);
 }
