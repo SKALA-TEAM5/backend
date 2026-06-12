@@ -76,7 +76,7 @@ class EvidenceFileVisionDetectionsControllerTest {
 
     @Test
     void vision_validation이_있는_증빙파일은_imageWidth_imageHeight가_파싱된다() throws Exception {
-        Ctx ctx = setup(VISION_DETAIL, "site_photo");
+        Ctx ctx = setup(VISION_DETAIL, "wearing_photo");
 
         mockMvc.perform(get("/projects/{pid}/usage-statement-items/{iid}/evidence-files", ctx.projectId, ctx.itemId)
                         .cookie(ctx.cookie))
@@ -88,7 +88,7 @@ class EvidenceFileVisionDetectionsControllerTest {
 
     @Test
     void detections_label_boxColor_confidence_isWearing_bbox가_정확히_파싱된다() throws Exception {
-        Ctx ctx = setup(VISION_DETAIL, "site_photo");
+        Ctx ctx = setup(VISION_DETAIL, "wearing_photo");
 
         mockMvc.perform(get("/projects/{pid}/usage-statement-items/{iid}/evidence-files", ctx.projectId, ctx.itemId)
                         .cookie(ctx.cookie))
@@ -104,7 +104,7 @@ class EvidenceFileVisionDetectionsControllerTest {
 
     @Test
     void 내부_필드는_세부내역_응답에도_노출되지_않는다() throws Exception {
-        Ctx ctx = setup(VISION_DETAIL, "site_photo");
+        Ctx ctx = setup(VISION_DETAIL, "wearing_photo");
 
         MvcResult result = mockMvc.perform(get("/projects/{pid}/usage-statement-items/{iid}/evidence-files", ctx.projectId, ctx.itemId)
                         .cookie(ctx.cookie))
@@ -128,8 +128,19 @@ class EvidenceFileVisionDetectionsControllerTest {
     }
 
     @Test
+    void wearing_photo가_아니면_vision_validation이_있어도_visionDetections가_null이다() throws Exception {
+        Ctx ctx = setup(VISION_DETAIL, "site_photo");
+
+        mockMvc.perform(get("/projects/{pid}/usage-statement-items/{iid}/evidence-files", ctx.projectId, ctx.itemId)
+                        .cookie(ctx.cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.files", hasSize(1)))
+                .andExpect(jsonPath(FILES).value(nullValue()));
+    }
+
+    @Test
     void vision_validation_키가_없는_JSON이면_visionDetections가_null이다() throws Exception {
-        Ctx ctx = setup("{\"other_key\": {\"foo\": 1}}", "site_photo");
+        Ctx ctx = setup("{\"other_key\": {\"foo\": 1}}", "wearing_photo");
 
         mockMvc.perform(get("/projects/{pid}/usage-statement-items/{iid}/evidence-files", ctx.projectId, ctx.itemId)
                         .cookie(ctx.cookie))

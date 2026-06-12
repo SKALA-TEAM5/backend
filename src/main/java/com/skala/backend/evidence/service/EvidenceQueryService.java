@@ -106,7 +106,7 @@ public class EvidenceQueryService {
 							file.getSizeBytes(),
 							file.getCapturedAt(),
 							file.getUploadedAt(),
-							visionDetectionParser.parse(file.getDetail())
+							visionDetectionParser.parse(file.getDetail(), file.getUploadedEvidenceTypeCode())
 					));
 		}
 

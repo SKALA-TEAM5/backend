@@ -23,9 +23,7 @@ public final class ProjectFileResponses {
 			Instant capturedAt,
 			Instant uploadedAt,
 			String statusCode,
-			long linkedItemCount,
-			@Schema(description = "바운딩 박스 데이터. site_photo이고 vision agent 실행 완료 시에만 non-null.")
-			VisionDetections visionDetections
+			long linkedItemCount
 	) {
 	}
 
@@ -43,7 +41,7 @@ public final class ProjectFileResponses {
 	public record UploadAndLinkResponse(Long fileId, Long linkId) {
 	}
 
-	@Schema(description = "site_photo 파일의 vision agent 바운딩 박스 결과. vision 미실행 또는 비site_photo이면 null.")
+	@Schema(description = "wearing_photo 파일의 vision agent 바운딩 박스 결과. vision 미실행 또는 비wearing_photo이면 null.")
 	public record VisionDetections(
 			@Schema(description = "원본 이미지 너비 (px)", example = "677")
 			int imageWidth,
