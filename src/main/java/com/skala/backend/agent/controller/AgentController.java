@@ -279,4 +279,28 @@ public class AgentController {
 		AgentResponses.ReportDetailResponse result = agentLogService.getReportDetail(currentUser.id(), projectId, usageStatementId);
 		return ResponseEntity.ok(ApiResponse.success(result, "보고서 조회에 성공했습니다."));
 	}
+
+	@PatchMapping("/report")
+	@Operation(
+			tags = {"AI 실행"},
+			summary = "보고서 수정",
+			description = """
+					프론트에서 편집한 보고서 JSON을 최신 report 로그의 details(JSONB)에 덮어쓴다.
+					- 권한: 해당 프로젝트에 배정된 admin만 (그 외 403)
+					- report agent가 실행 중이면 409
+					- details가 유효한 JSON이 아니면 400
+					- 저장된 보고서가 없으면 404
+					"""
+	)
+	public ResponseEntity<ApiResponse<AgentResponses.ReportDetailResponse>> updateReportDetail(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@Parameter(description = "사용내역서 ID", required = true)
+			@RequestParam Long usageStatementId,
+			@Valid @RequestBody AgentRequests.UpdateReportRequest request
+	) {
+		AgentResponses.ReportDetailResponse result =
+				agentLogService.updateReportDetails(currentUser.id(), projectId, usageStatementId, request);
+		return ResponseEntity.ok(ApiResponse.success(result, "보고서 수정에 성공했습니다."));
+	}
 }
