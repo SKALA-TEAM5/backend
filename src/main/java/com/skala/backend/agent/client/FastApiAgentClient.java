@@ -229,7 +229,11 @@ public class FastApiAgentClient {
 		if (raw == null) return new ClassifyResult(false, List.of());
 
 		@SuppressWarnings("unchecked")
-		List<Map<String, Object>> changes = (List<Map<String, Object>>) raw.get("changes");
+		Map<String, Object> result = (Map<String, Object>) raw.get("result");
+		@SuppressWarnings("unchecked")
+		Map<String, Object> payload = result != null ? (Map<String, Object>) result.get("payload") : null;
+		@SuppressWarnings("unchecked")
+		List<Map<String, Object>> changes = payload != null ? (List<Map<String, Object>>) payload.get("changes") : null;
 		if (changes == null || changes.isEmpty()) return new ClassifyResult(false, List.of());
 
 		List<ClassifyResult.CategoryChangeEntry> entries = changes.stream()
