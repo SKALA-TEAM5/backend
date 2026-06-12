@@ -197,6 +197,28 @@ public class ProjectController {
 		return ResponseEntity.ok(ApiResponse.success(null, "프로젝트 삭제에 성공했습니다."));
 	}
 
+	@GetMapping("/assignee-candidates")
+	@Operation(
+			tags = "프로젝트 담당자",
+			summary = "담당자 검색 후보 조회",
+			description = """
+					담당자 필터 드롭다운용 후보 목록을 조회합니다.
+					- admin/user: 본인이 배정된 프로젝트들에 함께 배정된 admin/user 사용자만 반환합니다.
+					- agent: 전체 프로젝트에 배정된 admin/user 사용자를 반환합니다.
+					- system_admin: 프로젝트 업무 API를 사용할 수 없습니다(403).
+					`keyword`로 담당자 이름을 부분 일치 검색합니다.
+					"""
+	)
+	public ResponseEntity<ApiResponse<ProjectResponses.AssigneeCandidatesResponse>> listAssigneeCandidates(
+			@Parameter(hidden = true)
+			@AuthenticationPrincipal AuthenticatedUser currentUser,
+			@Parameter(description = "담당자 이름 검색어입니다. 부분 일치로 필터링됩니다.", example = "홍길동")
+			@RequestParam(required = false) String keyword
+	) {
+		ProjectResponses.AssigneeCandidatesResponse response = projectAssigneeService.listAssigneeCandidates(currentUser.id(), keyword);
+		return ResponseEntity.ok(ApiResponse.success(response, "담당자 검색 후보 조회에 성공했습니다."));
+	}
+
 	@GetMapping("/{projectId}/assignees")
 	@Operation(
 			tags = "프로젝트 담당자",
