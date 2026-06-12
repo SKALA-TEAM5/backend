@@ -51,7 +51,7 @@ class AdminDashboardControllerTest {
     }
 
     @Test
-    void user는_대시보드에_접근할_수_없다() throws Exception {
+    void user는_본인_배정_프로젝트_기준으로_대시보드를_조회할_수_있다() throws Exception {
         Cookie adminCookie = loginCookie(createUser("admin"));
         Map<String, String> user = createUser("user");
         Cookie userCookie = loginCookie(user);
@@ -60,15 +60,45 @@ class AdminDashboardControllerTest {
         assign(adminCookie, projectId, userId);
 
         mockMvc.perform(get("/dashboard").cookie(userCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.totalProjects").isNumber());
+    }
+
+    @Test
+    void system_admin은_대시보드를_조회할_수_있다() throws Exception {
+        Cookie saCookie = loginCookie(createUser("system_admin"));
+
+        mockMvc.perform(get("/dashboard").cookie(saCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.totalProjects").isNumber());
+    }
+
+    @Test
+    void agent는_대시보드에_접근할_수_없다() throws Exception {
+        Cookie agentCookie = loginCookie(createUser("agent"));
+
+        mockMvc.perform(get("/dashboard").cookie(agentCookie))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void system_admin은_대시보드에_접근할_수_없다() throws Exception {
-        Cookie saCookie = loginCookie(createUser("system_admin"));
+    void 대시보드_summary는_본인_배정_프로젝트만_카운트한다() throws Exception {
+        Cookie adminA = loginCookie(createUser("admin"));
+        Cookie adminB = loginCookie(createUser("admin"));
 
-        mockMvc.perform(get("/dashboard").cookie(saCookie))
-                .andExpect(status().isForbidden());
+        int beforeA = getDashboardTotalProjects(adminA);
+
+        // adminB가 만든 프로젝트는 adminA에 배정되지 않으므로 adminA 카운트에 영향 없음
+        createProject(adminB);
+        mockMvc.perform(get("/dashboard").cookie(adminA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.totalProjects").value(beforeA));
+
+        // adminA가 직접 만든 프로젝트(생성자 자동 배정)는 카운트에 포함
+        createProject(adminA);
+        mockMvc.perform(get("/dashboard").cookie(adminA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.totalProjects").value(beforeA + 1));
     }
 
     @Test
@@ -244,7 +274,7 @@ class AdminDashboardControllerTest {
     }
 
     @Test
-    void user는_ai_사용량에_접근할_수_없다() throws Exception {
+    void user는_ai_사용량을_조회할_수_있다() throws Exception {
         Cookie adminCookie = loginCookie(createUser("admin"));
         Map<String, String> user = createUser("user");
         Cookie userCookie = loginCookie(user);
@@ -253,7 +283,47 @@ class AdminDashboardControllerTest {
         assign(adminCookie, projectId, userId);
 
         mockMvc.perform(get("/dashboard/ai-usage").cookie(userCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total.callCount").isNumber());
+    }
+
+    @Test
+    void system_admin은_ai_사용량을_조회할_수_있다() throws Exception {
+        Cookie saCookie = loginCookie(createUser("system_admin"));
+
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(saCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total.callCount").isNumber());
+    }
+
+    @Test
+    void agent는_ai_사용량에_접근할_수_없다() throws Exception {
+        Cookie agentCookie = loginCookie(createUser("agent"));
+
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(agentCookie))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void ai_사용량은_본인_배정_프로젝트만_집계한다() throws Exception {
+        Cookie adminA = loginCookie(createUser("admin"));
+        Cookie adminB = loginCookie(createUser("admin"));
+        Map<String, String> userCreds = createUser("user");
+        int userId = readUserId(userCreds);
+
+        // adminB 소유 프로젝트(adminA에 비배정)에 사용량 적재 → adminA 집계에 영향 없어야 함
+        int projectB = createProject(adminB);
+        int beforeA = getAiUsageCallCount(adminA);
+        insertUsageRecord(userId, projectB, "classi", 100L, 200L, new java.math.BigDecimal("0.00001"));
+
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(adminA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total.callCount").value(beforeA));
+
+        // adminB 본인은 자신의 프로젝트 사용량을 볼 수 있어야 함
+        mockMvc.perform(get("/dashboard/ai-usage").cookie(adminB))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total.callCount").value(greaterThanOrEqualTo(1)));
     }
 
     @Test
@@ -394,5 +464,12 @@ class AdminDashboardControllerTest {
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("summary").path("reviewNeededProjects").asInt();
+    }
+
+    private int getAiUsageCallCount(Cookie cookie) throws Exception {
+        MvcResult result = mockMvc.perform(get("/dashboard/ai-usage").cookie(cookie))
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("total").path("callCount").asInt();
     }
 }

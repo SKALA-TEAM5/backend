@@ -38,16 +38,17 @@ public class AgentUsageRecordController {
 			description = """
 					사용자 단위로 토큰 사용량과 비용을 집계합니다.
 
-					**접근 범위**
-					- `admin` / `system_admin`: 전체 사용자 조회 가능. `userId` 파라미터로 특정 사용자 필터 가능.
-					- `user` / `agent`: 본인 데이터만 반환됩니다. `userId` 파라미터는 무시됩니다.
+					**접근 범위** (대시보드와 동일 정책)
+					- `system_admin`: 전체 집계
+					- `admin` / `user`: 본인이 배정된 프로젝트의 사용량만 집계
+					- `agent`: 403
 
 					**정렬**: 비용(costUsd) 내림차순
 					"""
 	)
 	public ResponseEntity<ApiResponse<List<UsageRecordResponses.ByUser>>> byUser(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "사용자 ID 필터 (admin 이상만 유효)")
+			@Parameter(description = "사용자 ID 필터 (집계 범위 내에서 적용)")
 			@RequestParam(required = false) Long userId,
 			@Parameter(description = "프로젝트 ID 필터")
 			@RequestParam(required = false) Long projectId,
@@ -69,16 +70,17 @@ public class AgentUsageRecordController {
 			description = """
 					프로젝트 단위로 토큰 사용량과 비용을 집계합니다.
 
-					**접근 범위**
-					- `admin` / `system_admin`: 전체 프로젝트 조회 가능.
-					- `user` / `agent`: 본인이 실행한 에이전트가 속한 프로젝트만 반환됩니다.
+					**접근 범위** (대시보드와 동일 정책)
+					- `system_admin`: 전체 집계
+					- `admin` / `user`: 본인이 배정된 프로젝트의 사용량만 집계
+					- `agent`: 403
 
 					**정렬**: 비용(costUsd) 내림차순
 					"""
 	)
 	public ResponseEntity<ApiResponse<List<UsageRecordResponses.ByProject>>> byProject(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "사용자 ID 필터 (admin 이상만 유효)")
+			@Parameter(description = "사용자 ID 필터 (집계 범위 내에서 적용)")
 			@RequestParam(required = false) Long userId,
 			@Parameter(description = "프로젝트 ID 필터")
 			@RequestParam(required = false) Long projectId,
@@ -102,16 +104,17 @@ public class AgentUsageRecordController {
 
 					**에이전트 유형**: `classi` / `safety-doc` / `link` / `vision` / `legal` / `report` / `orchestrator`
 
-					**접근 범위**
-					- `admin` / `system_admin`: 전체 집계 가능.
-					- `user` / `agent`: 본인이 실행한 에이전트 데이터만 반환됩니다.
+					**접근 범위** (대시보드와 동일 정책)
+					- `system_admin`: 전체 집계
+					- `admin` / `user`: 본인이 배정된 프로젝트의 사용량만 집계
+					- `agent`: 403
 
 					**정렬**: 비용(costUsd) 내림차순
 					"""
 	)
 	public ResponseEntity<ApiResponse<List<UsageRecordResponses.ByAgent>>> byAgent(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "사용자 ID 필터 (admin 이상만 유효)")
+			@Parameter(description = "사용자 ID 필터 (집계 범위 내에서 적용)")
 			@RequestParam(required = false) Long userId,
 			@Parameter(description = "프로젝트 ID 필터")
 			@RequestParam(required = false) Long projectId,
@@ -133,16 +136,17 @@ public class AgentUsageRecordController {
 			description = """
 					월(YYYY-MM) 단위로 토큰 사용량과 비용을 집계합니다. 날짜는 UTC 기준입니다.
 
-					**접근 범위**
-					- `admin` / `system_admin`: 전체 집계 가능.
-					- `user` / `agent`: 본인이 실행한 에이전트 데이터만 반환됩니다.
+					**접근 범위** (대시보드와 동일 정책)
+					- `system_admin`: 전체 집계
+					- `admin` / `user`: 본인이 배정된 프로젝트의 사용량만 집계
+					- `agent`: 403
 
 					**정렬**: 연월 오름차순
 					"""
 	)
 	public ResponseEntity<ApiResponse<List<UsageRecordResponses.ByMonth>>> byMonth(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "사용자 ID 필터 (admin 이상만 유효)")
+			@Parameter(description = "사용자 ID 필터 (집계 범위 내에서 적용)")
 			@RequestParam(required = false) Long userId,
 			@Parameter(description = "프로젝트 ID 필터")
 			@RequestParam(required = false) Long projectId,
@@ -164,16 +168,17 @@ public class AgentUsageRecordController {
 			description = """
 					날짜 단위로 토큰 사용량과 비용을 집계합니다. 날짜는 UTC 기준입니다.
 
-					**접근 범위**
-					- `admin` / `system_admin`: 전체 집계 가능.
-					- `user` / `agent`: 본인이 실행한 에이전트 데이터만 반환됩니다.
+					**접근 범위** (대시보드와 동일 정책)
+					- `system_admin`: 전체 집계
+					- `admin` / `user`: 본인이 배정된 프로젝트의 사용량만 집계
+					- `agent`: 403
 
 					**정렬**: 날짜 오름차순
 					"""
 	)
 	public ResponseEntity<ApiResponse<List<UsageRecordResponses.ByDate>>> byDate(
 			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
-			@Parameter(description = "사용자 ID 필터 (admin 이상만 유효)")
+			@Parameter(description = "사용자 ID 필터 (집계 범위 내에서 적용)")
 			@RequestParam(required = false) Long userId,
 			@Parameter(description = "프로젝트 ID 필터")
 			@RequestParam(required = false) Long projectId,
