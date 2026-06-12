@@ -31,6 +31,12 @@ public final class AgentRequests {
 			@NotNull(message = "usageStatementId는 필수입니다.") Long usageStatementId
 	) {}
 
+	@Schema(description = "보고서 details(JSONB) 수정 요청")
+	public record UpdateReportRequest(
+			@Schema(description = "수정된 보고서 내용 (유효한 JSON 문자열)")
+			@NotNull(message = "details는 필수입니다.") String details
+	) {}
+
 	@Schema(description = "TODO 확인(체크) 토글 요청")
 	public record ConfirmTodoRequest(
 			@Schema(description = "true=확인, false=확인 해제", example = "true")

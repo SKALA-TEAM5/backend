@@ -73,6 +73,16 @@ public class ProjectAccessService {
 		return currentUser;
 	}
 
+	/** 해당 프로젝트에 작업인원으로 배정된 admin만 허용. agent·미배정 admin·그 외 역할은 403. */
+	public User requireAssignedAdmin(Long currentUserId, Long projectId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		if (currentUser.getRoleCode() != RoleCode.ADMIN
+				|| !assignmentRepository.existsByProjectIdAndUserId(projectId, currentUser.getId())) {
+			throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+		}
+		return currentUser;
+	}
+
 	public User requireProjectManagerOf(Long currentUserId, Long projectId) {
 		User currentUser = requireProjectManager(currentUserId);
 		if (currentUser.getRoleCode() == RoleCode.ADMIN
