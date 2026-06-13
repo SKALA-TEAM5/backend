@@ -181,12 +181,60 @@ bash load-test/locust-k8s.sh run
 
 ## 6. 시나리오 설명
 
-AI 호출 API(`/agents/parse`, `/agents/validate`, `/agents/legal`, `/agents/report`)는 외부 의존성으로 인해 제외됩니다.
+AI 호출 API(`/agents/parse`, `/agents/validate`, `/agents/legal`, `/agents/report`, `POST /items`)와 `legal_rag` 스키마 조회 API(`/law-changes/recent`)는 외부 의존성으로 인해 제외됩니다.
 
-| 시나리오 | 비중 | 주요 흐름 |
+### 모드 (`LOCUST_MODE` 환경변수)
+
+| 모드 | 클래스 | 용도 |
 |---|---|---|
-| `AdminScenario` | 30% | 프로젝트 조회·수정, 사용내역서 조회, 검토완료·보완요청, 대시보드, 아카이브, agent 로그·경고 조회 |
-| `UserScenario` | 70% | 항목 CRUD·카테고리 이동, 파일 업로드·삭제, 증빙 연결·이동·삭제, agent 읽기(button-states/todos/logs/warnings), 사용내역서 제출 |
+| `atomic` (기본) | `AdminScenario`, `UserScenario` | 단위 endpoint 부하 측정 — smoke·baseline |
+| `journey` | `WriterJourney`, `ReviewerJourney`, `BrowsingLoad` | 실제 비즈니스 여정 측정 — peak·stress·soak |
+| `mixed` | 전체 5종 동시 | 운영 패턴 근접 |
+
+```bash
+# Journey 모드로 baseline 측정
+LOCUST_MODE=journey bash load-test/locust-local.sh save
+```
+
+### Atomic 시나리오
+
+| 클래스 | weight | 특성 |
+|---|---|---|
+| `AdminScenario` | 3 | read-heavy (read:write ≈ 70:30). 검토자 시점. wait 3~10s |
+| `UserScenario` | 7 | balanced. 작성자 시점. wait 2~8s |
+
+### Journey 시나리오
+
+| 클래스 | weight | 한 세션 시퀀스 |
+|---|---|---|
+| `WriterJourney` | 4 | login → detail → requirements×3 → upload+link×3 → submit. wait 5~15s |
+| `ReviewerJourney` | 2 | 목록 → dashboard → detail → button-states → todos → confirm×3 → complete-review or supplement. wait 8~20s |
+| `BrowsingLoad` | 4 | read-only (admin·user 50/50). projects·dashboard·archive·files 순회. wait 2~5s |
+
+### Spike (LoadTestShape)
+
+```bash
+LOCUST_RESULT=spike_p1 bash load-test/locust-local.sh spike
+```
+
+7분 구성: 100u baseline → 800u spike → 800u sustained → 100u drain. `SPIKE_*` 환경변수로 조정.
+
+### Soak
+
+```bash
+LOCUST_RESULT=soak_1h LOCUST_TIME=1h LOCUST_USERS=200 \
+bash load-test/locust-local.sh soak
+```
+
+장시간 sustained — 메모리·커넥션 누수·MinIO 누적 관측.
+
+### 정합성 검증
+
+```bash
+LOCUST_RESULT=baseline_200 bash load-test/locust-local.sh verify
+```
+
+`verify.sql` 실행 → orphan link/summary, agent_logs UPSERT 위반, status 분포, files 카운트 출력. 결과는 `results/<RESULT>_verify.txt`.
 
 ### 테스트 데이터
 
@@ -194,13 +242,25 @@ AI 호출 API(`/agents/parse`, `/agents/validate`, `/agents/legal`, `/agents/rep
 
 | 항목 | 수량 |
 |---|---|
-| admin 계정 (`LOAD-ADMIN-001` ~ `030`) | 30명 |
-| user 계정 (`LOAD-USER-001` ~ `030`) | 30명 |
-| 프로젝트 (`LOAD-CN-001` ~ `030`) | 30개 |
-| 사용내역서 (프로젝트당 1개, `draft`) | 30개 |
-| 세부항목 (사용내역서당 5개) | 150개 |
+| admin 계정 (`LOAD-ADMIN-001` ~ `500`) | 500명 |
+| user 계정 (`LOAD-USER-001` ~ `500`) | 500명 |
+| 프로젝트 (`LOAD-CN-0001` ~ `LOAD-CN-2000`) | 2,000개 |
+| 담당자 배정 (각 프로젝트당 admin 2 + user 2, m:n) | 약 8,000행 |
+| 사용내역서 (프로젝트당 6개월치, 2026-01 ~ 2026-06) | 12,000개 |
+| 세부항목 (statement당 15개) | 180,000개 |
+| agent_logs (statement당 classi/safety-doc/legal success) | 36,000개 |
 
 공통 비밀번호: `P@ssw0rd123!`
+
+**상태 분포** (6월은 항상 `draft`, 그 외 월):
+- `draft` 60% / `upload_completed` 20% / `supplement_required` 10% / `review_completed` 10%
+
+**매핑 규칙** (결정론적):
+- 프로젝트 k → admin (((k-1) % 500) + 1) + admin ((k+249) % 500 + 1)
+- 프로젝트 k → user 동일 패턴
+- 각 admin/user는 평균 8개 프로젝트에 직접 배정 → `scope=assigned` 응답 다양화
+
+> **agent_logs 시딩 이유**: `PATCH /usage-statements/{id}/{request-supplement,complete-review}`는 legal agent 로그를 강제(`requireLegalCompleted`)합니다. FastAPI를 호출하지 않는 부하 테스트에서 상태 전이가 정상 측정되도록 가상 success 로그를 시드합니다.
 
 ### 정상 실패 처리
 

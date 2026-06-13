@@ -41,7 +41,19 @@ WHERE usage_statement_item_id IN (
     WHERE p.contract_no LIKE 'LOAD-CN-%'
 );
 
--- 4. usage_statement_items
+-- 4. agent_logs (statement / item / project FK 참조 → usage_statements·items보다 먼저 삭제)
+DELETE FROM agent_logs
+WHERE project_id IN (
+    SELECT id FROM projects WHERE contract_no LIKE 'LOAD-CN-%'
+);
+
+-- 5. agent_usage_records (statement / project FK 참조)
+DELETE FROM agent_usage_records
+WHERE project_id IN (
+    SELECT id FROM projects WHERE contract_no LIKE 'LOAD-CN-%'
+);
+
+-- 6. usage_statement_items
 DELETE FROM usage_statement_items
 WHERE usage_statement_id IN (
     SELECT s.id FROM usage_statements s
@@ -49,7 +61,7 @@ WHERE usage_statement_id IN (
     WHERE p.contract_no LIKE 'LOAD-CN-%'
 );
 
--- 5. usage_statement_summaries
+-- 7. usage_statement_summaries
 DELETE FROM usage_statement_summaries
 WHERE usage_statement_id IN (
     SELECT s.id FROM usage_statements s
@@ -57,20 +69,8 @@ WHERE usage_statement_id IN (
     WHERE p.contract_no LIKE 'LOAD-CN-%'
 );
 
--- 6. usage_statements
+-- 8. usage_statements
 DELETE FROM usage_statements
-WHERE project_id IN (
-    SELECT id FROM projects WHERE contract_no LIKE 'LOAD-CN-%'
-);
-
--- 7. agent_logs
-DELETE FROM agent_logs
-WHERE project_id IN (
-    SELECT id FROM projects WHERE contract_no LIKE 'LOAD-CN-%'
-);
-
--- 8. agent_usage_records
-DELETE FROM agent_usage_records
 WHERE project_id IN (
     SELECT id FROM projects WHERE contract_no LIKE 'LOAD-CN-%'
 );

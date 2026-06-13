@@ -51,15 +51,23 @@ psql -c "SELECT count(*) FROM pg_stat_activity;"
 make locust-seed
 ```
 
-시드 내용 (seed.sql 기준):
+시드 내용 (seed.sql 기준 — 의미 있는 검색·페이징·집계 측정용 벌크):
 
 | 항목 | 수량 |
 |---|---|
-| admin 계정 (`LOAD-ADMIN-001` ~ `030`) | 30명 |
-| user 계정 (`LOAD-USER-001` ~ `030`) | 30명 |
-| 프로젝트 (`LOAD-CN-001` ~ `030`) | 30개 |
-| 사용내역서 (프로젝트당 1개, draft) | 30개 |
-| 세부항목 (사용내역서당 5개) | 150개 |
+| admin 계정 (`LOAD-ADMIN-001` ~ `500`) | 500명 |
+| user 계정 (`LOAD-USER-001` ~ `500`) | 500명 |
+| 프로젝트 (`LOAD-CN-0001` ~ `LOAD-CN-2000`) | 2,000개 |
+| 담당자 배정 (각 프로젝트당 admin 2 + user 2, m:n) | 약 8,000행 |
+| 사용내역서 (프로젝트당 6개월치, 상태 분포 적용) | 12,000개 |
+| 세부항목 (statement당 15개) | 180,000개 |
+| agent_logs (statement당 classi/safety-doc/legal success) | 36,000개 |
+
+**상태 분포**: 6월은 항상 `draft`, 그 외 월은 `draft` 60% / `upload_completed` 20% / `supplement_required` 10% / `review_completed` 10%
+
+**매핑**: admin·user 각각 평균 8개 프로젝트에 PUA 직접 등록 → `scope=assigned` 응답 다양화
+
+> **agent_logs 시딩 이유**: 상태 전이 API(`submit`/`request-supplement`/`complete-review`)는 legal agent 로그를 강제. 부하 테스트는 FastAPI를 호출하지 않으므로 가상 success 로그를 사전 시딩하여 정상 측정 가능하게 한다.
 
 ### 2-3. 서버 기동 확인
 

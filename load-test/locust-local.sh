@@ -32,6 +32,7 @@ LOCUST_USERS="${LOCUST_USERS:-20}"                   # 동시 사용자 수
 LOCUST_RATE="${LOCUST_RATE:-5}"                      # 초당 사용자 증가 수 (ramp-up)
 LOCUST_TIME="${LOCUST_TIME:-1m}"                     # 테스트 실행 시간 (예: 30s, 5m)
 LOCUST_RESULT="${LOCUST_RESULT:-local_$(date +%Y%m%d_%H%M)}"  # 결과 CSV 파일명
+LOCUST_MODE="${LOCUST_MODE:-atomic}"                 # atomic | journey | mixed
 # ================================================================
 
 DB_CONTAINER="${DB_CONTAINER:-safety_db}"
@@ -39,6 +40,14 @@ POSTGRES_USER="${POSTGRES_USER:-safety_user}"
 POSTGRES_DB="${POSTGRES_DB:-safety}"
 MINIO_ALIAS="${MINIO_ALIAS:-minio}"
 MINIO_BUCKET="${MINIO_BUCKET:-safety-files}"
+
+# 시나리오 모드별 클래스 결정
+case "$LOCUST_MODE" in
+  atomic)  LOCUST_CLASSES="AdminScenario UserScenario" ;;
+  journey) LOCUST_CLASSES="WriterJourney ReviewerJourney BrowsingLoad" ;;
+  mixed)   LOCUST_CLASSES="" ;;
+  *)       echo "[오류] LOCUST_MODE=$LOCUST_MODE — atomic|journey|mixed 중 선택" >&2; exit 1 ;;
+esac
 
 CMD="${1:-help}"
 
@@ -90,19 +99,65 @@ do_seed() {
 
 do_up() {
   check_prereqs
-  echo "=== Locust 웹UI 시작 → http://localhost:8089 ==="
-  locust -f "$SCRIPT_DIR/locustfile.py" --host="$LOCUST_HOST"
+  echo "=== Locust 웹UI 시작 → http://localhost:8089 (mode=$LOCUST_MODE) ==="
+  LOAD_TEST_ENV=docker DB_CONTAINER="$DB_CONTAINER" \
+  POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" \
+  locust -f "$SCRIPT_DIR/locustfile.py" --host="$LOCUST_HOST" $LOCUST_CLASSES
 }
 
 do_save() {
   check_prereqs
   mkdir -p "$SCRIPT_DIR/results"
-  echo "=== 헤드리스 테스트: users=${LOCUST_USERS}, rate=${LOCUST_RATE}/s, time=${LOCUST_TIME} ==="
+  echo "=== 헤드리스 테스트: mode=$LOCUST_MODE, users=${LOCUST_USERS}, rate=${LOCUST_RATE}/s, time=${LOCUST_TIME} ==="
+  LOAD_TEST_ENV=docker DB_CONTAINER="$DB_CONTAINER" \
+  POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" \
   locust -f "$SCRIPT_DIR/locustfile.py" \
     --host="$LOCUST_HOST" \
     --csv="$SCRIPT_DIR/results/${LOCUST_RESULT}" \
-    --headless -u "$LOCUST_USERS" -r "$LOCUST_RATE" -t "$LOCUST_TIME"
+    --headless -u "$LOCUST_USERS" -r "$LOCUST_RATE" -t "$LOCUST_TIME" \
+    $LOCUST_CLASSES
   echo "=== 결과 저장: results/${LOCUST_RESULT}_*.csv ==="
+}
+
+do_spike() {
+  check_prereqs
+  mkdir -p "$SCRIPT_DIR/results"
+  # Spike는 Journey 모드 강제 (LoadTestShape이 사용자수/시간을 제어)
+  echo "=== Spike 테스트: shape_spike.py LoadTestShape ==="
+  echo "    baseline=${SPIKE_BASE_USERS:-100}u → peak=${SPIKE_PEAK_USERS:-800}u → drain"
+  LOAD_TEST_ENV=docker DB_CONTAINER="$DB_CONTAINER" \
+  POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" \
+  locust -f "$SCRIPT_DIR/shape_spike.py" -f "$SCRIPT_DIR/locustfile.py" \
+    --host="$LOCUST_HOST" \
+    --csv="$SCRIPT_DIR/results/${LOCUST_RESULT}" \
+    --headless \
+    WriterJourney ReviewerJourney BrowsingLoad
+  echo "=== 결과 저장: results/${LOCUST_RESULT}_*.csv ==="
+}
+
+do_soak() {
+  check_prereqs
+  mkdir -p "$SCRIPT_DIR/results"
+  # Soak는 장시간 sustained 부하 (기본 1h, 200u)
+  local soak_time="${LOCUST_TIME:-1h}"
+  local soak_users="${LOCUST_USERS:-200}"
+  local soak_rate="${LOCUST_RATE:-5}"
+  echo "=== Soak 테스트: mode=$LOCUST_MODE, users=${soak_users}, time=${soak_time} ==="
+  LOAD_TEST_ENV=docker DB_CONTAINER="$DB_CONTAINER" \
+  POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" \
+  locust -f "$SCRIPT_DIR/locustfile.py" \
+    --host="$LOCUST_HOST" \
+    --csv="$SCRIPT_DIR/results/${LOCUST_RESULT}" \
+    --headless -u "$soak_users" -r "$soak_rate" -t "$soak_time" \
+    $LOCUST_CLASSES
+  echo "=== 결과 저장: results/${LOCUST_RESULT}_*.csv ==="
+}
+
+do_verify() {
+  check_prereqs
+  echo "=== 데이터 정합성 검증 ==="
+  run_psql -f - < "$SCRIPT_DIR/verify.sql" | tee "$SCRIPT_DIR/results/${LOCUST_RESULT}_verify.txt"
+  echo "=== 검증 결과: results/${LOCUST_RESULT}_verify.txt ==="
 }
 
 do_teardown() {
@@ -150,6 +205,9 @@ case "$CMD" in
   seed)     do_seed     ;;
   up)       do_up       ;;
   save)     do_save     ;;
+  spike)    do_spike    ;;
+  soak)     do_soak     ;;
+  verify)   do_verify   ;;
   teardown) do_teardown ;;
   check)    check_prereqs && do_check ;;
   help|*)
@@ -159,15 +217,22 @@ case "$CMD" in
     echo "  run       자동 파이프라인 (seed → test → teardown)"
     echo "  seed      DB에 테스트 데이터 시딩"
     echo "  up        Locust 웹UI 실행 (localhost:8089)"
-    echo "  save      헤드리스 실행 + CSV 저장"
+    echo "  save      헤드리스 실행 + CSV 저장 (-u/-r/-t 사용)"
+    echo "  spike    LoadTestShape 기반 spike 부하 (Journey 모드 강제)"
+    echo "  soak      장시간 sustained 부하 (기본 1h, 200u)"
+    echo "  verify    DB 정합성 검증 (verify.sql 실행)"
     echo "  teardown  DB + MinIO 테스트 데이터 전체 삭제"
     echo "  check     현재 LOAD-* 데이터 현황 확인"
     echo ""
     echo "환경변수 (선택):"
     echo "  LOCUST_HOST    백엔드 주소     (기본: http://localhost:8000)"
-    echo "  LOCUST_RESULT  결과 파일명     (save 전용, 기본: result)"
+    echo "  LOCUST_MODE    시나리오 모드   (atomic|journey|mixed, 기본: atomic)"
+    echo "  LOCUST_RESULT  결과 파일명     (기본: local_<날짜시각>)"
     echo "  LOCUST_USERS   동시 사용자 수  (save 전용, 기본: 20)"
     echo "  LOCUST_RATE    초당 증가 수    (save 전용, 기본: 5)"
-    echo "  LOCUST_TIME    실행 시간       (save 전용, 기본: 1m)"
+    echo "  LOCUST_TIME    실행 시간       (save·soak 전용, 기본: 1m)"
+    echo ""
+    echo "Spike 환경변수:"
+    echo "  SPIKE_BASE_USERS / SPIKE_PEAK_USERS / SPIKE_BASE_SEC / SPIKE_RAMP_SEC / SPIKE_PEAK_SEC / SPIKE_DRAIN_SEC"
     ;;
 esac
