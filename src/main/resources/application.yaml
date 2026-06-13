@@ -9,6 +9,11 @@ spring:
     username: ${SERVICE_APP_USER:safety_service_app}
     password: ${SERVICE_APP_PASSWORD:safety_service_app_password}
     driver-class-name: org.postgresql.Driver
+  legal-datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:safety}?currentSchema=legal_rag
+    username: ${LAW_APP_USER:safety_law_app}
+    password: ${LAW_APP_PASSWORD:safety_law_app_password}
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate
