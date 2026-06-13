@@ -3,6 +3,10 @@
 -- 부하 테스트용 계정·프로젝트·사용내역서 사전 생성
 -- 비밀번호: P@ssw0rd123! (모든 계정 동일)
 -- 실행: make locust-seed
+-- 정리: load-test/teardown.sql
+--
+-- 규모: admin 500명 + user 500명 = 1,000명 (1,000 users 시나리오 대응)
+--       프로젝트 500개, 사용내역서 500개, 세부항목 2,500개
 -- =============================================================
 SET search_path TO service, public;
 
@@ -13,7 +17,7 @@ SELECT
     '부하테스트 관리자' || n,
     '$2y$12$joImXqDiNtrBwXV6wbDo8uoEsKzYfQjD4n6flnTzs8vR6vg9cfV6m',
     'admin'
-FROM generate_series(1, 30) n
+FROM generate_series(1, 500) n
 ON CONFLICT (employee_no) DO NOTHING;
 
 INSERT INTO users (employee_no, real_name, password_hash, role_code)
@@ -22,7 +26,7 @@ SELECT
     '부하테스트 사용자' || n,
     '$2y$12$joImXqDiNtrBwXV6wbDo8uoEsKzYfQjD4n6flnTzs8vR6vg9cfV6m',
     'user'
-FROM generate_series(1, 30) n
+FROM generate_series(1, 500) n
 ON CONFLICT (employee_no) DO NOTHING;
 
 -- ── 프로젝트 ────────────────────────────────────────────────────
@@ -37,7 +41,7 @@ SELECT
     '2026-12-31',
     10000000,
     'active'
-FROM generate_series(1, 30) n
+FROM generate_series(1, 500) n
 WHERE NOT EXISTS (
     SELECT 1 FROM projects p WHERE p.contract_no = 'LOAD-CN-' || LPAD(n::text, 3, '0')
 );
@@ -48,7 +52,7 @@ SELECT
     p.id,
     u.id,
     a.id
-FROM generate_series(1, 30) n
+FROM generate_series(1, 500) n
 JOIN projects p ON p.contract_no = 'LOAD-CN-' || LPAD(n::text, 3, '0')
 JOIN users u ON u.employee_no = 'LOAD-USER-' || LPAD(n::text, 3, '0')
 JOIN users a ON a.employee_no = 'LOAD-ADMIN-' || LPAD(n::text, 3, '0')
@@ -63,7 +67,7 @@ SELECT
     '2026-05-15',
     30.00,
     'draft'
-FROM generate_series(1, 30) n
+FROM generate_series(1, 500) n
 JOIN projects p ON p.contract_no = 'LOAD-CN-' || LPAD(n::text, 3, '0')
 WHERE NOT EXISTS (
     SELECT 1 FROM usage_statements s WHERE s.project_id = p.id
