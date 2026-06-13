@@ -38,6 +38,12 @@ public class LegalDataSourceConfig {
     }
 
     @Bean
+    @Primary
+    public JdbcTemplate jdbcTemplate(@Qualifier("primaryDataSource") DataSource primaryDataSource) {
+        return new JdbcTemplate(primaryDataSource);
+    }
+
+    @Bean
     public JdbcTemplate legalJdbcTemplate(@Qualifier("legalDataSource") DataSource legalDataSource) {
         return new JdbcTemplate(legalDataSource);
     }
