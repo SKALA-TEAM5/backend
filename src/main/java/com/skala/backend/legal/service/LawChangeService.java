@@ -56,10 +56,11 @@ public class LawChangeService {
 
         Instant lastRunAt = rows.get(0).lastRunAt();
         List<ChangedLaw> changedLaws = rows.stream()
+                .filter(r -> !"none".equals(r.changeType()))
                 .map(r -> new ChangedLaw(r.sourceName(), r.articleNo(), r.paragraphNo(), r.itemNo(), r.changeType()))
                 .toList();
 
-        return new RecentResponse(true, lastRunAt, changedLaws);
+        return new RecentResponse(!changedLaws.isEmpty(), lastRunAt, changedLaws);
     }
 
     private record Row(
