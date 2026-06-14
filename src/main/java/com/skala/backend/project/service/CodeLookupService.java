@@ -90,6 +90,44 @@ public class CodeLookupService {
 				.collect(Collectors.toMap(LongCount::id, LongCount::count));
 	}
 
+	public Map<Long, Long> summaryCountsByStatement(List<Long> usageStatementIds) {
+		if (usageStatementIds.isEmpty()) {
+			return Map.of();
+		}
+		String placeholders = usageStatementIds.stream().map(id -> "?").collect(Collectors.joining(","));
+		return jdbcTemplate.query(
+						"""
+						SELECT usage_statement_id, count(*) AS summary_count
+						FROM service.usage_statement_summaries
+						WHERE usage_statement_id IN (%s)
+						GROUP BY usage_statement_id
+						""".formatted(placeholders),
+						(rs, rowNum) -> new LongCount(rs.getLong("usage_statement_id"), rs.getLong("summary_count")),
+						usageStatementIds.toArray()
+				)
+				.stream()
+				.collect(Collectors.toMap(LongCount::id, LongCount::count));
+	}
+
+	public Map<Long, Long> itemCountsByStatement(List<Long> usageStatementIds) {
+		if (usageStatementIds.isEmpty()) {
+			return Map.of();
+		}
+		String placeholders = usageStatementIds.stream().map(id -> "?").collect(Collectors.joining(","));
+		return jdbcTemplate.query(
+						"""
+						SELECT usage_statement_id, count(*) AS item_count
+						FROM service.usage_statement_items
+						WHERE usage_statement_id IN (%s)
+						GROUP BY usage_statement_id
+						""".formatted(placeholders),
+						(rs, rowNum) -> new LongCount(rs.getLong("usage_statement_id"), rs.getLong("item_count")),
+						usageStatementIds.toArray()
+				)
+				.stream()
+				.collect(Collectors.toMap(LongCount::id, LongCount::count));
+	}
+
 	public Map<Long, Long> unsatisfiedRequirementCountsByStatement(List<Long> usageStatementIds) {
 		if (usageStatementIds.isEmpty()) {
 			return Map.of();

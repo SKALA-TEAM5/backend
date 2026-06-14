@@ -31,13 +31,12 @@ public class AuthService {
 		this.refreshTokenService = refreshTokenService;
 	}
 
-	@Transactional
 	public AuthResult login(LoginRequest request) {
 		// User의 EmployeeNo 검증
 		User user = userRepository.findByEmployeeNo(request.employeeNo())
 				.orElseThrow(this::invalidCredentials);
 
-		// User의 Password 검증
+		// User의 Password 검증 (CPU bound — bcrypt 50~100ms, DB connection 점유 회피)
 		if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
 			throw invalidCredentials();
 		}

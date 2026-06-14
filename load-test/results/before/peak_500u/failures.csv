@@ -1,0 +1,16 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+POST,[setup] login,HTTPError('500 Server Error:  for url: [setup] login'),262,2026-06-14T00:13:00Z,2026-06-14T00:14:05Z
+GET,GET /dashboard,HTTPError('401 Client Error:  for url: GET /dashboard'),116,2026-06-14T00:13:37Z,2026-06-14T00:17:25Z
+GET,GET /projects?scope=all,HTTPError('401 Client Error:  for url: GET /projects?scope=all'),153,2026-06-14T00:13:39Z,2026-06-14T00:17:23Z
+GET,GET /projects,HTTPError('401 Client Error:  for url: GET /projects'),348,2026-06-14T00:13:37Z,2026-06-14T00:17:27Z
+GET,GET /dashboard/ai-usage,HTTPError('401 Client Error:  for url: GET /dashboard/ai-usage'),82,2026-06-14T00:13:37Z,2026-06-14T00:17:20Z
+GET,[setup] projects,HTTPError('500 Server Error:  for url: [setup] projects'),21,2026-06-14T00:13:03Z,2026-06-14T00:14:16Z
+GET,GET /dashboard,RemoteDisconnected('Remote end closed connection without response'),1,2026-06-14T00:16:12Z,2026-06-14T00:16:12Z
+GET,[setup] statements,HTTPError('500 Server Error:  for url: [setup] statements'),1,2026-06-14T00:14:04Z,2026-06-14T00:14:04Z
+GET,GET /users/me,HTTPError('401 Client Error:  for url: GET /users/me'),375,2026-06-14T00:13:37Z,2026-06-14T00:17:27Z
+GET,[setup] categories,HTTPError('500 Server Error:  for url: [setup] categories'),33,2026-06-14T00:13:03Z,2026-06-14T00:14:09Z
+GET,GET /users,HTTPError('401 Client Error:  for url: GET /users'),88,2026-06-14T00:13:39Z,2026-06-14T00:17:25Z
+GET,GET /dashboard,HTTPError('500 Server Error:  for url: GET /dashboard'),1,2026-06-14T00:14:09Z,2026-06-14T00:14:09Z
+GET,GET /projects?keyword=,HTTPError('401 Client Error:  for url: GET /projects?keyword='),137,2026-06-14T00:13:37Z,2026-06-14T00:17:26Z
+GET,GET /projects/assignee-candidates,HTTPError('401 Client Error:  for url: GET /projects/assignee-candidates'),97,2026-06-14T00:13:37Z,2026-06-14T00:17:26Z
+GET,GET /users/me,RemoteDisconnected('Remote end closed connection without response'),1,2026-06-14T00:15:37Z,2026-06-14T00:15:37Z

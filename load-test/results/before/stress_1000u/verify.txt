@@ -1,0 +1,59 @@
+
+========================================
+부하 테스트 데이터 정합성 검증
+========================================
+
+--- 1. 고아 evidence_file_link (item 또는 file이 사라진 link) ---
+ orphan_by_item | orphan_by_file | total_links 
+----------------+----------------+-------------
+              0 |              0 |         738
+(1 row)
+
+
+--- 2. 고아 summary (statement 없는 summary) ---
+ orphan_summaries 
+------------------
+                0
+(1 row)
+
+
+--- 3. agent_logs UNIQUE 위반 (statement + agent_type 중복) ---
+ usage_statement_id | agent_type_code | duplicate_count 
+--------------------+-----------------+-----------------
+(0 rows)
+
+
+--- 4. 잘못된 page_no (1 미만) ---
+ invalid_page_no 
+-----------------
+               0
+(1 row)
+
+
+--- 5. usage_statements 상태 분포 (테스트 후 상태 전이가 일어났는지) ---
+     status_code     | count | pct  
+---------------------+-------+------
+ draft               |  8104 | 67.5
+ upload_completed    |  1939 | 16.2
+ review_completed    |   993 |  8.3
+ supplement_required |   964 |  8.0
+(4 rows)
+
+
+--- 6. files DB 카운트 (MinIO 일치 여부는 mc ls로 별도 확인) ---
+ total_files | active_files | distinct_uploaders 
+-------------+--------------+--------------------
+        1260 |         1260 |                314
+(1 row)
+
+
+--- 7. 누적 데이터 (참고) ---
+ projects | statements | items  | evidence_links | agent_logs | todos 
+----------+------------+--------+----------------+------------+-------
+     2000 |      12000 | 179503 |            738 |      36000 |     0
+(1 row)
+
+
+========================================
+검증 완료
+========================================

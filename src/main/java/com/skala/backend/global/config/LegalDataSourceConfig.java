@@ -1,5 +1,6 @@
 package com.skala.backend.global.config;
 
+import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -22,8 +23,12 @@ public class LegalDataSourceConfig {
 
     @Bean
     @Primary
+    @ConfigurationProperties(prefix = "spring.datasource.hikari")
     public DataSource primaryDataSource() {
-        return primaryDataSourceProperties().initializeDataSourceBuilder().build();
+        return primaryDataSourceProperties()
+                .initializeDataSourceBuilder()
+                .type(HikariDataSource.class)
+                .build();
     }
 
     @Bean
@@ -33,8 +38,12 @@ public class LegalDataSourceConfig {
     }
 
     @Bean
+    @ConfigurationProperties(prefix = "spring.legal-datasource.hikari")
     public DataSource legalDataSource() {
-        return legalDataSourceProperties().initializeDataSourceBuilder().build();
+        return legalDataSourceProperties()
+                .initializeDataSourceBuilder()
+                .type(HikariDataSource.class)
+                .build();
     }
 
     @Bean

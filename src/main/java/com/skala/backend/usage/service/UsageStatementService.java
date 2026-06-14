@@ -98,6 +98,8 @@ public class UsageStatementService {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		List<UsageStatement> statements = statementRepository.findByProjectIdOrderByReportMonthDescRevisionNoDesc(projectId);
 		List<Long> statementIds = statements.stream().map(UsageStatement::getId).toList();
+		Map<Long, Long> summaryCounts = codeLookupService.summaryCountsByStatement(statementIds);
+		Map<Long, Long> itemCounts = codeLookupService.itemCountsByStatement(statementIds);
 		Map<Long, Long> linkedCounts = codeLookupService.linkedFileCountsByStatement(statementIds);
 		Map<Long, Long> unsatisfiedCounts = codeLookupService.unsatisfiedRequirementCountsByStatement(statementIds);
 
@@ -109,8 +111,8 @@ public class UsageStatementService {
 						statement.getDocumentWrittenDate(),
 						statement.getCumulativeProgressRate(),
 						statement.getStatusCode(),
-						summaryRepository.countByUsageStatementId(statement.getId()),
-						itemRepository.countByUsageStatementId(statement.getId()),
+						summaryCounts.getOrDefault(statement.getId(), 0L),
+						itemCounts.getOrDefault(statement.getId(), 0L),
 						linkedCounts.getOrDefault(statement.getId(), 0L),
 						unsatisfiedCounts.getOrDefault(statement.getId(), 0L)
 				))

@@ -62,6 +62,14 @@ check_prereqs() {
     ok=false
   fi
 
+  # 백엔드 살아있는지 확인 (공개 endpoint) — 안 떠 있으면 경고만 (check·teardown은 동작)
+  local backend_code
+  backend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v3/api-docs 2>/dev/null || echo "000")
+  if [ "$backend_code" = "000" ]; then
+    echo "[경고] localhost:8000 백엔드 응답 없음 — save/spike/soak 명령은 실패합니다."
+    echo "       backend-up 또는 make backend-up 실행 필요"
+  fi
+
   if ! command -v mc &>/dev/null; then
     echo "[오류] mc(MinIO Client)가 설치되어 있지 않습니다."
     echo "       brew install minio/stable/mc"
