@@ -51,3 +51,16 @@ APP_FASTAPI_BASE_URL=http://team5-fastapi:8001
 
 Kubernetes manifest는 이 레포가 아니라 `SKALA-TEAM5/deploy` 레포에서 관리합니다.
 backend workflow는 이미지를 빌드/푸시한 뒤 기존 `team5-backend` Deployment를 재시작합니다.
+
+## Prometheus 지표
+
+Spring Actuator의 `/actuator/prometheus`에서 HTTP, JVM, DB connection pool 지표와 함께
+FastAPI Agent 비동기 dispatch 지표를 제공합니다.
+
+- `backend_agent_dispatch_total{operation,result}`
+- `backend_agent_dispatch_duration_seconds{operation}`
+- `backend_agent_dispatch_in_progress{operation}`
+- `backend_agent_todo_refresh_total{result="fail"}`
+
+`operation`은 `validate`, `legal`, `report` 중 하나입니다. 프로젝트 ID, 사용자 ID,
+사용내역서 ID 같은 고카디널리티 값은 Prometheus 라벨에 포함하지 않습니다.

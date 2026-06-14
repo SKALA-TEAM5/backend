@@ -2,6 +2,7 @@ package com.skala.backend.agent.service;
 
 import com.skala.backend.agent.client.FastApiAgentClient;
 import com.skala.backend.agent.domain.AgentTypeCode;
+import com.skala.backend.agent.metrics.AgentDispatchMetrics;
 import com.skala.backend.agent.repository.AgentLogRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,19 +17,24 @@ public class AgentAsyncService {
 	private final FastApiAgentClient fastApiAgentClient;
 	private final AgentLogRepository agentLogRepository;
 	private final TodoService todoService;
+	private final AgentDispatchMetrics metrics;
 
 	public AgentAsyncService(FastApiAgentClient fastApiAgentClient, AgentLogRepository agentLogRepository,
-			TodoService todoService) {
+			TodoService todoService, AgentDispatchMetrics metrics) {
 		this.fastApiAgentClient = fastApiAgentClient;
 		this.agentLogRepository = agentLogRepository;
 		this.todoService = todoService;
+		this.metrics = metrics;
 	}
 
 	@Async("agentAsyncExecutor")
 	public void fireValidate(Long projectId, Long usageStatementId, Long userId) {
+		AgentDispatchMetrics.DispatchSample sample = metrics.start("validate");
 		try {
 			fastApiAgentClient.runValidation(projectId, usageStatementId, userId);
+			metrics.success(sample);
 		} catch (Exception e) {
+			metrics.failure(sample);
 			log.warn("validate FastAPI 호출 실패 — fail 보정 (statementId={}): {}", usageStatementId, e.getMessage());
 			upsertFail(projectId, usageStatementId, AgentTypeCode.SAFETY_DOC);
 			upsertFail(projectId, usageStatementId, AgentTypeCode.LINK);
@@ -40,9 +46,12 @@ public class AgentAsyncService {
 
 	@Async("agentAsyncExecutor")
 	public void fireLegal(Long projectId, Long usageStatementId, Long userId) {
+		AgentDispatchMetrics.DispatchSample sample = metrics.start("legal");
 		try {
 			fastApiAgentClient.runLegal(projectId, usageStatementId, userId);
+			metrics.success(sample);
 		} catch (Exception e) {
+			metrics.failure(sample);
 			log.warn("legal FastAPI 호출 실패 — fail 보정 (statementId={}): {}", usageStatementId, e.getMessage());
 			upsertFail(projectId, usageStatementId, AgentTypeCode.LEGAL);
 		} finally {
@@ -52,9 +61,12 @@ public class AgentAsyncService {
 
 	@Async("agentAsyncExecutor")
 	public void fireReport(Long projectId, Long usageStatementId, Long userId) {
+		AgentDispatchMetrics.DispatchSample sample = metrics.start("report");
 		try {
 			fastApiAgentClient.runReport(projectId, usageStatementId, userId);
+			metrics.success(sample);
 		} catch (Exception e) {
+			metrics.failure(sample);
 			log.warn("report FastAPI 호출 실패 — fail 보정 (statementId={}): {}", usageStatementId, e.getMessage());
 			upsertFail(projectId, usageStatementId, AgentTypeCode.REPORT);
 		}
@@ -65,6 +77,7 @@ public class AgentAsyncService {
 		try {
 			todoService.refresh(usageStatementId);
 		} catch (Exception ex) {
+			metrics.recordTodoRefreshFailure();
 			log.error("todos 재생성 실패 (statementId={}): {}", usageStatementId, ex.getMessage());
 		}
 	}
