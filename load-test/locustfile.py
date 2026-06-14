@@ -398,7 +398,7 @@ class AdminScenario(HttpUser):
 
     @task(1)
     def refresh_token(self):
-        # 404 또는 401: refresh 토큰이 만료된 정상 케이스
+        # 401: refresh 토큰이 만료/revoke된 정상 케이스
         with self.client.post(
             "/auth/refresh",
             name="POST /auth/refresh",

@@ -69,6 +69,8 @@ bash load-test/locust-local.sh teardown
 bash load-test/locust-local.sh check
 ```
 
+> **MinIO 정리 경고** — `mc` 미설치 또는 alias 미설정 상태에서 teardown을 돌리면 DB 행만 삭제되고 MinIO 오브젝트는 누적된다. teardown 출력에 "MinIO 오브젝트는 수동 정리 필요" 경고가 뜨면 사전 준비 단계의 mc 설치/alias 등록부터 마치고 다시 실행하거나, 안내된 `mc rm --recursive --force ...` 명령을 수동으로 실행해야 한다.
+
 ---
 
 ## 3. k8s 환경에서 테스트

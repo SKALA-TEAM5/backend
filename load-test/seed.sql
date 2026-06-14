@@ -48,6 +48,31 @@ SELECT setval('agent_logs_id_seq',
        GREATEST((SELECT COALESCE(MAX(id), 0) FROM agent_logs),
                 (SELECT last_value FROM agent_logs_id_seq)));
 
+-- 부하 테스트 중 신규 생성되는 테이블 sequence도 동기화 (PK 충돌 방지)
+SELECT setval('files_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM files),
+                (SELECT last_value FROM files_id_seq)));
+
+SELECT setval('evidence_file_links_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM evidence_file_links),
+                (SELECT last_value FROM evidence_file_links_id_seq)));
+
+SELECT setval('evidence_requirements_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM evidence_requirements),
+                (SELECT last_value FROM evidence_requirements_id_seq)));
+
+SELECT setval('refresh_tokens_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM refresh_tokens),
+                (SELECT last_value FROM refresh_tokens_id_seq)));
+
+SELECT setval('agent_usage_records_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM agent_usage_records),
+                (SELECT last_value FROM agent_usage_records_id_seq)));
+
+SELECT setval('todos_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM todos),
+                (SELECT last_value FROM todos_id_seq)));
+
 -- ── 1. 계정: admin 500 + user 500 ───────────────────────────────
 INSERT INTO users (employee_no, real_name, password_hash, role_code)
 SELECT
