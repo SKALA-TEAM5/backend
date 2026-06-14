@@ -69,6 +69,10 @@ public class ProjectFile {
 		return new ProjectFile(projectId, uploadedByUserId, uploadedEvidenceTypeCode, originalFilename, storageKey, mimeType, sizeBytes, capturedAt);
 	}
 
+	public void changeUploadedEvidenceTypeCode(String uploadedEvidenceTypeCode) {
+		this.uploadedEvidenceTypeCode = uploadedEvidenceTypeCode;
+	}
+
 	@PrePersist
 	void prePersist() {
 		this.uploadedAt = Instant.now();
