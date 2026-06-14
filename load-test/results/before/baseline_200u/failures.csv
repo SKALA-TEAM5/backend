@@ -1,0 +1,13 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+POST,[setup] login,HTTPError('500 Server Error:  for url: [setup] login'),86,2026-06-14T00:03:09Z,2026-06-14T00:03:26Z
+GET,GET /dashboard,HTTPError('401 Client Error:  for url: GET /dashboard'),48,2026-06-14T00:03:22Z,2026-06-14T00:07:31Z
+GET,GET /projects?scope=all,HTTPError('401 Client Error:  for url: GET /projects?scope=all'),52,2026-06-14T00:03:21Z,2026-06-14T00:07:29Z
+GET,GET /projects,HTTPError('401 Client Error:  for url: GET /projects'),144,2026-06-14T00:03:21Z,2026-06-14T00:07:36Z
+GET,GET /dashboard/ai-usage,HTTPError('401 Client Error:  for url: GET /dashboard/ai-usage'),31,2026-06-14T00:03:38Z,2026-06-14T00:07:33Z
+GET,[setup] projects,HTTPError('500 Server Error:  for url: [setup] projects'),9,2026-06-14T00:03:17Z,2026-06-14T00:03:26Z
+GET,[setup] statements,HTTPError('500 Server Error:  for url: [setup] statements'),1,2026-06-14T00:03:23Z,2026-06-14T00:03:23Z
+GET,GET /users/me,HTTPError('401 Client Error:  for url: GET /users/me'),113,2026-06-14T00:03:18Z,2026-06-14T00:07:36Z
+GET,[setup] categories,HTTPError('500 Server Error:  for url: [setup] categories'),12,2026-06-14T00:03:18Z,2026-06-14T00:03:26Z
+GET,GET /users,HTTPError('401 Client Error:  for url: GET /users'),27,2026-06-14T00:04:01Z,2026-06-14T00:07:31Z
+GET,GET /projects?keyword=,HTTPError('401 Client Error:  for url: GET /projects?keyword='),54,2026-06-14T00:03:17Z,2026-06-14T00:07:35Z
+GET,GET /projects/assignee-candidates,HTTPError('401 Client Error:  for url: GET /projects/assignee-candidates'),44,2026-06-14T00:03:18Z,2026-06-14T00:07:24Z
