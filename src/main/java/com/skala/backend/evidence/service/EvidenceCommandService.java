@@ -99,6 +99,9 @@ public class EvidenceCommandService {
 		}
 
 		link.moveTo(targetItem.getId(), request.evidenceTypeCode());
+		ProjectFile file = fileRepository.findByIdAndProjectId(link.getFileId(), projectId)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
+		file.changeUploadedEvidenceTypeCode(request.evidenceTypeCode());
 		recalculateRequirements(previousItemId);
 		recalculateRequirements(targetItem.getId());
 		revertToDraftIfNeeded(targetItem.getUsageStatementId());
