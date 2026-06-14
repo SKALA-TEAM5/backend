@@ -19,6 +19,35 @@
 -- =============================================================
 SET search_path TO service, public;
 
+-- ── 0. BIGSERIAL sequence 동기화 (운영 데이터와 PK 충돌 방지) ──
+-- 이유: 운영/이전 데이터가 이미 있는 환경에서 sequence가 뒤처져 있으면
+--       자동 발행되는 id가 기존 데이터와 충돌하여 INSERT 실패.
+-- 안전성: setval은 이미 발행된 id에 영향 없고, "다음 nextval부터 이 값+1"만 반환.
+--         동시에 운영자가 새 INSERT 시도 시에도 sequence는 다시 max+1부터 진행됨.
+SELECT setval('users_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM users),
+                (SELECT last_value FROM users_id_seq)));
+
+SELECT setval('projects_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM projects),
+                (SELECT last_value FROM projects_id_seq)));
+
+SELECT setval('project_user_assignments_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM project_user_assignments),
+                (SELECT last_value FROM project_user_assignments_id_seq)));
+
+SELECT setval('usage_statements_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM usage_statements),
+                (SELECT last_value FROM usage_statements_id_seq)));
+
+SELECT setval('usage_statement_items_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM usage_statement_items),
+                (SELECT last_value FROM usage_statement_items_id_seq)));
+
+SELECT setval('agent_logs_id_seq',
+       GREATEST((SELECT COALESCE(MAX(id), 0) FROM agent_logs),
+                (SELECT last_value FROM agent_logs_id_seq)));
+
 -- ── 1. 계정: admin 500 + user 500 ───────────────────────────────
 INSERT INTO users (employee_no, real_name, password_hash, role_code)
 SELECT
