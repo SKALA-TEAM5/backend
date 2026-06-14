@@ -18,6 +18,10 @@ spring:
     username: ${LAW_APP_USER:safety_law_app}
     password: ${LAW_APP_PASSWORD:safety_law_app_password}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${SPRING_LEGAL_DATASOURCE_HIKARI_MAX_POOL_SIZE:5}
+      minimum-idle: ${SPRING_LEGAL_DATASOURCE_HIKARI_MIN_IDLE:2}
+      connection-timeout: ${SPRING_LEGAL_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:30000}
   jpa:
     hibernate:
       ddl-auto: validate
