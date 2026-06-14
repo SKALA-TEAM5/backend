@@ -285,7 +285,7 @@ CREATE INDEX IF NOT EXISTS idx_usage_statements_review_needed
 |---|---|
 | `backend/src/main/java/com/skala/backend/project/service/CodeLookupService.java` | `summaryCountsByStatement`, `itemCountsByStatement` 배치 카운트 메서드 추가 |
 | `backend/src/main/java/com/skala/backend/usage/service/UsageStatementService.java` | `list()`에서 statement별 count 호출 → 사전 배치 Map 조회로 전환 |
-| `db/migrations/V15__add_search_indexes.sql` | pg_trgm 확장 + projects/users 검색 인덱스 + dashboard review needed partial index |
+| `db/migrations/V16__add_search_indexes.sql` | pg_trgm 확장 + projects/users 검색 인덱스 + dashboard review needed partial index (※ 최초 V15 로 작성됐으나 라운드 3 에서 V15 충돌 해소를 위해 V16 으로 rename — 자세한 경위는 라운드 3 변경 8 참고) |
 
 ---
 
@@ -324,24 +324,217 @@ CREATE INDEX IF NOT EXISTS idx_usage_statements_review_needed
 
 ---
 
+## 라운드 3 — 마이그레이션 충돌 해소 + GET /projects 정렬·CTE 최적화
+
+### 진단 — 라운드 1+2 배포 후 smoke 재측정
+
+라운드 1+2 코드 변경 반영된 image 배포 후 smoke(20u/1m) 두 번 측정.
+
+| 측정 | 측정 commit | 배포 image | `[setup] login` median | `[setup] login` p99 |
+|---|---|---|---|---|
+| 1차 (round2/smoke_20u 초기) | `587967b` | `420f3d5` | **6,300 ms** | 8,400 ms |
+| 2차 (재배포 후) | `cbae303` | `cbae303` | **12,000 ms** | 14,000 ms |
+
+**관찰**:
+- 라운드 1 변경(`@Transactional` 제거, HikariCP 20, `LegalDataSourceConfig` binding fix)이 모두 image 에 반영됐음에도 login 6~12 초 — 목표 <500ms 한참 미달
+- 두 측정의 절대값 변동(6s → 12s)이 큼 → 노드 CPU 경합 노이즈
+- 실패율·기타 endpoint 응답시간은 모두 정상
+
+**원인 진단**: **배포 환경 pod CPU 한계**.
+
+```
+backend pod resources:
+  requests: cpu 200m / memory 512Mi
+  limits:   cpu 1 / memory 1Gi
+```
+
+- 20 동시 bcrypt × ~100ms CPU = 2,000ms 의 순수 CPU work
+- `requests: 200m` (0.2 core 보장) 환경에서 노드 경합 시 wall time 10초+ 가능
+- `limits: 1 core` 도 CFS quota 로 동시 도착 시 큐잉 발생
+- `@Transactional` 제거는 DB connection 점유 시간만 줄여줌 — **bcrypt CPU 부담은 코드로 더 줄일 수 없음**
+
+→ 배포 spec 변경(replica 증설 또는 CPU 상향)이 진짜 해법. **백엔드 코드 단에서는 login 더 손대지 않음.**
+
+### 추가 발견 — V15 Flyway 충돌 (가장 임팩트 큰 발견)
+
+`db/migrations/` 디렉터리 확인 중 같은 버전 두 파일 발견:
+
+```
+V15__law_log_change_type_none.sql    ← 기존 (legal_rag 관련)
+V15__add_search_indexes.sql          ← 라운드 2 신규 (pg_trgm + dashboard partial index)
+```
+
+**Flyway 는 같은 버전 번호 두 description 을 거부** → 라운드 2 의 DB 변경이 **실제 배포 적용 안 됐을 가능성 매우 높음**. 라운드 2 의 가설 C·D(`GET /projects?keyword=` 와 `GET /dashboard` p99 < 2s) 가 측정으로 검증 안 됐던 이유.
+
+---
+
+### 변경 8: V15 → V16 rename (Flyway 충돌 해소)
+
+**문제**: 위 진단 — V15 description 충돌로 Flyway 가 라운드 2 마이그레이션 거부.
+
+**조치**: 운영 환경에 이미 적용됐을 가능성이 큰 `V15__law_log_change_type_none.sql` 을 정본으로 인정하고, 라운드 2 의 신규 마이그레이션을 V16 으로 rename.
+
+```bash
+# 실행한 명령
+mv db/migrations/V15__add_search_indexes.sql \
+   db/migrations/V16__add_search_indexes.sql
+```
+
+**근거**:
+- `V15__law_log_change_type_none.sql` 은 `legal_rag` 스키마 관련 — `CLAUDE.md` 의 "절대 건드리지 않음" 영역
+- 라운드 2 마이그레이션은 아직 미적용 상태라 번호 변경에 의한 영향 없음
+- V16 으로 옮기면 운영 DB 의 `flyway_schema_history` 에 V15(법령) → V16(검색 인덱스) 순서로 적용
+
+---
+
+### 변경 9: V17 신규 — `GET /projects` 정렬·CTE 인덱스
+
+**문제** (보고서 Stress p99):
+- `GET /projects` (필터 없음): **90,000 ms**
+- `GET /projects?scope=all`: 50,000 ms
+- `GET /usage-statements/latest`, `GET /usage-statements/by-month`: 보고서 미명시지만 같은 패턴
+
+**원인 분석** (`ProjectRepositoryImpl.searchCards` 네이티브 쿼리):
+
+1. **`latest_statement` CTE — DISTINCT ON 풀스캔**
+   ```sql
+   SELECT DISTINCT ON (us.project_id)
+       us.project_id, us.id, us.cumulative_progress_rate, us.status_code
+   FROM service.usage_statements us
+   ORDER BY us.project_id, us.report_month DESC, us.revision_no DESC
+   ```
+   - 기존 인덱스: `idx_usage_statements_project_id (project_id)` — partial
+   - DISTINCT ON 패턴은 `(project_id, report_month DESC, revision_no DESC)` 복합 인덱스가 있어야 skip-scan 가능
+   - 12,000 statement 전체 정렬 → 메인 쿼리 무거움의 직접 원인
+
+2. **정렬 컬럼 인덱스 부재**
+   - `ProjectSort` 의 START_DATE_ASC/DESC, END_DATE_ASC/DESC, PROJECT_NAME_ASC/DESC 가 매핑된 컬럼에 인덱스 없음
+   - 기존 인덱스: `idx_projects_status_created_at`, `idx_projects_created_at`, `idx_projects_contract_no` (정렬 컬럼 미포함)
+   - ORDER BY + LIMIT 10 패턴이 정렬 비용 큰 sort step 으로 변환됨
+
+3. **기간 필터 인덱스 부재**
+   - `construction_start_date <= :periodTo`, `construction_end_date >= :periodFrom` 도 풀스캔
+
+**조치**: `V17__add_project_listing_indexes.sql` 추가.
+
+```sql
+-- GET /projects 무거움 해소 (보고서: Stress p99 90s)
+CREATE INDEX IF NOT EXISTS idx_projects_construction_start_date
+    ON service.projects (construction_start_date);
+
+CREATE INDEX IF NOT EXISTS idx_projects_construction_end_date
+    ON service.projects (construction_end_date);
+
+CREATE INDEX IF NOT EXISTS idx_projects_project_name_id
+    ON service.projects (project_name, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_usage_statements_project_month_revision
+    ON service.usage_statements (project_id, report_month DESC, revision_no DESC);
+```
+
+**효과**:
+- `latest_statement` CTE: 풀스캔 정렬 → 복합 인덱스 skip-scan (2,000 project × 1 row)
+- ORDER BY 정렬: sort step → index scan
+- `findFirstByProjectIdOrderByReportMonthDescRevisionNoDesc`, `findFirstByProjectIdAndReportMonthOrderByRevisionNoDesc` 등 latest-statement 조회 패턴 전반 안정화
+
+---
+
+### 라운드 3 — 변경 안 한 후보 (왜 안 했는지)
+
+| 후보 | 위치 | 안 한 이유 |
+|---|---|---|
+| bcrypt strength 10 → 8 | `SecurityConfig.passwordEncoder()` | 시드 SQL 의 `password_hash` 가 cost=10 으로 생성돼 있어 검증 시간은 그대로. 시드까지 손대야 효과 발생 → 별도 라운드로 분리하는 게 측정 깔끔 |
+| `/auth/refresh` 동시성 개선 | `RefreshTokenService.rotate()` | login p99 가 비정상이라 refresh 폭증한 것 (401 → refresh 시도). login CPU 한계 해결 시 자연 완화. 회귀 위험 vs 효과 분리 어려움 |
+| `EvidenceArchiveService` 쿼리 개선 | `listCategories`, `listCategoryItems` | 기존 인덱스(`idx_usage_statement_items_statement_category`, `uq_evidence_file_links_item_file`, `idx_evidence_requirements_active_unsatisfied`) 모두 사용됨. Stress p99 12s 는 CPU 압박 신호 — 구조 문제 아님 |
+| `@Cacheable` (CodeLookupService) | `categoryNames()`, `evidenceTypeNames()` 등 | EnableCaching + Caffeine 의존성·설정 추가 vs 효과 미미 (코드 테이블 9 rows). 회귀 표면 확대만 됨 |
+| OSIV 비활성화 | `spring.jpa.open-in-view` | **이미 false** — 점검 중 확인. 조치 불필요 |
+
+---
+
+## 라운드 3 — 변경 파일 요약
+
+| 파일 | 변경 |
+|---|---|
+| `db/migrations/V16__add_search_indexes.sql` | (rename from V15) Flyway 충돌 해소. 라운드 2 마이그레이션 실제 배포 적용 가능하게 함 |
+| `db/migrations/V17__add_project_listing_indexes.sql` | 신규. projects 정렬·기간 필터 인덱스 + usage_statements DISTINCT ON 복합 인덱스 |
+
+> 라운드 3 은 백엔드 Java 코드 변경 없음. 마이그레이션 정리 + 인덱스 추가만.
+
+---
+
+## 검증 측정 — 라운드 1+2+3 통합 (TBD)
+
+### 측정 시나리오
+
+라운드 1·2·3 을 단일 측정으로 가설별 분리 검증. 각 가설은 다른 endpoint p99 로 평가.
+
+| 가설 | 검증 endpoint | Before p99 (Stress) | 기대 효과 | 주의 |
+|---|---|---|---|---|
+| **A. 인증 병목 (라운드 1)** | `[setup] login`, 전체 실패율 | login 76,000 ms / 실패율 18.3% | **변동 가능성 큼** — 배포 환경 CPU 한계가 지배적 | smoke 6~12s 범위 |
+| **B. N+1 정리 (라운드 2)** | `GET /usage-statements` | 7,000 ms | <1,000 ms | V16 적용 후 첫 측정 |
+| **C. pg_trgm 인덱스 (라운드 2 / V16)** | `GET /projects?keyword=` | 93,000 ms | <2,000 ms | V16 적용 후 첫 측정 |
+| **D. dashboard partial index (라운드 2 / V16)** | `GET /dashboard` | 91,000 ms | <2,000 ms | V16 적용 후 첫 측정 |
+| **E. projects 정렬·CTE 인덱스 (라운드 3 / V17)** | `GET /projects`, `GET /projects?scope=all` | 90,000 / 50,000 ms | <2,000 ms | |
+| **F. latest statement 인덱스 (라운드 3 / V17)** | `GET /usage-statements/latest`, `by-month` | 보고서 미명시 | 안정화 | |
+
+### 결과 표 (측정 후 채우기)
+
+#### Baseline 200u (round3/baseline_200u)
+
+| 지표 | Before | After |
+|---|---|---|
+| 실패율 | 11.01% | _ |
+| p99 (전체) | 31,000 ms | _ |
+| `[setup] login` median | 30,000 ms | _ |
+| `GET /usage-statements` p99 | (보고서 미명시) | _ |
+| `GET /projects?keyword=` p99 | (Baseline 측정 미수집) | _ |
+| `GET /dashboard` p99 | 490 ms (baseline 정상 응답) | _ |
+| `GET /projects` p99 | (Baseline 측정 미수집) | _ |
+
+#### Stress 1000u (round3/stress_1000u) — 가설 C·D·E 검증 핵심
+
+| 지표 | Before | After |
+|---|---|---|
+| 실패율 | 18.3% | _ |
+| `GET /usage-statements` p99 | 7,000 ms | _ |
+| `GET /projects?keyword=` p99 | 93,000 ms | _ |
+| `GET /dashboard` p99 | 91,000 ms | _ |
+| `GET /projects` p99 | 90,000 ms | _ |
+| `GET /projects?scope=all` p99 | 50,000 ms | _ |
+
+---
+
 ## 운영자 사전 확인 사항
 
 배포 전 PG 측에서 점검 필요:
 
-1. **pg_trgm 확장 권한**
+1. **pg_trgm 확장 권한** (V16 에서 사용)
    ```sql
    SELECT * FROM pg_extension WHERE extname = 'pg_trgm';
    -- 결과 없으면: CREATE EXTENSION pg_trgm;  (superuser 권한 필요)
    ```
 
 2. **인덱스 빌드 시 락**
-   - GIN 인덱스 빌드는 테이블에 짧은 `SHARE` 락 발생 (운영 트래픽 미미한 시간대 권장)
-   - `CONCURRENTLY` 옵션 사용 검토 (단, Flyway는 트랜잭션 안에서 실행하므로 분리 필요)
+   - GIN 인덱스(V16) 빌드는 테이블에 짧은 `SHARE` 락 발생 (운영 트래픽 미미한 시간대 권장)
+   - V17 의 B-tree 인덱스도 빌드 중 짧은 락 — 적은 영향
+   - `CONCURRENTLY` 옵션 사용 검토 (단, Flyway 는 트랜잭션 안에서 실행하므로 분리 필요)
 
 3. **Flyway 실행 계정 권한**
-   - `CREATE EXTENSION` 실행 권한 확인
-   - 권한 없으면 운영자가 사전 수동 실행 후 V15는 `IF NOT EXISTS`로 skip
+   - `CREATE EXTENSION` 실행 권한 확인 (V16)
+   - 권한 없으면 운영자가 사전 수동 실행 후 V16 은 `IF NOT EXISTS` 로 skip
+
+4. **라운드 3 배포 후 Flyway 이력 확인**
+   ```sql
+   SELECT version, description, success
+   FROM service.flyway_schema_history
+   ORDER BY installed_rank DESC LIMIT 5;
+   ```
+   → `V17`, `V16` 두 줄 `success = t` 로 보여야 측정 의미 있음. 둘 중 하나라도 실패 시 baseline 측정 보류
+
+5. **배포 환경 CPU (login 한계 관련)**
+   - 라운드 1+2 적용 후에도 `[setup] login` median 이 1초 아래로 안 떨어지면 backend pod 의 `requests.cpu` (현재 200m) 상향 또는 replica 증설 검토
+   - 매니페스트 위치: `SKALA-TEAM5/deploy` repo 의 `k8s/backend/backend-deployment.yaml`
 
 ---
 
-*최종 업데이트: 2026-06-14 (라운드 1+2 코드 변경 완료, 측정 대기)*
+*최종 업데이트: 2026-06-14 (라운드 3 코드 변경 완료, 측정 대기 — V16 rename + V17 신규)*

@@ -1,0 +1,10 @@
+phase: smoke
+users: 20
+spawn_rate: 5
+duration: 1m
+mode: atomic
+host: http://localhost:8000
+namespace: skala3-finalproj-class2-team5
+commit: cbae303
+timestamp: 2026-06-14T15:38:38+0900
+out_dir: round2/smoke_20u
