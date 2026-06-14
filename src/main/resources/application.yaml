@@ -66,3 +66,6 @@ management:
   metrics:
     tags:
       application: team5-backend
+    distribution:
+      percentiles-histogram:
+        backend.agent.dispatch.duration: true

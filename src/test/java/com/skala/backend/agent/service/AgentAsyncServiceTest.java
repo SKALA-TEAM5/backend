@@ -1,6 +1,7 @@
 package com.skala.backend.agent.service;
 
 import com.skala.backend.agent.client.FastApiAgentClient;
+import com.skala.backend.agent.metrics.AgentDispatchMetrics;
 import com.skala.backend.agent.repository.AgentLogRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,9 @@ class AgentAsyncServiceTest {
 
     @Mock FastApiAgentClient fastApiAgentClient;
     @Mock AgentLogRepository agentLogRepository;
+    @Mock TodoService todoService;
+    @Mock AgentDispatchMetrics metrics;
+    @Mock AgentDispatchMetrics.DispatchSample dispatchSample;
 
     @InjectMocks
     AgentAsyncService agentAsyncService;
@@ -29,18 +33,23 @@ class AgentAsyncServiceTest {
 
     @Test
     void fireValidate_성공_시_fail_보정_호출_안_함() {
+        org.mockito.Mockito.when(metrics.start("validate")).thenReturn(dispatchSample);
+
         agentAsyncService.fireValidate(1L, 2L, 3L);
 
+        verify(metrics).success(dispatchSample);
         verify(agentLogRepository, never()).upsertStatementLogFail(anyLong(), anyLong(), anyString());
     }
 
     @Test
     void fireValidate_FastAPI_예외_시_safety_doc_link_vision_fail_보정() {
+        org.mockito.Mockito.when(metrics.start("validate")).thenReturn(dispatchSample);
         doThrow(new RestClientException("connection refused"))
                 .when(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
 
         agentAsyncService.fireValidate(1L, 2L, 3L);
 
+        verify(metrics).failure(dispatchSample);
         verify(agentLogRepository).upsertStatementLogFail(1L, 2L, "safety-doc");
         verify(agentLogRepository).upsertStatementLogFail(1L, 2L, "link");
         verify(agentLogRepository).upsertStatementLogFail(1L, 2L, "vision");
@@ -49,6 +58,7 @@ class AgentAsyncServiceTest {
 
     @Test
     void fireValidate_upsert_실패해도_예외_전파_안_함() {
+        org.mockito.Mockito.when(metrics.start("validate")).thenReturn(dispatchSample);
         doThrow(new RestClientException("down")).when(fastApiAgentClient).runValidation(anyLong(), anyLong(), anyLong());
         doThrow(new RuntimeException("db error")).when(agentLogRepository).upsertStatementLogFail(anyLong(), anyLong(), anyString());
 
@@ -60,24 +70,30 @@ class AgentAsyncServiceTest {
 
     @Test
     void fireLegal_성공_시_fail_보정_호출_안_함() {
+        org.mockito.Mockito.when(metrics.start("legal")).thenReturn(dispatchSample);
+
         agentAsyncService.fireLegal(1L, 2L, 3L);
 
+        verify(metrics).success(dispatchSample);
         verify(agentLogRepository, never()).upsertStatementLogFail(anyLong(), anyLong(), anyString());
     }
 
     @Test
     void fireLegal_FastAPI_예외_시_legal_fail_보정() {
+        org.mockito.Mockito.when(metrics.start("legal")).thenReturn(dispatchSample);
         doThrow(new RestClientException("connection refused"))
                 .when(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
 
         agentAsyncService.fireLegal(1L, 2L, 3L);
 
+        verify(metrics).failure(dispatchSample);
         verify(agentLogRepository).upsertStatementLogFail(1L, 2L, "legal");
         verifyNoMoreInteractions(agentLogRepository);
     }
 
     @Test
     void fireLegal_upsert_실패해도_예외_전파_안_함() {
+        org.mockito.Mockito.when(metrics.start("legal")).thenReturn(dispatchSample);
         doThrow(new RestClientException("down")).when(fastApiAgentClient).runLegal(anyLong(), anyLong(), anyLong());
         doThrow(new RuntimeException("db error")).when(agentLogRepository).upsertStatementLogFail(anyLong(), anyLong(), anyString());
 
@@ -88,24 +104,30 @@ class AgentAsyncServiceTest {
 
     @Test
     void fireReport_성공_시_fail_보정_호출_안_함() {
+        org.mockito.Mockito.when(metrics.start("report")).thenReturn(dispatchSample);
+
         agentAsyncService.fireReport(1L, 2L, 3L);
 
+        verify(metrics).success(dispatchSample);
         verify(agentLogRepository, never()).upsertStatementLogFail(anyLong(), anyLong(), anyString());
     }
 
     @Test
     void fireReport_FastAPI_예외_시_report_fail_보정() {
+        org.mockito.Mockito.when(metrics.start("report")).thenReturn(dispatchSample);
         doThrow(new RestClientException("connection refused"))
                 .when(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
 
         agentAsyncService.fireReport(1L, 2L, 3L);
 
+        verify(metrics).failure(dispatchSample);
         verify(agentLogRepository).upsertStatementLogFail(1L, 2L, "report");
         verifyNoMoreInteractions(agentLogRepository);
     }
 
     @Test
     void fireReport_upsert_실패해도_예외_전파_안_함() {
+        org.mockito.Mockito.when(metrics.start("report")).thenReturn(dispatchSample);
         doThrow(new RestClientException("down")).when(fastApiAgentClient).runReport(anyLong(), anyLong(), anyLong());
         doThrow(new RuntimeException("db error")).when(agentLogRepository).upsertStatementLogFail(anyLong(), anyLong(), anyString());
 
