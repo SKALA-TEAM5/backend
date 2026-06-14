@@ -1,6 +1,6 @@
 # 백엔드 부하 테스트 — 병목 해결 작업 로그
 
-> 보고서: `k8s_load_test_report_20260614.md` 기반.
+> 보고서: [`00_initial_diagnosis_20260614.md`](./00_initial_diagnosis_20260614.md) 기반.
 > 측정 환경: k8s (`skala3-finalproj-class2-team5`), Spring Boot 3.5, PostgreSQL.
 
 ---
