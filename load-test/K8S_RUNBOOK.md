@@ -6,6 +6,38 @@
 
 ---
 
+## ⚠️ 모든 측정 명령에 `LOCUST_RESULT` Prefix 필수
+
+복붙할 때 **반드시 `LOCUST_RESULT=xxx` 부분까지 포함**해야 합니다.
+
+```bash
+# ❌ 잘못 — prefix 누락 → 시간 기반 디폴트 이름으로 저장됨
+bash backend/load-test/locust-k8s.sh save
+# 결과: results/k8s_20260614_0838_*.csv  ← 어떤 측정인지 식별 안 됨
+
+# ✅ 올바름 — Phase·모드·사용자 수가 파일명에 들어감
+LOCUST_RESULT=k8s_baseline_atomic_200 bash backend/load-test/locust-k8s.sh save
+# 결과: results/k8s_baseline_atomic_200_*.csv  ← 한 눈에 보임
+```
+
+**Phase별 권장 RESULT 이름**:
+
+| Phase | 모드 | LOCUST_RESULT |
+|---|---|---|
+| Smoke (1m, 20u) | atomic | `k8s_smoke` |
+| Baseline (5m, 200u) | atomic | `k8s_baseline_atomic_200` |
+| Baseline (5m, 200u) | journey | `k8s_baseline_journey_200` |
+| Peak (5m, 500u) | atomic | `k8s_peak_atomic_500` |
+| Peak (5m, 500u) | journey | `k8s_peak_journey_500` |
+| Stress (8m, 1000u) | atomic | `k8s_stress_atomic_1000` |
+| Stress (8m, 1000u) | journey | `k8s_stress_journey_1000` |
+| Spike (7m) | journey 자동 | `k8s_spike` |
+| Soak (1h, 200u) | atomic | `k8s_soak_1h` |
+
+> **팁**: `setup`, `check`, `seed`, `teardown` 명령은 결과 파일을 만들지 않으므로 `LOCUST_RESULT` 불필요.
+
+---
+
 ## 0. 준비물 체크리스트
 
 테스트 시작 전 아래가 모두 준비되어 있어야 합니다.
@@ -82,6 +114,8 @@ admins | users | projects | assignments | statements | items  | agent_logs
 
 먼저 작은 부하로 환경이 잘 동작하는지 확인.
 
+> 🏷️ `LOCUST_RESULT=k8s_smoke` ← **꼭 포함**. 빠뜨리면 `k8s_<날짜시각>_*.csv`로 저장됨.
+
 ```bash
 LOCUST_USERS=20 LOCUST_RATE=5 LOCUST_TIME=1m LOCUST_RESULT=k8s_smoke \
   bash backend/load-test/locust-k8s.sh save
@@ -110,6 +144,8 @@ backend/load-test/results/k8s_smoke_failures.csv
 ## 4. Phase 3 — Baseline (5분 + 5분, 200u)
 
 정상 운영 부하 수준 측정. 이게 **기준선**입니다.
+
+> 🏷️ A는 `k8s_baseline_atomic_200`, B는 `k8s_baseline_journey_200`, C는 A와 같은 이름.
 
 ### 4-A. Atomic 모드 — 엔드포인트별 부하
 
@@ -154,6 +190,8 @@ LOCUST_RESULT=k8s_baseline_atomic_200 \
 
 피크 시간대 부하 (정상의 2.5배).
 
+> 🏷️ A는 `k8s_peak_atomic_500`, B는 `k8s_peak_journey_500`, C는 A와 같은 이름.
+
 ```bash
 # 5-A. Atomic
 LOCUST_USERS=500 LOCUST_RATE=20 LOCUST_TIME=5m \
@@ -182,6 +220,8 @@ LOCUST_RESULT=k8s_peak_atomic_500 \
 
 한계 부하 — 시스템이 어디서 무너지는지 확인.
 
+> 🏷️ A는 `k8s_stress_atomic_1000`, B는 `k8s_stress_journey_1000`, C는 A와 같은 이름.
+
 ```bash
 # 6-A. Atomic
 LOCUST_USERS=1000 LOCUST_RATE=25 LOCUST_TIME=8m \
@@ -208,6 +248,8 @@ LOCUST_RESULT=k8s_stress_atomic_1000 \
 
 갑작스러운 부하 폭증 회복력 테스트.
 
+> 🏷️ `LOCUST_RESULT=k8s_spike`
+
 ```bash
 LOCUST_RESULT=k8s_spike \
   bash backend/load-test/locust-k8s.sh spike
@@ -229,6 +271,8 @@ LOCUST_RESULT=k8s_spike \
 ## 8. Phase 7 (선택) — Soak (1시간, 200u)
 
 장시간 안정성 — 메모리 누수·커넥션 누수 관측.
+
+> 🏷️ `LOCUST_RESULT=k8s_soak_1h`
 
 ```bash
 LOCUST_TIME=1h LOCUST_USERS=200 LOCUST_RATE=5 \

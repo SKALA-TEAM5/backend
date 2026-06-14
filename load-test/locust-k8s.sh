@@ -73,7 +73,11 @@ check_prereqs() {
     ok=false
   fi
 
-  if ! curl -sf http://localhost:8000/categories >/dev/null 2>&1; then
+  # 백엔드 살아있는지 확인 — 공개 endpoint(swagger)로 검사
+  # /categories는 인증 필요라 401 반환하므로 -sf 사용 시 false negative 발생
+  local backend_code
+  backend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v3/api-docs 2>/dev/null || echo "000")
+  if [ "$backend_code" = "000" ]; then
     echo "[오류] localhost:8000에 접근할 수 없습니다."
     echo "       별도 터미널에서 먼저 실행: bash port-forward-all.sh"
     ok=false
