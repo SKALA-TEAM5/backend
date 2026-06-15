@@ -108,12 +108,34 @@ public class TodoService {
                 : (node.hasNonNull("usage_statement_item_id") ? node.path("usage_statement_item_id").longValue() : null);
         String categoryCode = text(node, "category_code");
         Long fileId = node.hasNonNull("file_id") ? node.path("file_id").longValue() : null;
+        String itemName = text(node, "usage_statement_item_name");
+        String categoryName = text(node, "category_name");
 
+        // safety-doc 노드는 한 항목의 여러 증빙 누락을 evidence_type_codes[] 배열 + 합쳐진 reason 하나로 보낸다.
+        // 보완 작업(증빙 유형)마다 별도 TODO가 되어야 하므로 코드별로 분할한다.
+        // reason을 코드 단위 문장으로 바꾸면 todo_key(=...|reason)가 갈라져 행/confirmed가 독립된다.
+        JsonNode codes = node.path("evidence_type_codes");
+        if (codes.isArray() && codes.size() > 1) {
+            String title = text(node, "title"); // FastAPI: ", ".join(missing_evidences) — 합쳐진 표시문구
+            for (JsonNode codeNode : codes) {
+                String code = codeNode.isNull() ? null : codeNode.asText(null);
+                if (code == null || code.isBlank()) continue;
+                String perReason = (title != null && reason.contains(title)) ? reason.replace(title, code) : code;
+                upsertOne(usageStatementId, agentTypeCode, itemId, itemName, categoryCode, categoryName,
+                        fileId, perReason, currentKeys);
+            }
+            return;
+        }
+
+        upsertOne(usageStatementId, agentTypeCode, itemId, itemName, categoryCode, categoryName,
+                fileId, reason, currentKeys);
+    }
+
+    private void upsertOne(Long usageStatementId, String agentTypeCode, Long itemId, String itemName,
+            String categoryCode, String categoryName, Long fileId, String reason, Set<String> currentKeys) {
         String todoKey = TodoKeyGenerator.generate(usageStatementId, agentTypeCode, itemId, categoryCode, reason);
         if (!currentKeys.add(todoKey)) return; // 배치 내 중복 방지(UNIQUE 키)
-
-        todoRepository.upsert(todoKey, usageStatementId, itemId,
-                text(node, "usage_statement_item_name"), categoryCode, text(node, "category_name"),
+        todoRepository.upsert(todoKey, usageStatementId, itemId, itemName, categoryCode, categoryName,
                 agentTypeCode, fileId, reason);
     }
 
