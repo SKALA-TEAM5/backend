@@ -73,6 +73,10 @@ public class ProjectFile {
 		this.uploadedEvidenceTypeCode = uploadedEvidenceTypeCode;
 	}
 
+	public void rename(String originalFilename) {
+		this.originalFilename = originalFilename;
+	}
+
 	@PrePersist
 	void prePersist() {
 		this.uploadedAt = Instant.now();

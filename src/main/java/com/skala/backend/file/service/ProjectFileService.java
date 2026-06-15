@@ -8,6 +8,8 @@ import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileListResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileUploadResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.UploadAndLinkResponse;
+import com.skala.backend.file.dto.ProjectFileResponses.VisionDetectionsResponse;
+import com.skala.backend.file.dto.ProjectFileResponses.VisionDetections;
 import com.skala.backend.file.repository.ProjectFileRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
@@ -54,6 +56,7 @@ public class ProjectFileService {
 	private final EvidenceCommandService evidenceCommandService;
 	private final UsageStatementRepository usageStatementRepository;
 	private final MinioClient minioClient;
+	private final VisionDetectionParser visionDetectionParser;
 	private final String bucket;
 
 	public ProjectFileService(
@@ -63,6 +66,7 @@ public class ProjectFileService {
 			EvidenceCommandService evidenceCommandService,
 			UsageStatementRepository usageStatementRepository,
 			MinioClient minioClient,
+			VisionDetectionParser visionDetectionParser,
 			@Value("${app.file-storage.bucket}") String bucket
 	) {
 		this.projectAccessService = projectAccessService;
@@ -71,6 +75,7 @@ public class ProjectFileService {
 		this.evidenceCommandService = evidenceCommandService;
 		this.usageStatementRepository = usageStatementRepository;
 		this.minioClient = minioClient;
+		this.visionDetectionParser = visionDetectionParser;
 		this.bucket = bucket;
 	}
 
@@ -150,6 +155,14 @@ public class ProjectFileService {
 	}
 
 	@Transactional(readOnly = true)
+	public VisionDetectionsResponse getVisionDetections(Long currentUserId, Long projectId, Long fileId) {
+		projectAccessService.requireReadable(currentUserId, projectId);
+		ProjectFile file = requireFile(projectId, fileId);
+		VisionDetections detections = visionDetectionParser.parse(file.getDetail(), file.getUploadedEvidenceTypeCode());
+		return new VisionDetectionsResponse(fileId, detections);
+	}
+
+	@Transactional(readOnly = true)
 	public FileResource download(Long currentUserId, Long projectId, Long fileId) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		ProjectFile file = requireFile(projectId, fileId);
@@ -174,6 +187,20 @@ public class ProjectFileService {
 				new LinkEvidenceFileRequest(uploaded.fileId(), evidenceTypeCode)
 		);
 		return new UploadAndLinkResponse(uploaded.fileId(), linked.linkId());
+	}
+
+	@Transactional
+	public void rename(Long currentUserId, Long projectId, Long fileId, String originalFilename) {
+		projectAccessService.requireAssignedMember(currentUserId, projectId);
+		if (originalFilename == null || originalFilename.isBlank()) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "파일명은 필수입니다.");
+		}
+		if (originalFilename.length() > 500) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "파일명은 500자 이하여야 합니다.");
+		}
+		ProjectFile file = requireFile(projectId, fileId);
+		file.rename(originalFilename);
+		evidenceCommandService.revertDraftForFileLinks(fileId);
 	}
 
 	@Transactional

@@ -83,6 +83,20 @@ public class ProjectAccessService {
 		return currentUser;
 	}
 
+	/** 소속된 admin/user 또는 agent만 허용. 미소속 admin·system_admin은 403. */
+	public void requireAssignedMember(Long currentUserId, Long projectId) {
+		User currentUser = requireCurrentUser(currentUserId);
+		RoleCode role = currentUser.getRoleCode();
+		if (role == RoleCode.AGENT) {
+			return;
+		}
+		if ((role == RoleCode.ADMIN || role == RoleCode.USER)
+				&& assignmentRepository.existsByProjectIdAndUserId(projectId, currentUser.getId())) {
+			return;
+		}
+		throw new ApiException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+	}
+
 	public User requireProjectManagerOf(Long currentUserId, Long projectId) {
 		User currentUser = requireProjectManager(currentUserId);
 		if (currentUser.getRoleCode() == RoleCode.ADMIN
