@@ -133,6 +133,18 @@ public class EvidenceCommandService {
 	}
 
 	@Transactional
+	public void revertDraftForFileLinks(Long fileId) {
+		List<EvidenceFileLink> links = linkRepository.findByFileId(fileId);
+		Set<Long> itemIds = links.stream().map(EvidenceFileLink::getUsageStatementItemId).collect(Collectors.toSet());
+		if (!itemIds.isEmpty()) {
+			Set<Long> statementIds = usageStatementItemRepository.findAllById(itemIds).stream()
+					.map(UsageStatementItem::getUsageStatementId)
+					.collect(Collectors.toSet());
+			statementIds.forEach(this::revertToDraftIfNeeded);
+		}
+	}
+
+	@Transactional
 	public void deleteLinksForFile(Long fileId) {
 		List<EvidenceFileLink> links = linkRepository.findByFileId(fileId);
 		Set<Long> itemIds = links.stream().map(EvidenceFileLink::getUsageStatementItemId).collect(Collectors.toSet());
