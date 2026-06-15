@@ -41,6 +41,12 @@ public final class ProjectFileResponses {
 	public record UploadAndLinkResponse(Long fileId, Long linkId) {
 	}
 
+	public record VisionDetectionsResponse(
+			Long fileId,
+			VisionDetections visionDetections
+	) {
+	}
+
 	@Schema(description = "wearing_photo 파일의 vision agent 바운딩 박스 결과. vision 미실행 또는 비wearing_photo이면 null.")
 	public record VisionDetections(
 			@Schema(description = "원본 이미지 너비 (px)", example = "677")

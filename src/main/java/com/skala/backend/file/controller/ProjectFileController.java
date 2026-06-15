@@ -1,8 +1,10 @@
 package com.skala.backend.file.controller;
 
 import com.skala.backend.auth.security.AuthenticatedUser;
+import com.skala.backend.file.dto.ProjectFileRequests.UpdateFileNameRequest;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileListResponse;
 import com.skala.backend.file.dto.ProjectFileResponses.ProjectFileUploadResponse;
+import com.skala.backend.file.dto.ProjectFileResponses.VisionDetectionsResponse;
 import com.skala.backend.file.service.ProjectFileService;
 import com.skala.backend.file.service.ProjectFileService.FileResource;
 import com.skala.backend.global.config.OpenApiConfig;
@@ -20,8 +22,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -150,6 +154,17 @@ public class ProjectFileController {
 		return ResponseEntity.ok(ApiResponse.success(response, "파일 업로드에 성공했습니다."));
 	}
 
+	@GetMapping("/{fileId}/vision-detections")
+	@Operation(summary = "파일별 vision 감지 결과 조회")
+	public ResponseEntity<ApiResponse<VisionDetectionsResponse>> getVisionDetections(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@PathVariable Long fileId
+	) {
+		VisionDetectionsResponse response = projectFileService.getVisionDetections(currentUser.id(), projectId, fileId);
+		return ResponseEntity.ok(ApiResponse.success(response, "vision 감지 결과 조회에 성공했습니다."));
+	}
+
 	@GetMapping("/{fileId}/download")
 	@Operation(summary = "프로젝트 파일 다운로드")
 	public ResponseEntity<org.springframework.core.io.Resource> download(
@@ -168,6 +183,18 @@ public class ProjectFileController {
 			@PathVariable Long fileId
 	) {
 		return fileResponse(projectFileService.preview(currentUser.id(), projectId, fileId));
+	}
+
+	@PatchMapping("/{fileId}")
+	@Operation(summary = "프로젝트 파일명 수정")
+	public ResponseEntity<ApiResponse<Void>> rename(
+			@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser currentUser,
+			@PathVariable Long projectId,
+			@PathVariable Long fileId,
+			@RequestBody UpdateFileNameRequest request
+	) {
+		projectFileService.rename(currentUser.id(), projectId, fileId, request.originalFilename());
+		return ResponseEntity.ok(ApiResponse.success(null, "파일명 수정에 성공했습니다."));
 	}
 
 	@DeleteMapping("/{fileId}")
