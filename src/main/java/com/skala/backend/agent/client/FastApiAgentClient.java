@@ -84,10 +84,16 @@ public class FastApiAgentClient {
 	}
 
 	// parse: usage_statement_id → top-level, item_count → result.item_count
-	public AgentResponses.ParseResult parseUsageStatement(Long projectId, Long fileId) {
+	// 사용자가 입력한 연/월을 함께 보내 FastAPI가 OCR로 인식한 값과 대조한다.
+	// 프로젝트 기본정보는 FastAPI가 project_id로 직접 조회하므로 전달하지 않는다.
+	public AgentResponses.ParseResult parseUsageStatement(Long projectId, Long fileId, int year, int month) {
 		Map<String, Object> raw = callFastApi(() -> restClient.post()
 				.uri("/orchestrator/usage-statements/parse")
-				.body(Map.of("project_id", projectId, "file_id", fileId))
+				.body(Map.of(
+						"project_id", projectId,
+						"file_id", fileId,
+						"report_year", year,
+						"report_month", month))
 				.retrieve()
 				.toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
 				.getBody());

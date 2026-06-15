@@ -25,7 +25,9 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,19 +56,19 @@ class AgentRunControllerTest {
         Cookie cookie = loginCookie(createUser("admin"));
         int projectId = createProject(cookie);
 
-        when(fastApiAgentClient.parseUsageStatement(anyLong(), anyLong()))
+        when(fastApiAgentClient.parseUsageStatement(anyLong(), anyLong(), anyInt(), anyInt()))
                 .thenReturn(new AgentResponses.ParseResult(42L, 15));
 
         mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
                         .cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10, "year", 2026, "month", 6))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.usageStatementId").value(42))
                 .andExpect(jsonPath("$.data.itemCount").value(15));
 
-        verify(fastApiAgentClient).parseUsageStatement((long) projectId, 10L);
+        verify(fastApiAgentClient).parseUsageStatement(eq((long) projectId), eq(10L), eq(2026), eq(6));
     }
 
     @Test
@@ -88,7 +90,7 @@ class AgentRunControllerTest {
 
         mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10, "year", 2026, "month", 6))))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -101,7 +103,7 @@ class AgentRunControllerTest {
         mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
                         .cookie(outsiderCookie)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10, "year", 2026, "month", 6))))
                 .andExpect(status().isForbidden());
     }
 
@@ -111,12 +113,12 @@ class AgentRunControllerTest {
         int projectId = createProject(cookie);
 
         doThrow(new RestClientException("connection refused"))
-                .when(fastApiAgentClient).parseUsageStatement(anyLong(), anyLong());
+                .when(fastApiAgentClient).parseUsageStatement(anyLong(), anyLong(), anyInt(), anyInt());
 
         mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
                         .cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10))))
+                        .content(objectMapper.writeValueAsString(Map.of("fileId", 10, "year", 2026, "month", 6))))
                 .andExpect(status().isServiceUnavailable());
     }
 
