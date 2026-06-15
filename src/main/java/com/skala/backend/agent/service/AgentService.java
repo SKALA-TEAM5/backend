@@ -48,7 +48,10 @@ public class AgentService {
 	public AgentResponses.ParseResult parse(Long currentUserId, Long projectId, AgentRequests.ParseRequest request) {
 		projectAccessService.requireReadable(currentUserId, projectId);
 		try {
-			return fastApiAgentClient.parseUsageStatement(projectId, request.fileId());
+			// 사용자가 입력한 연/월을 함께 전달한다.
+			// FastAPI는 OCR로 인식한 값과 비교해 불일치 시 4xx(409)로 거부하며,
+			// 그 경우 아래 catch에서 업로드 파일을 정리하고 재업로드를 유도한다.
+			return fastApiAgentClient.parseUsageStatement(projectId, request.fileId(), request.year(), request.month());
 		} catch (RuntimeException e) {
 			// 파싱 실패 시 직전에 업로드된 사용내역서 파일은 쓸모가 없으므로 files 테이블+MinIO에서 정리한다.
 			// (업로드와 parse는 별도 요청이라 parse가 실패하면 파일이 고아로 남기 때문)
