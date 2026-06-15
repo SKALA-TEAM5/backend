@@ -175,6 +175,129 @@ class AgentTodoControllerTest {
                 .andExpect(jsonPath("$.data[0].reason").value("터널 환기덕트 필수 증빙 누락: 세금계산서"));
     }
 
+    // evidence_types 시드(V4/V10) 전 유형에 대해 코드→한글 표시명 변환이 동작함을 보장한다.
+    // 새 증빙 유형이 추가돼도 evidence_types 조인만으로 처리되어 프론트 하드코딩 매핑이 불필요함을 검증.
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0} → {1}")
+    @org.junit.jupiter.params.provider.CsvSource({
+            "tax_invoice,           전자세금계산서",
+            "tax_invoice_confirm,   세금계산서 발급사실 조회",
+            "receipt,               영수증",
+            "transaction_statement, 거래명세표",
+            "wage_statement,        임금명세서",
+            "site_photo,            설치·시공 현황 사진",
+            "item_photo,            물품 구매 현황 사진",
+            "wearing_photo,         보호구 착용 상태 사진",
+            "work_photo,            근무 현황 사진",
+            "appointment_report,    선임신고서",
+            "pay_stub,              급여명세서",
+            "work_log,              업무일지",
+            "daily_output_log,      출력일보",
+            "inspection_log,        점검일지",
+            "supply_ledger,         보호구 지급대장",
+            "inventory_ledger,      입출고 관리대장",
+            "edu_confirm,           교육 확인서",
+            "edu_attendance,        교육 대상 명단",
+            "transfer_confirm,      이체 확인증",
+            "health_checkup_result, 건강검진 결과서",
+            "health_checkup_contract, 건강검진 계약서",
+            "tech_guidance_contract, 기술지도 계약서",
+            "tech_guidance_report,  기술지도 결과 보고서",
+            "tech_guidance_photo,   기술지도 점검 사진",
+            "usage_statement,       안전관리비 사용내역서",
+            "analysis_table,        안전관리비 분석표",
+            "purchase_detail,       구매 내역서",
+            "other_document,        기타 서류",
+    })
+    void 증빙_유형_코드는_한글_표시명으로_변환되어_반환된다(String evidenceTypeCode, String expectedName) throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+        String todosJson = "[{" +
+                "\"usage_statement_item_id\":" + itemId + "," +
+                "\"category_code\":\"CAT_03\"," +
+                "\"category_name\":\"안전시설비\"," +
+                "\"usage_statement_item_name\":\"터널 환기덕트 안전시설 설치\"," +
+                "\"title\":\"" + evidenceTypeCode + "\"," +
+                "\"evidence_type_codes\":[\"" + evidenceTypeCode + "\"]," +
+                "\"reason\":\"필수 증빙 누락: " + evidenceTypeCode + "\"" +
+                "}]";
+        insertTodoLog(projectId, statementId, "safety-doc", "success", "hil", "필수 증빙 누락 항목 1건", todosJson);
+        todoService.refresh((long) statementId);
+
+        getTodos(cookie, projectId, statementId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].evidenceTypeCode").value(evidenceTypeCode))
+                .andExpect(jsonPath("$.data[0].evidenceTypeName").value(expectedName));
+    }
+
+    @Test
+    void 증빙_유형이_여러개면_코드별로_분할되어_각자_표시명을_가진다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+        String todosJson = "[{" +
+                "\"usage_statement_item_id\":" + itemId + "," +
+                "\"category_code\":\"CAT_03\",\"category_name\":\"안전시설비\"," +
+                "\"usage_statement_item_name\":\"터널 환기덕트 안전시설 설치\"," +
+                "\"title\":\"tax_invoice, wearing_photo\"," +
+                "\"evidence_type_codes\":[\"tax_invoice\",\"wearing_photo\"]," +
+                "\"reason\":\"필수 증빙 누락: tax_invoice, wearing_photo\"" +
+                "}]";
+        insertTodoLog(projectId, statementId, "safety-doc", "success", "hil", "필수 증빙 누락 항목 2건", todosJson);
+        todoService.refresh((long) statementId);
+
+        // 코드별 분할 → evidence_type_code 알파벳 정렬 무관, 두 표시명이 모두 존재해야 한다
+        getTodos(cookie, projectId, statementId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[?(@.evidenceTypeCode == 'tax_invoice')].evidenceTypeName")
+                        .value(org.hamcrest.Matchers.hasItem("전자세금계산서")))
+                .andExpect(jsonPath("$.data[?(@.evidenceTypeCode == 'wearing_photo')].evidenceTypeName")
+                        .value(org.hamcrest.Matchers.hasItem("보호구 착용 상태 사진")));
+    }
+
+    @Test
+    void 미등록_증빙_유형_코드는_표시명_대신_코드를_그대로_반환한다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+        String todosJson = "[{" +
+                "\"usage_statement_item_id\":" + itemId + "," +
+                "\"category_code\":\"CAT_03\",\"category_name\":\"안전시설비\"," +
+                "\"usage_statement_item_name\":\"터널 환기덕트 안전시설 설치\"," +
+                "\"title\":\"brand_new_code\"," +
+                "\"evidence_type_codes\":[\"brand_new_code\"]," +
+                "\"reason\":\"필수 증빙 누락: brand_new_code\"" +
+                "}]";
+        insertTodoLog(projectId, statementId, "safety-doc", "success", "hil", "필수 증빙 누락 항목 1건", todosJson);
+        todoService.refresh((long) statementId);
+
+        // evidence_types 에 없는 코드는 COALESCE 폴백으로 코드 자체가 표시명이 된다
+        getTodos(cookie, projectId, statementId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].evidenceTypeCode").value("brand_new_code"))
+                .andExpect(jsonPath("$.data[0].evidenceTypeName").value("brand_new_code"));
+    }
+
+    @Test
+    void 증빙_유형이_없는_TODO는_표시명도_null로_반환된다() throws Exception {
+        Cookie cookie = loginCookie(createUser("admin"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId);
+        int itemId = insertItem(statementId);
+        insertTodoLog(projectId, statementId, "link", "success", "hil", "매칭 검토 필요",
+                "[{\"usage_statement_item_id\":" + itemId + ",\"reason\":\"증빙 매칭 검토 필요\"}]");
+        todoService.refresh((long) statementId);
+
+        getTodos(cookie, projectId, statementId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].evidenceTypeCode").isEmpty())
+                .andExpect(jsonPath("$.data[0].evidenceTypeName").isEmpty());
+    }
+
     @Test
     void 위치_컨텍스트_없으면_해당_필드는_null로_반환된다() throws Exception {
         Cookie cookie = loginCookie(createUser("admin"));

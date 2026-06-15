@@ -122,28 +122,39 @@ public class TodoService {
                 if (code == null || code.isBlank()) continue;
                 String perReason = (title != null && reason.contains(title)) ? reason.replace(title, code) : code;
                 upsertOne(usageStatementId, agentTypeCode, itemId, itemName, categoryCode, categoryName,
-                        fileId, perReason, currentKeys);
+                        fileId, perReason, code, currentKeys);
             }
             return;
         }
 
+        // 단일 증빙 유형이면 그 코드를 구조화 컬럼으로 보존한다(조회 시 한글 표시명으로 변환).
+        String evidenceTypeCode = singleEvidenceTypeCode(codes);
         upsertOne(usageStatementId, agentTypeCode, itemId, itemName, categoryCode, categoryName,
-                fileId, reason, currentKeys);
+                fileId, reason, evidenceTypeCode, currentKeys);
+    }
+
+    private static String singleEvidenceTypeCode(JsonNode codes) {
+        if (!codes.isArray() || codes.size() != 1) return null;
+        JsonNode codeNode = codes.get(0);
+        if (codeNode == null || codeNode.isNull()) return null;
+        String code = codeNode.asText(null);
+        return (code == null || code.isBlank()) ? null : code;
     }
 
     private void upsertOne(Long usageStatementId, String agentTypeCode, Long itemId, String itemName,
-            String categoryCode, String categoryName, Long fileId, String reason, Set<String> currentKeys) {
+            String categoryCode, String categoryName, Long fileId, String reason, String evidenceTypeCode,
+            Set<String> currentKeys) {
         String todoKey = TodoKeyGenerator.generate(usageStatementId, agentTypeCode, itemId, categoryCode, reason);
         if (!currentKeys.add(todoKey)) return; // 배치 내 중복 방지(UNIQUE 키)
         todoRepository.upsert(todoKey, usageStatementId, itemId, itemName, categoryCode, categoryName,
-                agentTypeCode, fileId, reason);
+                agentTypeCode, fileId, reason, evidenceTypeCode);
     }
 
     private void upsertSynthetic(Long usageStatementId, String agentTypeCode, String reason, Set<String> currentKeys) {
         if (reason == null || reason.isBlank()) return;
         String todoKey = TodoKeyGenerator.generate(usageStatementId, agentTypeCode, null, null, reason);
         if (!currentKeys.add(todoKey)) return;
-        todoRepository.upsert(todoKey, usageStatementId, null, null, null, null, agentTypeCode, null, reason);
+        todoRepository.upsert(todoKey, usageStatementId, null, null, null, null, agentTypeCode, null, reason, null);
     }
 
     private JsonNode parseTodos(String detailsJson) {
