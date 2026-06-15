@@ -433,10 +433,11 @@ class AgentTodoControllerTest {
 
         todoService.refresh((long) statementId);
 
-        // vision 1 + link 1 + safety-doc 2 = 4 (vision_response.todos 중복 미포함)
+        // vision 1 + link 1 + safety-doc 5 (CAT_01의 코드 3개 + CAT_02의 코드 2개로 분할) = 7
+        // (vision_response.todos 중복 미포함)
         getTodos(cookie, projectId, statementId)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(4)))
+                .andExpect(jsonPath("$.data", hasSize(7)))
                 // vision: file_id/category/item 모두 매핑
                 .andExpect(jsonPath("$.data[?(@.agentTypeCode == 'vision')].fileId").value(108))
                 .andExpect(jsonPath("$.data[?(@.agentTypeCode == 'vision')].usageStatementItemId").value(109))
@@ -448,10 +449,21 @@ class AgentTodoControllerTest {
                         .value(org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())))
                 .andExpect(jsonPath("$.data[?(@.agentTypeCode == 'link')].categoryCode")
                         .value(org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())))
-                // safety-doc: 2건, 카테고리 매핑
-                .andExpect(jsonPath("$.data[?(@.agentTypeCode == 'safety-doc')]", hasSize(2)))
+                // safety-doc: evidence_type_codes 가 보완 작업(증빙 유형)마다 별도 TODO로 분할된다
+                .andExpect(jsonPath("$.data[?(@.agentTypeCode == 'safety-doc')]", hasSize(5)))
+                // CAT_01: 3개 코드 → 3건, reason 이 코드 단위로 분리
+                .andExpect(jsonPath("$.data[?(@.categoryCode == 'CAT_01')]", hasSize(3)))
                 .andExpect(jsonPath("$.data[?(@.categoryCode == 'CAT_01')].reason")
-                        .value("안전관리자 인건비 필수 증빙 누락: appointment_report, pay_stub, wage_statement"));
+                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                                "안전관리자 인건비 필수 증빙 누락: appointment_report",
+                                "안전관리자 인건비 필수 증빙 누락: pay_stub",
+                                "안전관리자 인건비 필수 증빙 누락: wage_statement")))
+                // CAT_02: 2개 코드 → 2건
+                .andExpect(jsonPath("$.data[?(@.categoryCode == 'CAT_02')]", hasSize(2)))
+                .andExpect(jsonPath("$.data[?(@.categoryCode == 'CAT_02')].reason")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                                "추락방지용 안전난간 설치 필수 증빙 누락: site_photo",
+                                "추락방지용 안전난간 설치 필수 증빙 누락: tax_invoice")));
     }
 
     // ─── fixtures ─────────────────────────────────────────────────────────
