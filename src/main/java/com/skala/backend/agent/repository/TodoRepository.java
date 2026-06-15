@@ -27,6 +27,8 @@ public class TodoRepository {
             rs.getString("category_name"),
             rs.getString("agent_type_code"),
             (Long) rs.getObject("file_id"),
+            rs.getString("evidence_type_code"),
+            rs.getString("evidence_type_name"),
             rs.getString("reason"),
             rs.getBoolean("confirmed"),
             toInstant(rs.getTimestamp("created_at")),
@@ -46,24 +48,27 @@ public class TodoRepository {
     /** 사용내역서의 TODO 목록. agent_type_code → 생성순으로 안정 정렬. */
     public List<AgentResponses.TodoResponse> findByStatement(Long usageStatementId) {
         return jdbcTemplate.query("""
-                SELECT id, usage_statement_id, usage_statement_item_id, usage_statement_item_name,
-                       category_code, category_name, agent_type_code, file_id, reason,
-                       confirmed, created_at, updated_at
-                FROM service.todos
-                WHERE usage_statement_id = ?
-                ORDER BY agent_type_code, id
+                SELECT t.id, t.usage_statement_id, t.usage_statement_item_id, t.usage_statement_item_name,
+                       t.category_code, t.category_name, t.agent_type_code, t.file_id, t.reason,
+                       t.evidence_type_code,
+                       COALESCE(et.name, t.evidence_type_code) AS evidence_type_name,
+                       t.confirmed, t.created_at, t.updated_at
+                FROM service.todos t
+                LEFT JOIN service.evidence_types et ON et.code = t.evidence_type_code
+                WHERE t.usage_statement_id = ?
+                ORDER BY t.agent_type_code, t.id
                 """, ROW_MAPPER, usageStatementId);
     }
 
     /** todo_key 기준 UPSERT. 내용 필드는 갱신하되 confirmed/confirmed_by는 보존한다. */
     public void upsert(String todoKey, Long usageStatementId, Long usageStatementItemId,
             String usageStatementItemName, String categoryCode, String categoryName,
-            String agentTypeCode, Long fileId, String reason) {
+            String agentTypeCode, Long fileId, String reason, String evidenceTypeCode) {
         jdbcTemplate.update("""
                 INSERT INTO service.todos
                     (todo_key, usage_statement_id, usage_statement_item_id, usage_statement_item_name,
-                     category_code, category_name, agent_type_code, file_id, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     category_code, category_name, agent_type_code, file_id, reason, evidence_type_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (todo_key) DO UPDATE SET
                     usage_statement_item_id   = EXCLUDED.usage_statement_item_id,
                     usage_statement_item_name = EXCLUDED.usage_statement_item_name,
@@ -72,9 +77,10 @@ public class TodoRepository {
                     agent_type_code           = EXCLUDED.agent_type_code,
                     file_id                   = EXCLUDED.file_id,
                     reason                    = EXCLUDED.reason,
+                    evidence_type_code        = EXCLUDED.evidence_type_code,
                     updated_at                = now()
                 """, todoKey, usageStatementId, usageStatementItemId, usageStatementItemName,
-                categoryCode, categoryName, agentTypeCode, fileId, reason);
+                categoryCode, categoryName, agentTypeCode, fileId, reason, evidenceTypeCode);
     }
 
     /** 이번 재생성 결과에 없는 todo_key 행을 제거한다. keys가 비면 statement의 모든 행 삭제. */

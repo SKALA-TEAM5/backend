@@ -73,14 +73,19 @@ class TodoServiceTest {
 
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
         verify(todoRepository, org.mockito.Mockito.times(2)).upsert(
                 keyCaptor.capture(), eq(STATEMENT_ID), eq(101L), eq("OO항목"),
-                eq("CAT_03"), eq("안전시설비"), eq("safety-doc"), any(), reasonCaptor.capture());
+                eq("CAT_03"), eq("안전시설비"), eq("safety-doc"), any(), reasonCaptor.capture(),
+                codeCaptor.capture());
 
         // 코드별로 reason 이 분리된다
         assertThat(reasonCaptor.getAllValues()).containsExactlyInAnyOrder(
                 "OO항목 필수 증빙 누락: 전자세금계산서",
                 "OO항목 필수 증빙 누락: 보호구착용사진");
+        // 분할된 각 TODO 는 자신의 증빙 유형 코드를 구조화 컬럼으로 보존한다
+        assertThat(codeCaptor.getAllValues()).containsExactlyInAnyOrder(
+                "전자세금계산서", "보호구착용사진");
         // 두 TODO 는 서로 다른 todo_key 를 가진다 → confirmed 독립
         assertThat(keyCaptor.getAllValues()).doesNotHaveDuplicates();
     }
@@ -104,7 +109,7 @@ class TodoServiceTest {
 
         String expectedKey = TodoKeyGenerator.generate(STATEMENT_ID, "safety-doc", 101L, "CAT_03", reason);
         verify(todoRepository).upsert(eq(expectedKey), eq(STATEMENT_ID), eq(101L), eq("OO항목"),
-                eq("CAT_03"), eq("안전시설비"), eq("safety-doc"), any(), eq(reason));
+                eq("CAT_03"), eq("안전시설비"), eq("safety-doc"), any(), eq(reason), eq("전자세금계산서"));
     }
 
     @Test
@@ -125,7 +130,7 @@ class TodoServiceTest {
 
         String expectedKey = TodoKeyGenerator.generate(STATEMENT_ID, "link", 77L, "CAT_05", reason);
         verify(todoRepository).upsert(eq(expectedKey), eq(STATEMENT_ID), eq(77L), eq("OO항목"),
-                eq("CAT_05"), eq("보호구"), eq("link"), eq(55L), eq(reason));
+                eq("CAT_05"), eq("보호구"), eq("link"), eq(55L), eq(reason), eq((String) null));
     }
 
     @Test
@@ -140,6 +145,6 @@ class TodoServiceTest {
 
         String expectedKey = TodoKeyGenerator.generate(STATEMENT_ID, "vision", null, null, "현장사진 다운로드 실패");
         verify(todoRepository).upsert(eq(expectedKey), eq(STATEMENT_ID), eq(null), eq(null),
-                eq(null), eq(null), eq("vision"), eq(null), eq("현장사진 다운로드 실패"));
+                eq(null), eq(null), eq("vision"), eq(null), eq("현장사진 다운로드 실패"), eq((String) null));
     }
 }

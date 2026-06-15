@@ -96,6 +96,8 @@ public final class AgentResponses {
 			@Schema(description = "카테고리명", example = "안전시설비") String categoryName,
 			@Schema(description = "에이전트 유형", example = "safety-doc") String agentTypeCode,
 			@Schema(description = "관련 파일 ID (없으면 null)", example = "55") Long fileId,
+			@Schema(description = "증빙 유형 코드 (해당 없으면 null)", example = "tax_invoice") String evidenceTypeCode,
+			@Schema(description = "증빙 유형 한글 표시명 (해당 없으면 null)", example = "전자세금계산서") String evidenceTypeName,
 			@Schema(description = "조치 사유") String reason,
 			@Schema(description = "확인(체크) 여부") boolean confirmed,
 			@Schema(description = "생성일시") Instant createdAt,
