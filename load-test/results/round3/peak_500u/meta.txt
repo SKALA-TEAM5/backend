@@ -1,0 +1,10 @@
+phase: peak
+users: 500
+spawn_rate: 20
+duration: 5m
+mode: atomic
+host: http://localhost:8000
+namespace: skala3-finalproj-class2-team5
+commit: eb416a7
+timestamp: 2026-06-14T18:05:00+0900
+out_dir: round3/peak_500u

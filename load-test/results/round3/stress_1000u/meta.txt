@@ -1,0 +1,10 @@
+phase: stress
+users: 1000
+spawn_rate: 25
+duration: 8m
+mode: atomic
+host: http://localhost:8000
+namespace: skala3-finalproj-class2-team5
+commit: eb416a7
+timestamp: 2026-06-14T18:18:14+0900
+out_dir: round3/stress_1000u

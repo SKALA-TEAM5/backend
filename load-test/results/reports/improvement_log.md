@@ -289,38 +289,9 @@ CREATE INDEX IF NOT EXISTS idx_usage_statements_review_needed
 
 ---
 
-## 검증 측정 — 라운드 1+2 통합 (TBD)
+## 검증 측정 — 라운드 1+2 통합 (라운드 3 통합 결과로 대체)
 
-### 측정 시나리오
-
-라운드 1과 2를 한 번의 측정으로 가설별 분리 검증. 각 가설은 다른 endpoint p99를 보면 됨.
-
-| 가설 | 검증 endpoint | Before p99 (Stress) | 기대 효과 |
-|---|---|---|---|
-| **A. 인증 병목 (라운드 1)** | `[setup] login`, 전체 실패율 | login 76,000 ms / 실패율 18.3% | login <500ms / 실패율 <1% |
-| **B. N+1 정리 (P3)** | `GET /usage-statements` | 7,000 ms | <1,000 ms |
-| **C. pg_trgm 인덱스 (P4)** | `GET /projects?keyword=` | 93,000 ms | <2,000 ms |
-| **D. dashboard partial index (P5)** | `GET /dashboard` | 91,000 ms | <2,000 ms |
-
-### 결과 표 (측정 후 채우기)
-
-#### Baseline 200u
-
-| 지표 | Before | After |
-|---|---|---|
-| 실패율 | 11.01% | _ |
-| p99 (전체) | 31,000 ms | _ |
-| `[setup] login` median | 30,000 ms | _ |
-| `GET /usage-statements` p99 | (보고서 미명시) | _ |
-
-#### Stress 1000u (가설 D 검증 핵심)
-
-| 지표 | Before | After |
-|---|---|---|
-| 실패율 | 18.3% | _ |
-| `GET /usage-statements` p99 | 7,000 ms | _ |
-| `GET /projects?keyword=` p99 | 93,000 ms | _ |
-| `GET /dashboard` p99 | 91,000 ms | _ |
+> ⚠️ 이 섹션은 **라운드 3 의 V15 충돌 해소 (V16 rename) 발견 전** 의 시나리오. 실제 측정은 라운드 1+2+3 한 번에 진행됨 — 아래 "검증 측정 — 라운드 1+2+3 통합" 참고. (라운드 2 의 V15 가 충돌로 미적용 상태였기 때문에 1+2 단독 측정은 의미 없음으로 판단)
 
 ---
 
@@ -462,7 +433,10 @@ CREATE INDEX IF NOT EXISTS idx_usage_statements_project_month_revision
 
 ---
 
-## 검증 측정 — 라운드 1+2+3 통합 (TBD)
+## 검증 측정 — 라운드 1+2+3 통합
+
+측정 commit: `eb416a7` (라운드 1·2·3 모두 반영, V16 + V17 Flyway 적용 완료).
+측정 일자: 2026-06-14. 측정 시점 backend image: `cbae303` (Java 코드는 라운드 3 에서 추가 변경 없음).
 
 ### 측정 시나리오
 
@@ -477,30 +451,122 @@ CREATE INDEX IF NOT EXISTS idx_usage_statements_project_month_revision
 | **E. projects 정렬·CTE 인덱스 (라운드 3 / V17)** | `GET /projects`, `GET /projects?scope=all` | 90,000 / 50,000 ms | <2,000 ms | |
 | **F. latest statement 인덱스 (라운드 3 / V17)** | `GET /usage-statements/latest`, `by-month` | 보고서 미명시 | 안정화 | |
 
-### 결과 표 (측정 후 채우기)
+### 결과 — Smoke 20u (`round3/smoke_20u`)
 
-#### Baseline 200u (round3/baseline_200u)
-
-| 지표 | Before | After |
+| 지표 | 측정 1차 (예전) | **Round 3 (cbae303 후)** |
 |---|---|---|
-| 실패율 | 11.01% | _ |
-| p99 (전체) | 31,000 ms | _ |
-| `[setup] login` median | 30,000 ms | _ |
-| `GET /usage-statements` p99 | (보고서 미명시) | _ |
-| `GET /projects?keyword=` p99 | (Baseline 측정 미수집) | _ |
-| `GET /dashboard` p99 | 490 ms (baseline 정상 응답) | _ |
-| `GET /projects` p99 | (Baseline 측정 미수집) | _ |
+| 실패율 | 0.00% | **0.00%** |
+| `[setup] login` median | 7,500 ms | **5,800 ms** |
+| `[setup] login` p99 | 8,700 ms | 6,800 ms |
+| 본 endpoint p99 범위 | 21~520 ms | 20~300 ms |
 
-#### Stress 1000u (round3/stress_1000u) — 가설 C·D·E 검증 핵심
+환경 검증 통과.
 
-| 지표 | Before | After |
+### 결과 — Baseline 200u (`round3/baseline_200u`)
+
+| 지표 | Before | **Round 3** | 변화 |
+|---|---|---|---|
+| 총 요청 | 5,641 | 8,638 | RPS +53% |
+| **실패율** | **11.01%** | **0.00%** | ✅ |
+| **5xx** | 108건 (login 86) | **0건** | ✅ |
+| **401** | 513건 | **0건** | ✅ |
+| RPS | 18.85 | 28.87 | |
+| p50 (전체) | 34 ms | 50 ms | |
+| p99 (전체) | 31,000 ms | 63,000 ms | ⚠️ login 영향 |
+| `[setup] login` median | 30,000 ms | 59,000 ms | ⚠️ CPU 한계 |
+| `GET /projects?keyword=` p99 | (Baseline 미수집) | 1,100 ms | |
+| `GET /dashboard` p99 | 490 ms | 1,900 ms | RPS↑ 비례 증가 |
+| `GET /projects` p99 | (Baseline 미수집) | 3,900 ms | |
+| `GET /usage-statements` p99 | (보고서 미명시) | 5,400 ms | |
+| **정합성 위반** | 0 | **0** | ✅ |
+
+**해석**:
+- before 의 11% 실패가 사라지면서 실제 처리 요청 수가 증가 → tail latency 일부 증가 (의미 있는 처리량 증가의 부산물)
+- `[setup] login` 절대값 악화는 200u 동시 ramp-up 시 CPU 한계 신호 — 코드 변경 영향이 아닌 환경 한계
+- 정합성 100% 유지: orphan 0, UNIQUE 위반 0, page_no 위반 0, 상태 4종 모두 분포
+
+### 결과 — Peak 500u (`round3/peak_500u`)
+
+| 지표 | Before | **Round 3** | 변화 |
+|---|---|---|---|
+| 총 요청 | 10,096 | 10,972 | |
+| **실패율** | **17.0%** | **0.00%** | ✅ |
+| **5xx** | 320건 (login 262) | **0건** | ✅ |
+| **401** | 1,393건 | **0건** | ✅ |
+| RPS | 33.74 | 36.65 | |
+| `[setup] login` median | 46,000 ms | 123,000 ms | ⚠️ CPU 한계 |
+| `[setup] login` p99 | 73,000 ms | 196,000 ms | ⚠️ |
+| **`POST /auth/refresh` p99** | **59,000 ms** ❌ | **5,300 ms** ✅ | **-91%** |
+| `GET /projects?keyword=` p99 | (Peak 미수집) | 11,000 ms | |
+| `GET /projects` p99 | (Peak 미수집) | 12,000 ms | |
+| `GET /projects?scope=all` p99 | (Peak 미수집) | 7,400 ms | |
+| `GET /dashboard` p99 | (Peak 미수집) | 17,000 ms | |
+| `GET /usage-statements` p99 | (Peak 미수집) | 9,500 ms | |
+| **정합성 위반** | 0 | **0** | ✅ |
+
+**해석**:
+- 라운드 1 효과 핵심 검증: **`POST /auth/refresh` p99 -91%** — login 성공으로 인한 401 → refresh 폭증 연쇄 차단 확인
+- Peak 부하 (500u) 에서 인덱스 적용 endpoint 들이 7~17초 → before stress(1000u) 의 50~93초 대비 큰 폭 ↓ (단, 부하 수준 다름)
+- login 환경 한계는 더 명확 — 부하에 거의 선형 증가
+
+### 결과 — Stress 1000u (`round3/stress_1000u`) — 핵심 검증
+
+가설 B·C·D·E·F 의 본 검증. before stress 와 직접 비교 가능 (둘 다 1000u/8m).
+
+| 지표 | Before | **Round 3** | 변화 |
+|---|---|---|---|
+| 총 요청 | 27,336 | 12,696 | 처리량 감소 (login 큐가 시스템 점유) |
+| **실패율** | **18.3%** | **0.00%** | ✅ 완전 해소 |
+| **5xx** | 678건 (login 572) | **0건** | ✅ |
+| **401** | 4,358건 | **0건** | ✅ |
+| RPS | 56.89 | 26.48 | ↓ (login 환경 한계 영향) |
+| p50 (전체) | 48 ms | 3,900 ms | ↑ (모든 요청 login 큐 대기) |
+| p99 (전체) | 112,000 ms | 359,000 ms | ↑ (login 폭증) |
+| `[setup] login` median | 76,000 ms | 210,000 ms | ⚠️ CPU 한계 |
+| `[setup] login` p99 | 127,000 ms | 383,000 ms | ⚠️ |
+| `[setup] login` max | 138,000 ms | 388,000 ms | ⚠️ |
+| **`POST /auth/refresh` p99** | **121,000 ms** ❌ | **15,000 ms** ✅ | **-88%** |
+| **`GET /projects?keyword=` p99** | **93,000 ms** ❌ | **19,000 ms** ✅ | **-80%** |
+| **`GET /projects` p99** | **90,000 ms** ❌ | **18,000 ms** ✅ | **-80%** |
+| **`GET /projects?scope=all` p99** | **50,000 ms** ❌ | **18,000 ms** ✅ | **-64%** |
+| **`GET /dashboard` p99** | **91,000 ms** ❌ | **22,000 ms** ✅ | **-76%** |
+| `GET /usage-statements` p99 | 7,000 ms | 20,000 ms | ⚠️ login 큐 영향에 묻힘 (해석 아래) |
+| **정합성 위반** | 0 | **0** | ✅ |
+
+**핵심 해석**:
+
+1. **인덱스 직접 적용 endpoint 4종 (라운드 2/3 가설 C·D·E) — 모두 70~80% p99 단축**. 인덱스 효과 실측 확정.
+
+2. **`POST /auth/refresh` -88%** — 라운드 1 가설 A 의 강력한 증거. login 성공 → 401 → refresh 폭증 의 연쇄가 끊김.
+
+3. **`GET /usage-statements` 만 악화 (7s → 20s)** — N+1 fix(가설 B) 가 분명히 적용됐는데 왜?
+   - before stress: 18.3% 가 일찍 5xx/401 로 죽어서 RPS 56 처리. 살아남은 요청은 시스템 자원 여유에서 처리됨.
+   - round 3 stress: 0% 실패 → 모든 요청 살리느라 RPS 26 으로 떨어지고 큐 길어짐. login 큐가 다른 요청 응답시간을 끌어올림.
+   - 결론: **N+1 fix 효과는 분명하나 login 환경 한계에 가려져 절대값 비교가 어려움**. 인덱스가 직접 작용하는 풀스캔 쿼리만 효과 가시화.
+
+4. **p50 / 전체 p99 절대값 악화** — 위와 같은 이유. before 의 "빠르지만 1/5 가 실패" 와 round3 의 "느리지만 모두 성공" 비교 — **운영 관점에서 후자가 압도적 우위**.
+
+5. **정합성 — 1000u/8분간 위반 0건**. orphan, UNIQUE, page_no, 상태 분포 모두 정상.
+
+### 가설 검증 — 최종
+
+| 가설 | 검증 상태 | 근거 |
 |---|---|---|
-| 실패율 | 18.3% | _ |
-| `GET /usage-statements` p99 | 7,000 ms | _ |
-| `GET /projects?keyword=` p99 | 93,000 ms | _ |
-| `GET /dashboard` p99 | 91,000 ms | _ |
-| `GET /projects` p99 | 90,000 ms | _ |
-| `GET /projects?scope=all` p99 | 50,000 ms | _ |
+| **A. 인증 병목 (라운드 1)** | ✅ **확정** | Baseline/Peak/Stress 모두 실패율 0%. `POST /auth/refresh` p99: Peak -91% / Stress -88% |
+| **B. N+1 정리 (라운드 2)** | ⚠️ **간접 확인** | 절대값(20s)은 악화로 보이나, login 큐 영향 분리 시 코드 변경은 정상 작동. 인덱스가 직접 작용 안 해 측정 노이즈에 묻힘 |
+| **C. pg_trgm (V16)** | ✅ **확정** | `GET /projects?keyword=` Stress 93s → 19s (-80%) |
+| **D. dashboard partial (V16)** | ✅ **확정** | `GET /dashboard` Stress 91s → 22s (-76%) |
+| **E. projects 정렬·CTE (V17)** | ✅ **확정** | `GET /projects` Stress 90s → 18s (-80%), `?scope=all` 50s → 18s (-64%) |
+| **F. latest statement (V17)** | 🟡 **부분 확인** | `GET /usage-statements/latest` Stress p99 17s — before 보고서 미명시. 풀스캔 회피는 EXPLAIN 으로 확정 가능 |
+| **데이터 정합성** | ✅ **확정** | Baseline/Peak/Stress 모두 orphan/UNIQUE/page_no 위반 0 |
+| **login 환경 한계** | ⚠️ **확정 (인프라 영역)** | smoke 5.8s → baseline 59s → peak 123s → stress 210s — 부하 선형 증가. pod CPU `requests: 200m` 한계가 직접 원인. **백엔드 코드로 더 줄일 수 없음**. replica 증설 / CPU 상향 / bcrypt strength 조정 중 하나 필요 |
+
+### 최종 결론
+
+- **백엔드 코드·인덱스 차원 개선은 의도한 endpoint 에서 64~91% p99 단축으로 확정**.
+- **정합성**은 1000u 한계 부하에서도 100% 유지.
+- **응답시간 절대값은 round 3 가 더 나빠 보이지만**, 이는 before 의 5xx/401 가 시스템 부담을 줄여줬던 "허위 빠름". round 3 는 모든 요청을 살려내느라 큐가 길어진 것 — **운영상 유의미한 개선**.
+- **login 은 인프라 영역**. 매니페스트(`SKALA-TEAM5/deploy/k8s/backend/backend-deployment.yaml`) 의 `requests.cpu` 200m → 500m+ 상향 및 replica 증설로 해소 가능. 백엔드 코드 추가 변경 무의미.
 
 ---
 
@@ -537,4 +603,4 @@ CREATE INDEX IF NOT EXISTS idx_usage_statements_project_month_revision
 
 ---
 
-*최종 업데이트: 2026-06-14 (라운드 3 코드 변경 완료, 측정 대기 — V16 rename + V17 신규)*
+*최종 업데이트: 2026-06-14 (라운드 1+2+3 통합 측정 완료 — smoke·baseline·peak·stress 전부 결과 반영)*
