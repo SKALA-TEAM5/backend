@@ -98,6 +98,39 @@ class EvidenceFileLinkMoveSyncTest {
         assert "receipt".equals(fileType) : "expected file receipt but got " + fileType;
     }
 
+    @Test
+    void CAT_03_항목으로_사진을_이동하면_link와_file_모두_wearing_photo로_강제된다() throws Exception {
+        Map<String, String> user = createUser("admin");
+        Cookie cookie = loginCookie(user);
+        int userId = getUserId(user.get("employeeNo"));
+        int projectId = createProject(cookie);
+        int statementId = insertStatement(projectId, "draft");
+        int itemId1 = insertItem(statementId, "CAT_01");
+        int protectiveItemId = insertItem(statementId, "CAT_03");
+        int fileId = insertFile(projectId, userId, "site_photo");
+        int linkId = insertLink(itemId1, fileId, "site_photo");
+
+        mockMvc.perform(patch("/projects/{pid}/evidence-file-links/{lid}", projectId, linkId)
+                        .cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("targetItemId", protectiveItemId, "evidenceTypeCode", "site_photo"))))
+                .andExpect(status().isOk());
+
+        entityManager.flush();
+        entityManager.clear();
+
+        String linkType = jdbcTemplate.queryForObject(
+                "SELECT evidence_type_code FROM service.evidence_file_links WHERE id = ?",
+                String.class, linkId);
+        String fileType = jdbcTemplate.queryForObject(
+                "SELECT uploaded_evidence_type_code FROM service.files WHERE id = ?",
+                String.class, fileId);
+
+        assert "wearing_photo".equals(linkType) : "expected link wearing_photo but got " + linkType;
+        assert "wearing_photo".equals(fileType) : "expected file wearing_photo but got " + fileType;
+    }
+
     // ─── fixtures ─────────────────────────────────────────────────────────
 
     private Map<String, String> createUser(String roleCode) {
@@ -158,12 +191,16 @@ class EvidenceFileLinkMoveSyncTest {
     }
 
     private int insertItem(int statementId) {
+        return insertItem(statementId, "CAT_01");
+    }
+
+    private int insertItem(int statementId, String categoryCode) {
         return jdbcTemplate.queryForObject("""
                 INSERT INTO service.usage_statement_items
                     (usage_statement_id, category_code, used_on, item_name, unit, quantity, unit_price, total_amount, page_no)
-                VALUES (?, 'CAT_01', '2026-05-01', '안전관리자 임금', '월', 1, 500000, 500000, 1)
+                VALUES (?, ?, '2026-05-01', '안전관리자 임금', '월', 1, 500000, 500000, 1)
                 RETURNING id
-                """, Integer.class, statementId);
+                """, Integer.class, statementId, categoryCode);
     }
 
     private int getUserId(String employeeNo) {
