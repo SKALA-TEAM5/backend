@@ -29,6 +29,15 @@ import java.util.stream.Collectors;
 @Service
 public class EvidenceCommandService {
 
+	// CAT_03(보호구 등)에 들어오는 사진류 증빙은 의미상 모두 "보호구 착용 상태 사진"이다.
+	// 프론트는 사진 폴더의 세부타입을 대표버킷(site_photo)으로 평탄화해 보내므로,
+	// 이 카테고리에 한해 사진류 코드를 wearing_photo로 강제 정규화한다.
+	private static final String PROTECTIVE_EQUIPMENT_CATEGORY = "CAT_03";
+	private static final String WEARING_PHOTO = "wearing_photo";
+	private static final Set<String> PHOTO_EVIDENCE_TYPES = Set.of(
+			"site_photo", "item_photo", "wearing_photo", "work_photo", "tech_guidance_photo"
+	);
+
 	private final ProjectAccessService projectAccessService;
 	private final EvidenceQueryService evidenceQueryService;
 	private final EvidenceFileLinkRepository linkRepository;
@@ -70,11 +79,12 @@ public class EvidenceCommandService {
 			throw new ApiException(HttpStatus.CONFLICT, "이미 연결된 파일입니다.");
 		}
 
+		String evidenceTypeCode = resolveEvidenceType(item.getCategoryCode(), request.evidenceTypeCode());
 		try {
 			EvidenceFileLink link = linkRepository.save(EvidenceFileLink.create(
 					item.getId(),
 					file.getId(),
-					request.evidenceTypeCode()
+					evidenceTypeCode
 			));
 			recalculateRequirements(item.getId());
 			revertToDraftIfNeeded(item.getUsageStatementId());
@@ -98,10 +108,11 @@ public class EvidenceCommandService {
 			throw new ApiException(HttpStatus.CONFLICT, "대상 상세항목에 이미 연결된 파일입니다.");
 		}
 
-		link.moveTo(targetItem.getId(), request.evidenceTypeCode());
+		String evidenceTypeCode = resolveEvidenceType(targetItem.getCategoryCode(), request.evidenceTypeCode());
+		link.moveTo(targetItem.getId(), evidenceTypeCode);
 		ProjectFile file = fileRepository.findByIdAndProjectId(link.getFileId(), projectId)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
-		file.changeUploadedEvidenceTypeCode(request.evidenceTypeCode());
+		file.changeUploadedEvidenceTypeCode(evidenceTypeCode);
 		recalculateRequirements(previousItemId);
 		recalculateRequirements(targetItem.getId());
 		revertToDraftIfNeeded(targetItem.getUsageStatementId());
@@ -174,6 +185,13 @@ public class EvidenceCommandService {
 	private void revertToDraftIfNeeded(Long usageStatementId) {
 		usageStatementRepository.findById(usageStatementId)
 				.ifPresent(UsageStatement::revertToDraft);
+	}
+
+	private String resolveEvidenceType(String categoryCode, String evidenceTypeCode) {
+		if (PROTECTIVE_EQUIPMENT_CATEGORY.equals(categoryCode) && PHOTO_EVIDENCE_TYPES.contains(evidenceTypeCode)) {
+			return WEARING_PHOTO;
+		}
+		return evidenceTypeCode;
 	}
 
 	private void requireEvidenceType(String evidenceTypeCode) {
