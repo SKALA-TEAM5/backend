@@ -191,9 +191,10 @@ class ProjectRequirementContractTest {
 				.andExpect(jsonPath("$.data.items", hasSize(1)))
 				.andExpect(jsonPath("$.data.items[0].id").value(assignedProjectId));
 
+		// 미배정 admin은 타인의 프로젝트 상세에 직접 URL로 접근할 수 없다
 		mockMvc.perform(get("/projects/{projectId}", otherProjectId)
 						.cookie(managerCookie))
-				.andExpect(status().isOk());
+				.andExpect(status().isForbidden());
 	}
 
 	@Test
