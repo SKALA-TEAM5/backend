@@ -43,8 +43,25 @@ public class RefreshTokenService {
 
 	@Transactional
 	public User rotate(String rawToken) {
-		RefreshToken refreshToken = findActiveToken(rawToken);
-		refreshToken.revoke(Instant.now());
+		if (rawToken == null || rawToken.isBlank()) {
+			throw new ApiException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.");
+		}
+
+		Instant now = Instant.now();
+		RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(hash(rawToken))
+				.orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
+
+		// 이미 revoke된(=한 번 rotate된) 토큰의 재사용 = 탈취 의심 → 해당 사용자의 모든 활성 토큰 일괄 무효화
+		if (refreshToken.getRevokedAt() != null) {
+			refreshTokenRepository.revokeActiveTokensByUserId(refreshToken.getUser().getId(), now);
+			throw new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다.");
+		}
+
+		if (!refreshToken.isActive(now)) {
+			throw new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다.");
+		}
+
+		refreshToken.revoke(now);
 		return refreshToken.getUser();
 	}
 
@@ -65,20 +82,6 @@ public class RefreshTokenService {
 	@Transactional
 	public void deleteTokensByUserId(Long userId) {
 		refreshTokenRepository.deleteByUserId(userId);
-	}
-
-	private RefreshToken findActiveToken(String rawToken) {
-		if (rawToken == null || rawToken.isBlank()) {
-			throw new ApiException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.");
-		}
-
-		RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(hash(rawToken))
-				.orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다."));
-
-		if (!refreshToken.isActive(Instant.now())) {
-			throw new ApiException(HttpStatus.UNAUTHORIZED, "유효하지 않은 인증 정보입니다.");
-		}
-		return refreshToken;
 	}
 
 	private String generateTokenValue() {

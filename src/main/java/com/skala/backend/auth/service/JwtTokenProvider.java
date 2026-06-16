@@ -10,24 +10,35 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Date;
 
 @Component
 public class JwtTokenProvider {
 
+	private static final Logger log = LoggerFactory.getLogger(JwtTokenProvider.class);
+
 	private static final String ROLE_CLAIM = "role";
 
+	/** application.yaml에 커밋된 로컬 개발용 기본 secret. 운영(prod 프로필)에서는 사용 금지. */
+	static final String INSECURE_DEFAULT_SECRET = "local-development-jwt-secret-must-be-at-least-32-bytes";
+
 	private final AuthProperties authProperties;
+	private final Environment environment;
 	private SecretKey key;
 
-	public JwtTokenProvider(AuthProperties authProperties) {
+	public JwtTokenProvider(AuthProperties authProperties, Environment environment) {
 		this.authProperties = authProperties;
+		this.environment = environment;
 	}
 
 	@PostConstruct
@@ -36,7 +47,19 @@ public class JwtTokenProvider {
 		if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
 			throw new IllegalStateException("app.auth.jwt.secret must be at least 32 bytes.");
 		}
+		if (INSECURE_DEFAULT_SECRET.equals(secret)) {
+			if (isProductionProfile()) {
+				throw new IllegalStateException(
+						"app.auth.jwt.secret is the committed default value. Set APP_JWT_SECRET to a unique secret in production.");
+			}
+			log.warn("app.auth.jwt.secret is the committed development default. "
+					+ "This MUST be overridden via APP_JWT_SECRET outside local development.");
+		}
 		this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+	}
+
+	private boolean isProductionProfile() {
+		return Arrays.asList(environment.getActiveProfiles()).contains("prod");
 	}
 
 	public String createAccessToken(User user) {
