@@ -142,11 +142,14 @@ public class ProjectFileController {
 			)
 			@RequestParam String evidenceTypeCode,
 			@RequestParam MultipartFile file,
+			@Parameter(description = "증빙이 속한 사용내역서 ID. 증빙 업로드 시 전달하면 매칭이 해당 사용내역서로 한정됩니다. 원본 PDF 업로드 시에는 생략합니다.")
+			@RequestParam(required = false) Long usageStatementId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant capturedAt
 	) {
 		ProjectFileUploadResponse response = projectFileService.upload(
 				currentUser.id(),
 				projectId,
+				usageStatementId,
 				evidenceTypeCode,
 				file,
 				capturedAt

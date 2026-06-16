@@ -21,6 +21,10 @@ public class ProjectFile {
 	@Column(name = "project_id", nullable = false)
 	private Long projectId;
 
+	// 소속 사용내역서ID. 증빙 업로드 시 기록되며, 원본 PDF 업로드처럼 statement가 아직 없는 경우 null.
+	@Column(name = "usage_statement_id")
+	private Long usageStatementId;
+
 	@Column(name = "uploaded_by_user_id", nullable = false)
 	private Long uploadedByUserId;
 
@@ -54,8 +58,9 @@ public class ProjectFile {
 	protected ProjectFile() {
 	}
 
-	private ProjectFile(Long projectId, Long uploadedByUserId, String uploadedEvidenceTypeCode, String originalFilename, String storageKey, String mimeType, Long sizeBytes, Instant capturedAt) {
+	private ProjectFile(Long projectId, Long usageStatementId, Long uploadedByUserId, String uploadedEvidenceTypeCode, String originalFilename, String storageKey, String mimeType, Long sizeBytes, Instant capturedAt) {
 		this.projectId = projectId;
+		this.usageStatementId = usageStatementId;
 		this.uploadedByUserId = uploadedByUserId;
 		this.uploadedEvidenceTypeCode = uploadedEvidenceTypeCode;
 		this.originalFilename = originalFilename;
@@ -65,8 +70,8 @@ public class ProjectFile {
 		this.capturedAt = capturedAt;
 	}
 
-	public static ProjectFile create(Long projectId, Long uploadedByUserId, String uploadedEvidenceTypeCode, String originalFilename, String storageKey, String mimeType, Long sizeBytes, Instant capturedAt) {
-		return new ProjectFile(projectId, uploadedByUserId, uploadedEvidenceTypeCode, originalFilename, storageKey, mimeType, sizeBytes, capturedAt);
+	public static ProjectFile create(Long projectId, Long usageStatementId, Long uploadedByUserId, String uploadedEvidenceTypeCode, String originalFilename, String storageKey, String mimeType, Long sizeBytes, Instant capturedAt) {
+		return new ProjectFile(projectId, usageStatementId, uploadedByUserId, uploadedEvidenceTypeCode, originalFilename, storageKey, mimeType, sizeBytes, capturedAt);
 	}
 
 	public void changeUploadedEvidenceTypeCode(String uploadedEvidenceTypeCode) {
@@ -84,6 +89,7 @@ public class ProjectFile {
 
 	public Long getId() { return id; }
 	public Long getProjectId() { return projectId; }
+	public Long getUsageStatementId() { return usageStatementId; }
 	public Long getUploadedByUserId() { return uploadedByUserId; }
 	public String getUploadedEvidenceTypeCode() { return uploadedEvidenceTypeCode; }
 	public String getOriginalFilename() { return originalFilename; }
