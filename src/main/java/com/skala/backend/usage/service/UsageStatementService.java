@@ -244,7 +244,8 @@ public class UsageStatementService {
 	 *
 	 * 정리 순서(자식 → 부모): agent_logs → evidence_requirements → evidence_file_links
 	 * → usage_statement_items → usage_statement_summaries → agent_usage_records(참조 NULL)
-	 * → usage_statements(todos는 FK CASCADE) → 고아 파일(DB) → (커밋 후) MinIO 오브젝트.
+	 * → files(usage_statement_id 참조 NULL) → usage_statements(todos는 FK CASCADE)
+	 * → 고아 파일(DB) → (커밋 후) MinIO 오브젝트.
 	 *
 	 * 관계형 데이터는 단일 트랜잭션으로 원자적으로 정리되고, 원자화 불가능한 MinIO 오브젝트 제거만
 	 * 커밋 이후 best-effort로 수행한다. 실패 시 무해한 스토리지 찌꺼기로 남으며 삭제는 성공 처리된다.
@@ -276,6 +277,7 @@ public class UsageStatementService {
 		itemRepository.deleteByUsageStatementId(statementId);
 		summaryRepository.deleteByUsageStatementId(statementId);
 		agentUsageRecordRepository.clearUsageStatementId(statementId);
+		fileRepository.clearUsageStatementId(statementId); // files.usage_statement_id FK(NO ACTION) 위반 방지 — 참조만 끊고 고아 제거는 아래에서
 		statementRepository.delete(statement);          // todos는 FK ON DELETE CASCADE로 함께 제거
 		statementRepository.flush();                    // 제약 위반을 커밋 전에 표면화
 
