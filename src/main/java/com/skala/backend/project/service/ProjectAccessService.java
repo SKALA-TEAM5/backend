@@ -127,10 +127,10 @@ public class ProjectAccessService {
 	}
 
 	private void requireProjectAccess(User currentUser, Long projectId) {
-		if (currentUser.getRoleCode() == RoleCode.ADMIN || currentUser.getRoleCode() == RoleCode.AGENT) {
+		if (currentUser.getRoleCode() == RoleCode.AGENT) {
 			return;
 		}
-		if (currentUser.getRoleCode() == RoleCode.USER
+		if ((currentUser.getRoleCode() == RoleCode.ADMIN || currentUser.getRoleCode() == RoleCode.USER)
 				&& assignmentRepository.existsByProjectIdAndUserId(projectId, currentUser.getId())) {
 			return;
 		}
