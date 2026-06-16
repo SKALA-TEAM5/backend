@@ -80,6 +80,29 @@ class UsageStatementDeleteControllerTest {
 	}
 
 	@Test
+	void 증빙_파일에_usage_statement_id_참조가_있어도_삭제된다() throws Exception {
+		// 실제 증빙 업로드(/evidence-files/upload) 흐름은 files.usage_statement_id 를 채운다.
+		// 이 참조가 남아있는 상태에서 사용내역서를 삭제할 수 있어야 한다(고아 파일은 함께 제거).
+		Map<String, String> admin = createUser("admin");
+		Cookie adminCookie = loginCookie(admin);
+		int adminId = readUserId(admin);
+		int projectId = createProject(adminCookie);
+
+		int statementId = insertStatement(projectId, "draft");
+		int itemId = insertItem(statementId);
+		int evidenceFile = insertFile(projectId, adminId, "evidence.jpg");
+		jdbcTemplate.update("UPDATE service.files SET usage_statement_id = ? WHERE id = ?", statementId, evidenceFile);
+		insertLink(itemId, evidenceFile);
+
+		mockMvc.perform(delete("/projects/{pid}/usage-statements/{sid}", projectId, statementId)
+						.cookie(adminCookie))
+				.andExpect(status().isOk());
+
+		assertThat(count("usage_statements", "id = " + statementId)).isZero();
+		assertThat(count("files", "id = " + evidenceFile)).isZero();
+	}
+
+	@Test
 	void 비용기록은_삭제되지_않고_statement_참조만_NULL로_끊긴다() throws Exception {
 		Map<String, String> admin = createUser("admin");
 		Cookie adminCookie = loginCookie(admin);

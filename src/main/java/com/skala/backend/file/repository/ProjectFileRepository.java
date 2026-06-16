@@ -2,8 +2,10 @@ package com.skala.backend.file.repository;
 
 import com.skala.backend.file.domain.ProjectFile;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
@@ -53,4 +55,14 @@ public interface ProjectFileRepository extends JpaRepository<ProjectFile, Long> 
 				AND NOT EXISTS (SELECT 1 FROM service.usage_statements s WHERE s.source_file_id = f.id)
 			""", nativeQuery = true)
 	List<ProjectFile> findUnreferencedFiles(@Param("fileIds") Long[] fileIds);
+
+	/**
+	 * 사용내역서 삭제 시 해당 statement를 가리키는 파일의 참조(usage_statement_id)를 끊는다(SET NULL).
+	 * files.usage_statement_id FK가 ON DELETE NO ACTION이라, statement 삭제 전에 이 참조를 끊지 않으면
+	 * FK 위반이 발생한다. 참조만 끊고 파일 행 자체는 보존하며, 고아 파일 제거는 findUnreferencedFiles가 담당한다.
+	 */
+	@Transactional
+	@Modifying
+	@Query("UPDATE ProjectFile f SET f.usageStatementId = null WHERE f.usageStatementId = :usageStatementId")
+	void clearUsageStatementId(@Param("usageStatementId") Long usageStatementId);
 }
