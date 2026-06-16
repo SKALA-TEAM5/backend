@@ -103,8 +103,11 @@ public class FastApiAgentClient {
 		@SuppressWarnings("unchecked")
 		Map<String, Object> result = (Map<String, Object>) raw.get("result");
 		int itemCount = result != null ? toInt(result.get("item_count")) : 0;
+		Map<String, Object> classifierDetails = result != null
+				? asMap(result.get("classifier_details"))
+				: Map.of();
 
-		return new AgentResponses.ParseResult(usageStatementId, itemCount);
+		return new AgentResponses.ParseResult(usageStatementId, itemCount, classifierDetails);
 	}
 
 	// classify: result.payload.changes[0] (변경) 또는 result.payload.results[0] (유지) 에서 추출
@@ -289,5 +292,13 @@ public class FastApiAgentClient {
 		if (value == null) return 0;
 		if (value instanceof Number number) return number.intValue();
 		try { return Integer.parseInt(value.toString()); } catch (NumberFormatException e) { return 0; }
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<String, Object> asMap(Object value) {
+		if (value instanceof Map<?, ?> map) {
+			return (Map<String, Object>) map;
+		}
+		return Map.of();
 	}
 }

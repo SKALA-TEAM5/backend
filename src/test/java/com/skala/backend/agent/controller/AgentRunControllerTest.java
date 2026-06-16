@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -51,22 +52,38 @@ class AgentRunControllerTest {
 
     // ─── POST /agents/parse ───────────────────────────────────────────────
 
-    @Test
-    void parse_성공_시_usageStatementId와_itemCount를_반환한다() throws Exception {
-        Cookie cookie = loginCookie(createUser("admin"));
-        int projectId = createProject(cookie);
+	@Test
+	void parse_성공_시_usageStatementId와_itemCount와_classifierDetails를_반환한다() throws Exception {
+		Cookie cookie = loginCookie(createUser("admin"));
+		int projectId = createProject(cookie);
+		Map<String, Object> classifierDetails = Map.of(
+				"event", "classification_updated",
+				"payload", Map.of(
+						"changed_count", 1,
+						"changes", List.of(Map.of(
+								"item_name", "안전모 (ABS 산업용)",
+								"before", Map.of("category_code", "CAT_02"),
+								"after", Map.of("category_code", "CAT_03")
+						))
+				)
+		);
 
-        when(fastApiAgentClient.parseUsageStatement(anyLong(), anyLong(), anyInt(), anyInt()))
-                .thenReturn(new AgentResponses.ParseResult(42L, 15));
+		when(fastApiAgentClient.parseUsageStatement(anyLong(), anyLong(), anyInt(), anyInt()))
+				.thenReturn(new AgentResponses.ParseResult(42L, 15, classifierDetails));
 
-        mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
-                        .cookie(cookie)
+		mockMvc.perform(post("/projects/{pid}/agents/parse", projectId)
+						.cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("fileId", 10, "year", 2026, "month", 6))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.usageStatementId").value(42))
-                .andExpect(jsonPath("$.data.itemCount").value(15));
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.usageStatementId").value(42))
+				.andExpect(jsonPath("$.data.itemCount").value(15))
+				.andExpect(jsonPath("$.data.classifierDetails.event").value("classification_updated"))
+				.andExpect(jsonPath("$.data.classifierDetails.payload.changed_count").value(1))
+				.andExpect(jsonPath("$.data.classifierDetails.payload.changes[0].item_name").value("안전모 (ABS 산업용)"))
+				.andExpect(jsonPath("$.data.classifierDetails.payload.changes[0].before.category_code").value("CAT_02"))
+				.andExpect(jsonPath("$.data.classifierDetails.payload.changes[0].after.category_code").value("CAT_03"));
 
         verify(fastApiAgentClient).parseUsageStatement(eq((long) projectId), eq(10L), eq(2026), eq(6));
     }

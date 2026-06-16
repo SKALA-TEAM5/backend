@@ -40,7 +40,8 @@ public final class AgentResponses {
 	@Schema(description = "사용내역서 파싱 결과")
 	public record ParseResult(
 			@Schema(description = "생성된 사용내역서 ID") Long usageStatementId,
-			@Schema(description = "파싱된 세부항목 수") int itemCount
+			@Schema(description = "파싱된 세부항목 수") int itemCount,
+			@Schema(description = "classi 분류 상세 결과") Map<String, Object> classifierDetails
 	) {}
 
 	@Schema(description = "agent 동기 실행 결과 (validate / legal / report)")
