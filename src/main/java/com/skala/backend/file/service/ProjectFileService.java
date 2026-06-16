@@ -14,6 +14,8 @@ import com.skala.backend.file.repository.ProjectFileRepository;
 import com.skala.backend.global.error.ApiException;
 import com.skala.backend.project.service.CodeLookupService;
 import com.skala.backend.project.service.ProjectAccessService;
+import com.skala.backend.usage.domain.UsageStatementItem;
+import com.skala.backend.usage.repository.UsageStatementItemRepository;
 import com.skala.backend.usage.repository.UsageStatementRepository;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
@@ -55,6 +57,7 @@ public class ProjectFileService {
 	private final CodeLookupService codeLookupService;
 	private final EvidenceCommandService evidenceCommandService;
 	private final UsageStatementRepository usageStatementRepository;
+	private final UsageStatementItemRepository usageStatementItemRepository;
 	private final MinioClient minioClient;
 	private final VisionDetectionParser visionDetectionParser;
 	private final String bucket;
@@ -65,6 +68,7 @@ public class ProjectFileService {
 			CodeLookupService codeLookupService,
 			EvidenceCommandService evidenceCommandService,
 			UsageStatementRepository usageStatementRepository,
+			UsageStatementItemRepository usageStatementItemRepository,
 			MinioClient minioClient,
 			VisionDetectionParser visionDetectionParser,
 			@Value("${app.file-storage.bucket}") String bucket
@@ -74,6 +78,7 @@ public class ProjectFileService {
 		this.codeLookupService = codeLookupService;
 		this.evidenceCommandService = evidenceCommandService;
 		this.usageStatementRepository = usageStatementRepository;
+		this.usageStatementItemRepository = usageStatementItemRepository;
 		this.minioClient = minioClient;
 		this.visionDetectionParser = visionDetectionParser;
 		this.bucket = bucket;
@@ -104,13 +109,17 @@ public class ProjectFileService {
 	}
 
 	@Transactional
-	public ProjectFileUploadResponse upload(Long currentUserId, Long projectId, String evidenceTypeCode, MultipartFile multipartFile, Instant capturedAt) {
+	public ProjectFileUploadResponse upload(Long currentUserId, Long projectId, Long usageStatementId, String evidenceTypeCode, MultipartFile multipartFile, Instant capturedAt) {
 		projectAccessService.requireWritable(currentUserId, projectId);
 		if (!codeLookupService.evidenceTypeExists(evidenceTypeCode)) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "지원하지 않는 증빙 타입입니다.");
 		}
 		if (multipartFile == null || multipartFile.isEmpty()) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "file은 필수입니다.");
+		}
+		// 증빙이 어느 사용내역서 것인지 기록한다. 주어졌다면 해당 프로젝트 소속인지 검증.
+		if (usageStatementId != null && !usageStatementRepository.existsByIdAndProjectId(usageStatementId, projectId)) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "해당 프로젝트의 사용내역서가 아닙니다.");
 		}
 
 		String originalFilename = multipartFile.getOriginalFilename() == null ? "upload" : multipartFile.getOriginalFilename();
@@ -136,6 +145,7 @@ public class ProjectFileService {
 
 		ProjectFile file = fileRepository.save(ProjectFile.create(
 				projectId,
+				usageStatementId,
 				currentUserId,
 				evidenceTypeCode,
 				originalFilename,
@@ -181,7 +191,11 @@ public class ProjectFileService {
 
 	@Transactional
 	public UploadAndLinkResponse uploadAndLink(Long currentUserId, Long projectId, Long itemId, String evidenceTypeCode, MultipartFile multipartFile, Instant capturedAt) {
-		ProjectFileUploadResponse uploaded = upload(currentUserId, projectId, evidenceTypeCode, multipartFile, capturedAt);
+		// itemId에서 소속 사용내역서를 도출해 파일에 기록한다(프론트 파라미터 불필요).
+		// findProjectItem이 항목의 프로젝트 소속까지 검증하므로, 불일치 시 여기서 404로 차단된다.
+		UsageStatementItem item = usageStatementItemRepository.findProjectItem(projectId, itemId)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "세부항목을 찾을 수 없습니다."));
+		ProjectFileUploadResponse uploaded = upload(currentUserId, projectId, item.getUsageStatementId(), evidenceTypeCode, multipartFile, capturedAt);
 		EvidenceLinkResponse linked = evidenceCommandService.linkFile(
 				currentUserId, projectId, itemId,
 				new LinkEvidenceFileRequest(uploaded.fileId(), evidenceTypeCode)
